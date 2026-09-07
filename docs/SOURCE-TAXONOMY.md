@@ -25,9 +25,9 @@ Sources are selected to cover the matrix — every row and column should have at
 | **Geography** | National · main centres (Auckland/Wellington/Christchurch) · provincial/rural (LDR network covers council/local-democracy claims) |
 | **Language/culture** | English · Māori-language and Māori-issues media · Pacific media · ethnic/community media |
 | **Format** | Text/news · radio/TV transcripts · press releases (primary claim sources, not media) · Hansard (the on-the-record baseline) |
-| **Audience/political position** | General · business/economics · progressive-leaning · conservative-leaning · youth/social — *recorded as metadata for coverage auditing, never for verdict weighting* |
+| **Audience/community served** | General national · business/economics readership · Māori audiences · Pacific audiences · ethnic/community audiences · youth/social · regional communities |
 
-The last row needs care: **political-position metadata is used only to audit coverage** (are we seeing claims from across the spectrum?), never to select or score claims. Verdict criteria are party-blind by construction (ADR-0006).
+**Why "audience" and not "political position":** an outlet's audience is observable (who reads/watches it, what it covers for whom) without the project publishing judgements about other outlets' political leanings — which would be subjective, attackable ("the fact-checkers labelled us X-leaning"), and unnecessary for the audit's job. The audit's question is **"which audiences and communities are not producing claims into our system?"** — a gap question answerable from audience descriptors, not a leaning question. Verdict criteria are party-blind by construction (ADR-0006), and no source is included or excluded based on any assessment of its politics.
 
 ### 1.3 Proposed claim-source set (v1)
 
