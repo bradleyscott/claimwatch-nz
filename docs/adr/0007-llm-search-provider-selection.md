@@ -75,22 +75,7 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 - **GLM-5.3** has no published per-token rate on Z.ai's own card (coding-plan-gated at launch) — third-party per-token rates ($1.40/$4.40) are the budgeting basis, and that's another reason to route via non-Chinese aggregators.
 - Both are harness-gated identically to Set A models: bias probe included, calibration published.
 
-**Volume economics — built to Bradley's budget constraint ($300 total for the 6-month initial period, Sep–Nov 2026 = $1.67/day all-in):**
-
-The earlier ~$15–50/day verdict-critical estimate came from unbounded volumes (100 claims/day with Opus-set routing) — and Bradley's $300/6-months cap changes the primary design constraint: **the budget, not accuracy, is the binding ceiling, so the routing must be set to fit the cap and the harness must confirm accuracy within it.** Recomputed honestly:
-
-| Item | Unit cost (Set B, batch-discounted) | Daily volume (initial, pre-campaign-peak) | $/day |
-|---|---|---|---|
-| Ingestion + triage (GLM-5.3-Flash, batch) | ~$0.075/1M × 0.5 batch × ~300K tok | ~$0.011 | $0.01 |
-| Search (Serper bulk, ~30 queries/day initial) | ~$0.0006/query | ~$0.02 | $0.02 |
-| Claim verification (GLM-5.3, batch; ~$0.011/claim) | scaled to daily claim volume | — | ~$1.30 at **~120 claims/day** |
-| **Total** | | | **≈ $1.33/day** → **~$240 over 180 days** ✅ inside $300 with ~20% headroom |
-
-**What the cap buys vs what it constrains:**
-- **Set B routing everywhere in v1** (GLM-5.3 verdicts at ~$0.011/claim batched; Opus/Sol reserved for the *sampled audit lane* only, ~2–5% of verdicts → ~$0.10–0.50/day). Set A remains the escalation path if the harness shows GLM-5.3's calibration falling short — but escalation then requires either raising the cap or dropping volume, an explicit trade documented at the time.
-- **Volume discipline**: ~120 claims/day affordable at peak; claims above that queue for next-day batch (no realtime lane except user-viewed verdict pages). The submission-priority signal (ADR-0002) reorders the queue within the day's budget.
-- **The harness is cheap and inside the cap**: two scoring runs over 100 claims ≈ $2–6 total at Set B rates.
-- **Cost monitoring is a build item**: a daily spend dashboard with alerting at 80% of daily budget (the NZH silently-empty-feed failure mode has a cost twin — a runaway loop burning budget).
+**Volume economics at campaign scale (~100 claims/day, ~5 search queries/claim):** with tiered routing (GLM-5.3-class verdicts batched, frontier models in the audit lane), total LLM+search spend ≈ **$10–50/day blended** at campaign peak — with batch discounts applied, trending toward the low end. Model choice per role is accuracy-dominant; the tiered routing exists so that accuracy doesn't force premium pricing everywhere, and the harness arbitrates per role.
 
 **Batch / non-realtime processing (50% discount — applies to most of our workload):**
 
