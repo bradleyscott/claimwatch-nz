@@ -95,7 +95,7 @@ Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` fo
 
 ### 2.2 Authority map by election-relevant policy domain
 
-This is the v1 map — each row becomes (part of) a topic pack under ADR-0004. The selection criterion: **domains where campaign claims concentrate**, cross-checked against 2020/2023 campaign topic frequency and news volume. "Denominator family" lists the alternative framings the sensitivity grid must compute.
+This is the v1 map — each row is retrieval guidance for the claim-anchored evidence store under ADR-0010. The selection criterion: **domains where campaign claims concentrate**, cross-checked against 2020/2023 campaign topic frequency and news volume. "Denominator family" lists the alternative framings the sensitivity grid must compute.
 
 | Policy domain | T1/T2 primary authorities | T3/T4 alternates | Key denominator family |
 |---|---|---|---|
@@ -115,7 +115,7 @@ This is the v1 map — each row becomes (part of) a topic pack under ADR-0004. T
 | **Public service/state sector** | Public Service Commission workforce data | Treasury/DIA | headcount vs spend; per-capita admin cost |
 
 **Map hygiene rules:**
-- Every topic pack declares: primary authority (with series IDs), alternates, denominator family, series vintages, and revision policy.
+- Every domain declares: primary authority (with series IDs), alternates, denominator family, series vintages, and revision policy — these configure the retrieval loop (ADR-0010).
 - A claim citing a source *outside* the map gets the open-web loop plus an explicit note that no pre-vetted authority exists for the domain.
 - The map is versioned and public; domain experts (academic and official-statistics people) are invited to contest entries — same mutation model as verdicts.
 
@@ -124,7 +124,7 @@ This is the v1 map — each row becomes (part of) a topic pack under ADR-0004. T
 - **NZ Herald Premium analysis**: covered by the paywall policy, not the authority map (it's a claim source, never evidence).
 - **Claims about the future** (forecasts, pledges): checkable only as *consistency* claims ("does this pledge match the published fiscal forecasts?") — the map supports that; outcome verification is impossible. The verdict vocabulary includes "pledge — not yet checkable."
 - **International claims** rely on T6 comparators with their own revision cycles; vintage-dating is mandatory here.
-- **Domain coverage vs capacity**: the v1 map ships with the eight highest-traffic domains fully specified (crime, economy, employment, immigration, housing, health, education, welfare); the rest arrive as topic packs are built (ADR-0004) — the table above is the target state, not the v1 delivery.
+- **Domain coverage vs capacity**: the v1 map ships with the eight highest-traffic domains fully specified (crime, economy, employment, immigration, housing, health, education, welfare); the rest are added to the authority map as claim volume justifies (ADR-0010) — the table above is the target state, not the v1 delivery.
 
 ---
 

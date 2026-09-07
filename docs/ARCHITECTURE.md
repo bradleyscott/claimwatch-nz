@@ -59,7 +59,7 @@ flowchart LR
     C -- "no" --> Z["dropped<br/>(logged for eval)"]
     C -- "yes" --> D["Claim record:<br/>text + type + fingerprint"]
     D --> E{"Claim type"}
-    E -- "statistical" --> F["Fingerprint match<br/>to topic pack"]
+    E -- "statistical" --> F["Fingerprint match<br/>to evidence store"]
     F --> G["Sensitivity grid<br/>over official series"]
     E -- "citation-backed" --> H["Fetch cited doc<br/>claim-vs-source check"]
     E -- "other factual" --> I["Open-web loop<br/>FIRE-style, capped"]
@@ -69,7 +69,7 @@ flowchart LR
     J --> K["Verdict store<br/>v1, labelled open-to-contest"]
 ```
 
-**Reasoning:** three verification modes by claim class (ADR-004). Statistical claims go against pre-computed topic packs (fastest, highest accuracy); citation-backed claims get a bounded claim-vs-source comparison; everything else gets the general open-web loop with a strict step budget — we know from AVeriTeC that this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
+**Reasoning:** three verification modes by claim class (ADR-004). Statistical claims resolve against the claim-anchored evidence store (fast, high accuracy, compounding — see ADR-0010); citation-backed claims get a bounded claim-vs-source comparison; everything else gets the general open-web loop with a strict step budget — we know from AVeriTeC that this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
 
 ## 3. Verdict lifecycle (the mutation model)
 

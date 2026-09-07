@@ -15,7 +15,7 @@ This follows the methodology of the AVeriTeC shared tasks: systems are scored ag
 ### 2.1 Layer 1 — AVeriTeC (immediate benchmark)
 
 - **Source**: the public AVeriTeC dataset (CC BY-NC 4.0 — evaluation use is fine; not for training a commercial product on it; verify terms at time of use). It comes with question–answer evidence annotations, a public evaluation script (EV2R / Hungarian-METEOR scoring), and published reference scores (2024 winner 63% with GPT-4o; 2025 open-weights winner 33%).
-- **Scope of what it measures**: the generic open-web verification loop — question decomposition, evidence retrieval, verdict calibration, justification quality. It is **blind to the NZ-specific machinery**: no topic packs, no NZ official-series retrieval, no sensitivity grid.
+- **Scope of what it measures**: the generic open-web verification loop — question decomposition, evidence retrieval, verdict calibration, justification quality. It is **blind to the NZ-specific machinery**: no NZ official-series retrieval, no claim-anchored evidence store, no sensitivity grid.
 - **Role**: regression gate for the generic verification mode from week 1 of the build; position against the published field is interpretable from day one. A high AVeriTeC score means the generic loop works — it does *not* mean the NZ-specific engine works.
 
 ### 2.2 Layer 2 — the NZ-labelled set (n=100)
@@ -60,7 +60,7 @@ This produces the dataset that can answer the question the sector is actively ar
 |---|---|---|
 | Is the generic verification loop competent? | ✅ primary measure | — |
 | Are verdicts calibrated (abstention quality)? | ✅ comparable to published field | ✅ on NZ material |
-| Does the NZ source ecosystem work (retrieval, reading, topic packs)? | ❌ blind to it | ✅ primary measure |
+| Does the NZ source ecosystem work (retrieval, reading, the claim-anchored evidence store)? | ❌ blind to it | ✅ primary measure |
 | Is the sensitivity grid / stat engine sound? | ❌ not exercised | ✅ (stratified by claim type) |
 
 ## 7. Temporal leakage controls

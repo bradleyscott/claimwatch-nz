@@ -7,7 +7,7 @@
 Two paths to a monitoring/triage engine:
 
 1. **License Full Fact AI** — battle-tested (45+ orgs, 30 countries, 12 national elections), zero engineering risk on that layer, but a closed core pipeline, dependency on a UK charity's roadmap and pricing, NZ-source onboarding unknown, and grant-subsidised deployments typical (they were actively offering subsidised licences to US newsrooms ahead of the 2026 midterms).
-2. **Build open** — own everything, tailor to NZ (Stats NZ series, Hansard, Beehive), no licence risk, and the produced assets (labelled claim set, mutation/audit dataset, topic packs) remain ours and are licensable later.
+2. **Build open** — own everything, tailor to NZ (Stats NZ series, Hansard, Beehive), no licence risk, and the produced assets (labelled claim set, mutation/audit dataset, the claim-anchored evidence store) remain ours and are licensable later.
 
 ## Decision
 

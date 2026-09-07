@@ -1,4 +1,4 @@
-# ADR-0004: Statistical-claim verification via fingerprint + topic packs + sensitivity grid, within a multi-mode verification layer
+# ADR-0004: Statistical-claim verification via fingerprint + claim-anchored evidence store + sensitivity grid, within a multi-mode verification layer
 
 *Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
 

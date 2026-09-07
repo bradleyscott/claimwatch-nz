@@ -113,7 +113,7 @@ The quick-build version for the 2026 election cycle: **100 labelled claims**, do
 | ADR-001 | Human-in-the-loop posture: automated verdicts published as "open to contest" with no per-verdict sign-off | Proposed |
 | ADR-002 | Ingestion scope for 2026 cycle (Hansard + releases first; TV transcription deferred) | Proposed |
 | ADR-003 | Build vs license Full Fact tooling | Decided: build (open) |
-| ADR-004 | Verification architecture: multi-mode layer (stat-fingerprint + topic packs primary for stats; citation-check; false-context; capped open-web loop) | Proposed |
+| ADR-004 | Verification architecture: multi-mode layer (stat-fingerprint + claim-anchored evidence store for stats; citation-check; false-context; capped open-web loop) | Proposed |
 | ADR-005 | Contestation mechanism for v1 (structured contest + validation + human mutation review; bridging deferred) | Proposed |
 | ADR-006 | Verdict language standard ("claims, not persons") and mutation freeze | Proposed |
 | ADR-007 | LLM/search provider selection | Open |

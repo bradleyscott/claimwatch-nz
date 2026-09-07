@@ -16,7 +16,7 @@ The NZ-specificity question, examined: does claim content need to be NZ-specific
 
 - The AVeriTeC dataset (public, CC-licensed, ~4,568 real-world claims from 50 fact-checking organisations, each with question–answer evidence annotations and verdicts: Supported / Refuted / Not Enough Evidence / Conflicting Evidence) is used directly as the pipeline's first benchmark.
 - It measures what it genuinely measures for us: **end-to-end open-web verification skill** — question decomposition, evidence retrieval, verdict calibration, justification quality — against a published field of reference scores (2024 winner 63%, 2025 open-weights winner 33%, so our pipeline's position is interpretable from day one).
-- Honest limitations, stated in the harness docs: claims are US/open-web-centric (most common evidence domains: NLM, Reddit, ScienceDirect, Wikipedia, BBC, NYT, CNN); **no NZ sources and no NZ evidence ecosystem**; claim style is fact-check-organisation style, not NZ Hansard/release style; and it does not exercise our differentiating machinery at all — no topic packs, no NZ official-series retrieval, no sensitivity grid. A high AVeriTeC score does not mean the NZ-specific engine works; it means the generic loop works.
+- Honest limitations, stated in the harness docs: claims are US/open-web-centric (most common evidence domains: NLM, Reddit, ScienceDirect, Wikipedia, BBC, NYT, CNN); **no NZ sources and no NZ evidence ecosystem**; claim style is fact-check-organisation style, not NZ Hansard/release style; and it does not exercise our differentiating machinery at all — no NZ official-series retrieval, no claim-anchored evidence store, no sensitivity grid. A high AVeriTeC score does not mean the NZ-specific engine works; it means the generic loop works.
 - Practical role: the regression gate for the generic verification mode from week 1 of the build; the pipeline runs AVeriTeC's dev set before any NZ labelling exists. **No NZ-set dependency blocks early pipeline development.**
 
 **Layer 2 — the NZ-labelled set as the domain calibration set (n=100, per the original plan).**
@@ -31,7 +31,7 @@ The NZ-specificity question, examined: does claim content need to be NZ-specific
 |---|---|---|
 | Is the generic verification loop competent? | ✅ primary measure | — |
 | Are verdicts calibrated (abstention quality)? | ✅ comparable to published field | ✅ on NZ material |
-| Does the NZ source ecosystem work (retrieval, reading, topic packs)? | ❌ blind to it | ✅ primary measure |
+| Does the NZ source ecosystem work (retrieval, reading, the claim-anchored evidence store)? | ❌ blind to it | ✅ primary measure |
 | Is the sensitivity grid / stat engine sound? | ❌ not exercised | ✅ (stratified by claim type) |
 
 **Reporting:** the public methodology page reports both layers separately, never blended into one headline number.

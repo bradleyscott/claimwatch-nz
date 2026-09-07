@@ -27,7 +27,7 @@
 - Spending caps and third-party-promoter registration apply during the **regulated period (7 Aug – 6 Nov 2026)** above a spending threshold.
 
 **Design response:**
-1. The site never solicits or discourages any vote; non-partisanship is visible and structural (all parties' claims are checked; topic packs are party-blind).
+1. The site never solicits or discourages any vote; non-partisanship is visible and structural (all parties' claims are checked; the evidence store is party-blind).
 2. **Promoter statement appears in the site footer at all times** — a zero-cost insurance policy against the offence provision.
 3. Spend is far below registration thresholds.
 4. Flagged for the pre-launch legal review: the editorial/advertising boundary for automated + community-mutated verdicts.
