@@ -5,7 +5,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-automated-verdicts-as-contestable-assessments.md) | Automated verdicts as contestable assessments, not authoritative facts | Proposed |
-| [0002](0002-ingestion-scope-2026.md) | Ingestion scope 2026: releases, Hansard, news RSS, user submissions; no broadcast/social crawling | Proposed |
+| [0002](0002-ingestion-scope-2026.md) | Ingestion scope 2026: releases, Hansard, news RSS, user submissions, commentator watchlist; no broadcast/social crawling | Proposed |
 | [0003](0003-build-open-vs-license-full-fact.md) | Build open-source vs license Full Fact tooling | **Decided: build open** |
 | [0004](0004-statistical-claim-engine.md) | Statistical-claim engine within a multi-mode verification layer (revised after `docs/MISINFO-TAXONOMY.md`) | Revised, Proposed |
 | [0005](0005-contestation-mechanism-v1.md) | Contestation v1: structured contest + validation + human review | Proposed |

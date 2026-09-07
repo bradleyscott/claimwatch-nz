@@ -15,6 +15,16 @@ Five ingestion lanes for 2026:
 3. **Hansard** (official daily transcripts).
 4. **News RSS** (NZ Herald, RNZ, Stuff) — context and claim-source lane.
 5. **User-submitted content** — the public can submit a URL (news article, press release, social media post) or pasted text claiming it needs checking, optionally quoting the specific claim.
+6. **Commentator watchlist** — a curated register of prominent political commentators (opinion columnists, talkback hosts, Substack/newsletter writers, high-reach social voices) whose published commentary is ingested from accessible surfaces. Inclusion criteria, register mechanics, and boundaries below.
+
+**Commentator watchlist (part of this ADR):**
+
+- **Why:** a material share of campaign claims originates not from parties but from prominent personalities commenting on politics — columnists, talkback/Drive hosts, ex-MPs turned columnists, newsletter writers, high-reach social voices. Party-blind monitoring of official channels misses this layer; their reach often exceeds parties' own channels.
+- **Inclusion criterion — reach, not position:** a personality enters the register by demonstrated public reach in NZ political commentary (column frequency, audience size, broadcast slot) — the same criterion for everyone, applied party-blind, decided via a public decision record (ADR-0009 pathway). The register is published on the site; anyone can propose additions or argue for removal with reasons.
+- **What is ingested per commentator:** (a) their opinion columns in the news lane — already covered by RSS where the outlet publishes them free; (b) their own websites/Substacks/blogs — scraped like party pages; (c) their broadcast/podcast opinion segments — **text where the outlet publishes it** (Newstalk ZB publishes web-text versions of host opinion pieces; RNZ similarly); audio itself remains deferred with the rest of broadcast transcription; (d) their social posts — **not crawled**; captured via user submissions and via news coverage of notable posts. Where a commentator's platform offers legitimate machine access (Substack RSS, YouTube auto-transcripts, Mastodon/Bluesky RSS), a platform-specific watcher may be configured; where the platform provides none (X), submissions fill the gap.
+- **What is checked:** the *factual claims embedded in opinion* — "crime is up 30%", "this policy will cost $X" — via the same claim-detection pipeline. The opinion itself ("this government is incompetent") is never a verdict target. This boundary is stated on every commentator-sourced verdict page: "factual claim from commentary, checked; the opinion is the author's."
+- **Guardrails, tightened for this lane:** commentary names individuals by design, so the claims-not-persons standard does the heaviest lifting here (verdicts address the claim, never the columnist); HDCA content-host process applies to the register's associated contest traffic; fair-dealing quotation bounds apply to paywalled opinion (ADR-0002 paywall policy — several high-reach commentators are Premium-only, so user-submitted quotes and free-visible metadata will be the common claim pointers).
+- **Register hygiene:** reach is re-assessed after the election (registers freeze during the regulated period to avoid mid-campaign "adding the other side's commentator" fights — additions during 7 Aug–27 Nov happen only by decision record with reasons).
 
 **Submission rules (part of this ADR):**
 
@@ -31,7 +41,7 @@ Five ingestion lanes for 2026:
 - **Access paths used, in order of preference:** (1) free sources carrying the same claim (RNZ/Stuff/1News typically report what NZ Herald Premium analyses); (2) legitimately visible metadata; (3) a user-submitted quote (a subscriber quoting the claim they saw is doing what fair dealing permits an individual to do — the quote is then treated as a claim pointer and re-anchored to official sources); (4) if the claim exists *only* inside a paywalled article and nowhere else, it is marked **"claim origin paywalled — verification limited to the quoted claim"** and proceeds like any other claim-pointer-only case.
 - **Future option, not for 2026:** commercial media-monitoring licences (the legal route NZ PR firms use) if post-election scale justifies it.
 
-**Explicitly deferred:** Parliament TV/broadcast transcription (whisper self-hosting is a time sink; Hansard covers the chamber), **proactive social-platform crawling** (API gating and cost; user submissions cover the highest-value social claims without it).
+**Explicitly deferred:** Parliament TV/broadcast transcription (whisper self-hosting is a time sink; Hansard covers the chamber), **proactive social-platform crawling** (API gating and cost; user submissions cover the highest-value social claims without it — including commentator social posts, via the watchlist lane above).
 
 **Access verification:** every source in this ADR was probed for real availability (feeds, bot protection, degradation) on 2026-09-07 — results and mitigations live in `docs/COVERAGE.md`, which must be re-verified at build week 1 and monitored in production. Coverage is a maintained property of the system, not a one-time setup decision.
 
