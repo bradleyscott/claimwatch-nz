@@ -146,6 +146,6 @@ All three major providers offer a **flat 50% discount** on asynchronous batch pr
 
 ## Consequences
 
-- Cost estimate for the 2026 cycle firms up at ~$2–4K total (well inside budget); the accuracy-dominant rule is affordable at our volumes.
+- Cost estimate for the 2026 cycle: ~$2–4K total at the recommended routing; the accuracy-dominant rule is affordable at our volumes.
 - The harness becomes load-bearing for procurement, not just quality — it must exist before launch (already required by ADR-0001/0008).
 - Provider-version pinning and routing config become first-class pipeline config items.
