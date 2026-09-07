@@ -1,0 +1,37 @@
+flowchart TB
+    subgraph SOURCES["NZ open data — public"]
+        BEEHIVE["Beehive.govt.nz<br/>releases + speeches (RSS)"]
+        PARTIES["Party release pages<br/>scraped"]
+        HANSARD["Hansard<br/>official transcripts"]
+        NEWS["News RSS<br/>RNZ · NZ Herald · Stuff"]
+        STATS["Official series<br/>Stats NZ · MoJ · LAWA · Figure NZ"]
+    end
+
+    subgraph CW["ClaimWatch (open source)"]
+        INGEST["Ingestion"]
+        TRIAGE["Claim detection + typing"]
+        VERIFY["Verification engine"]
+        STORE["Verdict store<br/>append-only + audit log"]
+        SITE["Public site<br/>ClaimReview markup"]
+        CONTEST["Contestation intake<br/>+ evidence validation"]
+    end
+
+    PUBLIC["Public:<br/>read, contest, submit evidence"]
+    SEARCH["Google / Bing<br/>fact-check panels"]
+    STEWARDS["Mutation review queue<br/>human check (v1)"]
+
+    BEEHIVE --> INGEST
+    PARTIES --> INGEST
+    HANSARD --> INGEST
+    NEWS --> INGEST
+    INGEST --> TRIAGE
+    TRIAGE --> VERIFY
+    STATS --> VERIFY
+    VERIFY --> STORE
+    STORE --> SITE
+    SITE --> SEARCH
+    SITE --> PUBLIC
+    PUBLIC --> CONTEST
+    CONTEST --> VERIFY
+    CONTEST --> STEWARDS
+    STEWARDS --> STORE

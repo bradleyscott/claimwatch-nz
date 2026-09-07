@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant U as Member of public
+    participant S as Contest intake
+    participant V as Validation pipeline
+    participant Q as Mutation review (human, v1)
+    participant D as Verdict store (append-only)
+
+    U->>S: dispute verdict + cited sources
+    S->>S: rate-limit + email verify
+    S->>V: evidence submitted
+    V->>V: retrieve + authenticate source (provenance, authority, corroboration)
+    alt Evidence fails validation
+        V->>D: rejection logged (public, with reason)
+        V-->>U: notified with reason
+    else Evidence passes
+        V->>Q: proposed verdict change + new evidence pack
+        Q->>D: v(n+1) published with public diff + contributor credit (opt-in)
+        D-->>U: notified of outcome
+    end

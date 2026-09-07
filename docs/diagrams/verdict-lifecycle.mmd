@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> DRAFT: claim detected
+    DRAFT --> PUBLISHED: verified + evidence pack assembled
+    PUBLISHED --> CONTESTED: contest submitted
+    CONTESTED --> VALIDATING: evidence validation runs
+    VALIDATING --> PUBLISHED: evidence rejected (reason logged, public)
+    VALIDATING --> MUTATION_REVIEW: evidence accepted, change proposed
+    MUTATION_REVIEW --> PUBLISHED: human check approves, v2 published with diff
+    MUTATION_REVIEW --> PUBLISHED: human check rejects (reason logged, public)
+    PUBLISHED --> FROZEN: freeze window (5-7 Nov)
+    FROZEN --> PUBLISHED: freeze lifts (after 27 Nov)
