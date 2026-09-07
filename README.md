@@ -30,6 +30,7 @@ Ahead of the 2026 NZ general election (7 November 2026), we are building a publi
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and reasoning per component. |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | How we measure pipeline and community-layer accuracy against labelled ground truth. |
 | [`docs/COVERAGE.md`](docs/COVERAGE.md) | Verified access map: every cited source probed for API/feed availability, bot protection, and degradation, with mitigations. |
+| [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Source taxonomy: the claim-source coverage matrix (anti-bias) and the evidence-authority map (trusted sources per policy domain, with precedence rules). |
 | [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, and how the design addresses each. |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records — every significant approach decision, its alternatives, and the reasoning. |
 
