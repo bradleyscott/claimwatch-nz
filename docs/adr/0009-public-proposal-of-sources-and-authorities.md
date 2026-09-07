@@ -1,6 +1,6 @@
 # ADR-0009: Public proposal of claim sources and evidence authorities
 
-*Status: Proposed · Date: 2026-09-07 · Revised: 2026-09-07 (see revision note) · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
 
 ## Context
 
