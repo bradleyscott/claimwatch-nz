@@ -17,4 +17,4 @@ title: "[SOURCE] "
 
 ---
 
-*Process: automated scope-check runs against submitted URLs (see ADR-0009), then 14-day public review, then maintainer decision with published reason. Where the source fits the coverage matrix is determined by project analysis after acceptance — you describe, we classify. Proposals are consideration, not adoption.*
+*Process: automated scope-check runs against submitted URLs (see ADR-0009), then a public maintainer decision record with reasons. Where the source fits the coverage matrix is determined by project analysis after acceptance — you describe, we classify. Proposals are consideration, not adoption.*

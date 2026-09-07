@@ -17,4 +17,4 @@ title: "[AUTHORITY] "
 
 ---
 
-*Process: automated scope-check (is the dataset machine-accessible), 14-day public review, maintainer decision. Trust-tier classification is done by the project during review — your narrative informs it but doesn't have to use our categories. Rejections are public and reasoned (ADR-0009).*
+*Process: automated scope-check (is the dataset machine-accessible), then a public maintainer decision record with reasons. Trust-tier classification is done by the project during review — your narrative informs it but doesn't have to use our categories. Rejections are public and reasoned (ADR-0009).*
