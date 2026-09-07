@@ -55,15 +55,15 @@ Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` fo
 | **Labour Party releases** | primary claims | ✅ `labour.org.nz/news/` reachable (200; `/media_hub` 404 — use `/news/`) |
 | **ACT releases** | primary claims | ✅ reachable (Framer-built — headless) |
 | **Green Party releases** | primary claims | ✅ reachable (JS-heavy — headless) |
-| **NZ First releases** | primary claims | ⚠️ **domain unresolved** (`nzfirst.org.nz` and `nzfirst.nz` both fail DNS as of probe) — verify current domain at build week |
-| **Te Pāti Māori releases** | primary claims | ⚠️ `tepatimaori.co.nz` parked; `tepatimaori.nz` resolves but serves a stub — verify at build week |
+| **NZ First releases** | primary claims | ✅ **domain found** — `www.nzfirst.nz` (the `.org.nz` we had recorded is dead; `nzfirst.co.nz` redirects there); news at `nzfirst.nz/news` (JS-rendered — headless) |
+| **Te Pāti Māori releases** | primary claims | ✅ **domain found** — `www.maoriparty.org.nz` (the `.co.nz` we had recorded is parked); JS-rendered — headless; news path TBD at build week |
 | **User submissions** | everything else, crowd-prioritised | designed (ADR-0002 lane 5) |
 
 **Probe notes (2026-09-07):**
 - **Newsroom, The Post, The Press all have working feeds** — the earlier "⚠️ not yet probed" row entries resolve favourably. The Post's feed carries 79 items at root with a working `/politics` section (28 items).
 - **1News**: no RSS found (404s on `/rss` and `/feeds/`); site is JS-rendered (Next.js, same Arc stack family as NZ Herald). Headless render or their sitemap is the ingestion path.
 - **Waatea**: JS redirect pattern (`/lander`) — needs headless rendering, not a simple scrape.
-- **Te Pāti Māori + NZ First domains**: the domains we had recorded are wrong or abandoned (parked page / DNS failure). Party websites get re-verified at build week 1 — expected finding for minor-party web presences, not a blocker.
+- **Party domains re-verified after initial probe failures**: NZ First is at **www.nzfirst.nz** (the `.org.nz` we had recorded is dead; `nzfirst.co.nz` redirects there) with news at `/news` (JS-rendered). Te Pāti Māori is at **www.maoriparty.org.nz** (the `.co.nz` is parked). Party websites get re-verified at build week 1 — expected finding for minor-party web presences, not a blocker.
 - **Otago Daily Times**: site serves 200 to pages but all probed feed paths 404. Headless scrape path assumed.
 
 **Wire service note:** much NZ political copy originates from the NZ press gallery via NZME/Stuff shared content. Dedupe-by-claim (not by outlet) prevents the same wire story from three outlets counting as three independent claim sources.
