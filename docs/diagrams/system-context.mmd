@@ -5,6 +5,7 @@ flowchart TB
         HANSARD["Hansard<br/>official transcripts"]
         NEWS["News RSS<br/>RNZ · NZ Herald · Stuff"]
         STATS["Official series<br/>Stats NZ · MoJ · LAWA · Figure NZ"]
+        SUBMIT["User submissions<br/>URLs + text (claim pointers)"]
     end
 
     subgraph CW["ClaimWatch (open source)"]
@@ -24,6 +25,7 @@ flowchart TB
     PARTIES --> INGEST
     HANSARD --> INGEST
     NEWS --> INGEST
+    SUBMIT --> INGEST
     INGEST --> TRIAGE
     TRIAGE --> VERIFY
     STATS --> VERIFY
