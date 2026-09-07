@@ -1,6 +1,6 @@
-# ADR-0004: Statistical-claim verification via fingerprint + topic packs + sensitivity grid, as the flagship; open-web loop demoted to the long tail
+# ADR-0004: Statistical-claim verification via fingerprint + topic packs + sensitivity grid, within a multi-mode verification layer
 
-*Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: Revised (see revision note) · Date: 2026-09-07 · Deciders: Bradley, Dave*
 
 ## Context
 
@@ -27,6 +27,11 @@ The general open-web verification loop (FIRE-style) remains for non-statistical 
 - **Uniform open-web pipeline for all claims.** Rejected: worse accuracy on the highest-value class; open-web retrieval is the known bottleneck.
 - **Human analyst reviews for statistical claims.** Rejected: payroll; also slower than the pack lookup.
 - **Only citation-checking** (does the cited source say what's claimed?). Kept, as a *sub-mode* of the engine — but citation checking alone cannot catch selective framing, which requires reconstructing the field beyond the citation.
+- **A dedicated engine per misleading-technique class** (post taxonomy research, `docs/MISINFO-TAXONOMY.md`). Rejected: fabricated-content and false-context classes are better served by the capped open-web loop and a provenance/context-retrieval mode respectively; the stat engine remains one mode of the verification layer, not the layer.
+
+## Revision note
+
+2026-09-07 (revised after taxonomy research): retitled from "…as the flagship; open-web loop demoted to the long tail" — the stat engine is one mode of a multi-mode verification layer (topic-pack, citation-check, false-context/provenance, capped open-web), informed by the empirical technique distribution from the 2024 EU elections (`docs/MISINFO-TAXONOMY.md`): decontextualisation 59% of verified disinformation, missing-context verdicts 23%, so selective statistics is a real but minority slice of the missing-context class. An electoral-process topic pack was added as the highest-priority pack. Manipulated media declared out of scope for v1 (partner-referral path).
 
 ## Consequences
 
