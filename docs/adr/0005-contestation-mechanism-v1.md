@@ -12,7 +12,7 @@ V1 contestation mechanism:
 
 1. **Structured contest form**: what part of the verdict is disputed, cited sources (links preferred), reasoning. Email-verified accounts, rate-limited.
 2. **Evidence validation pipeline**: submitted evidence runs the same provenance gauntlet as the verification engine — source retrieval, authentication (primary vs secondary), authority, corroboration. Only evidence clearing the bar proposes a verdict change.
-3. **Human mutation review**: a small daily review task (the operator in v1, a steward panel post-election) approves/rejects the proposed change; every decision is logged publicly with reasons.
+3. **Automated mutation with retrospective audit**: a validated evidence pack triggers the verdict change automatically; a **sampled post-hoc audit** (a fraction of mutations reviewed daily, all high-impact mutations reviewed) checks validator quality over time — audit findings are logged publicly, but audit does not gate the mutation.
 4. **Mutation with public diff**: new verdict version + diff + contributing evidence + contributor credit (opt-in).
 
 **Explicitly deferred to post-election:** bridging-weighted rating of contributions, public rater trust scores, community self-governance. The v1 contest log becomes the dataset that justifies (or rejects) that design with data — see `docs/EVALUATION.md` §5.
@@ -25,9 +25,12 @@ A single well-sourced contest can flip a verdict even if the crowd dislikes it �
 
 - **Full Community Notes model from day one.** Rejected: cold start makes the bridging maths inert at NZ scale; would produce theatre, not governance.
 - **No contestation until post-election.** Rejected: contestation data is itself the research/trust asset; two months of contest logs (even thin) seeds the post-election design.
-- **Fully automated mutation (no review).** Rejected: a single adversarial evidence pack that fools the validator would mutate verdicts unattended during the regulated period. The review step is 20 minutes/day at realistic volume.
+- **Fully automated mutation (no review)** — **adopted as the v1 design** (see revised decision above): validated evidence mutates automatically; quality is checked by a *sampled retrospective audit* rather than a pre-publication gate. Residual risk is accepted deliberately: a single adversarial evidence pack that fools the validator would mutate a verdict unattended until caught by audit. Mitigations: audit sampling weighted toward high-impact verdicts, immediate re-mutation capability, and the append-only audit log making any bad mutation publicly reversible within hours. The freeze window (ADR-0006) still bounds the worst-case window.
 
 ## Consequences
 
-- Contest volume must be monitored; if it exceeds the review queue's capacity, contests queue visibly rather than mutate unsupervised.
+- **No waiting human in the mutation loop** — the process is fully automated end-to-end (validator → mutation → retrospective audit). Audit findings are logged publicly; if audit reveals validator quality problems, the fix is a validator change through the harness gate, not manual gating of individual mutations.
+- **Contest volume no longer queues on human attention** — automation scales to any volume; adversarial volume floods only the audit sample, not the mutation path.
+
+- Contest volume no longer queues on human attention (automation scales to any volume); adversarial volume floods only the audit sample, not the mutation path.
 - Rejections are public and reasoned — this keeps the process auditable and bad-faith patterns visible.

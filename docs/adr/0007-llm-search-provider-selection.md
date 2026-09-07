@@ -30,7 +30,9 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 | Gemini 3.1 Pro (Google) | 2.00 / 12.00 | 1M context; strong scientific reasoning; competitive mid-price |
 | Gemini 3.5 Flash (Google) | 1.50 / 9.00 | Cheapest flagship-class US model |
 | Claude Haiku 4.5 (Anthropic) | 1.00 / 5.00 | Vectara hallucination 9.8% — ties GPT-5.5 class at a fraction of price |
-| DeepSeek V4 Flash | 0.14 / 0.28 | 5–70× cheaper; **data processed in China — disqualifying for this project's optics regardless of quality** |
+| **Kimi K3 (Moonshot)** | 3.00 / 15.00 (cache-hit input $0.30) | 1M context; open weights (custom licence, not MIT); Intelligence Index #5, LCR #2; **non-Chinese third-party hosting available (Fireworks, Together, DeepInfra — US/EU operators)** |
+| **GLM-5.3 (Z.ai/Zhipu)** | 1.40 / 4.40 (cache-hit $0.26) per third-party aggregators; no published rate on Z.ai's own card (coding-plan-gated at launch) | Open weights; strong agentic/coding benchmarks; GLM-5.3-Flash at $0.15/$0.50 is an extreme-value agent tier |
+| DeepSeek V4 Flash | 0.14 / 0.28 | Cheapest, but **origin-operator API excluded during the election cycle** (foreign-hosted inference rule, ADR-0007); non-Chinese operators serving DeepSeek weights are permitted |
 | MiniMax M3, GLM-5.2, Qwen3.7 Flash | 0.03–1.40 / 0.13–4.40 | Open-weight/routeable; strong on some benchmarks |
 
 **Hallucination/calibration evidence (the property that matters most here):** on AA-Omniscience, Claude models lead decisively at refusing unanswerable questions (Claude 4.1 Opus: 0% hallucination on refused items; Opus-class ~36% attempting-at-scale vs GPT-5.5's ~50 points worse); on Vectara's updated dataset GPT-5.5-class and Claude Haiku 4.5 tie (~9–10%); Gemini Flash variants show the lowest hallucination on document-based tasks. **Pattern: Claude for abstention/verdict roles, Gemini Flash for bulk document work, both defensible on evidence.** (Benchmark variance is high; our own harness is the arbiter — see decision rule.)
@@ -41,7 +43,7 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 
 **Selection rule:** models are chosen per pipeline role by measured performance on our labelled harness (`docs/EVALUATION.md`) — accuracy-dominant, then price. The harness gates model choice the same way it gates prompt changes. No model is adopted because a benchmark paper liked it.
 
-**Recommended routing (to be confirmed by harness runs before launch):**
+**Recommended routing — Set A: strongest-performing model per role (accuracy-dominant; to be confirmed by harness runs before launch):**
 
 | Role | Recommended model | Rationale | Est. cost/claim |
 |---|---|---|---|
@@ -52,9 +54,30 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 | Justification drafting | Same cheap tier | Attribution-disciplined summarisation | ~$0.005 |
 | Search | **Brave Search API** (primary; Goggles for authority-restricted retrieval) + **Serper** (fallback/bulk) | Predictable pricing, free monthly credits, domain-reranking maps onto T1–T6 authority restriction | ~$0.005–0.05/query |
 
-**Volume economics at campaign scale** (~100 claims/day, ~5 search queries/claim): verdict-critical spend ≈ $15–50/day; total LLM+search ≈ $50–150/day at campaign peak. Orders of magnitude inside the business model; accuracy-dominant selection is affordable.
+**Recommended routing — Set B: best price-performance balance (adopted where Set A's marginal accuracy on the harness doesn't justify its premium):**
 
-### Batch / non-realtime processing (50% discount — applies to most of our workload)
+| Role | Recommended model | Rationale | Est. cost/claim |
+|---|---|---|---|
+| Verdict adjudication + confidence | **GLM-5.3** (via Fireworks/non-Chinese operator; or DeepInfra) | Frontier-adjacent open weights at ~28% of Opus price; strong agentic benchmarks; **harness-gated: must match Set A's calibration on the NEI/abstention slice or Set A stays** | ~$0.03–0.08 |
+| Second-opinion pass (any verdict) | **Kimi K3** (via Fireworks/OpenRouter — US operators) | Cross-*provider-and-family* disagreement as confidence signal at ~15% of Sol's cost; 1M context handles full evidence packs | ~$0.02–0.06 |
+| Citation check (claim vs source) | **Gemini 3.5 Flash or GLM-5.3** | Document-based tasks are Gemini Flash's lowest-hallucination strength; harness arbitrates vs GLM-5.3 | ~$0.005–0.02 |
+| Fingerprint extraction / triage / typing | **GLM-5.3-Flash** ($0.075/$0.25 on OpenRouter; $0.15/$0.50 direct — steepest cache discounts) or **Gemini 3.5 Flash / Kimi K3-Flash-class** | Extreme-value agent tier; natively multimodal; 1.3M context | ~$0.0001–0.001 |
+| Justification drafting | **GLM-5.3-Flash** | Cheapest drafting tier that passes attribution discipline | ~$0.0002 |
+| Search (unchanged from Set A) | **Brave** + **Serper** | Same rationale | ~$0.005–0.05/query |
+
+**Set A vs Set B economics at campaign scale (~100 claims/day):** Set A ≈ $15–50/day verdict-critical; Set B ≈ $3–10/day verdict-critical — a ~4–6× gap that matters only if the harness shows a real accuracy delta. **The harness decides per role, not a blanket Set-A or Set-B adoption:** the expected outcome is a mix (Set B for triage/drafting/citation where the cheap tier measures equal; Set A retained for verdict adjudication unless GLM-5.3 matches its calibration — at which point the accuracy-dominant principle is satisfied by Set B and the saving is taken).
+
+**Batch economics apply to both sets** — see below; Set B's GLM-5.3/Kimi-K3-Flash tiers also carry the steepest cache-hit discounts through Fireworks (GLM 5.2-class ≈90% off cached input), so Set B's advantage widens further in batch.
+
+**Open-weight inclusions in both sets (Kimi K3, GLM-5.3) — constraints and notes:**
+- Routed **only via non-Chinese operators** (Fireworks, OpenRouter, DeepInfra, Together — US/EU inference operators), per the foreign-hosted inference rule; aggregator serving-mode recorded in routing config.
+- **Kimi K3 licence** is custom (broad commercial use with conditions for large model-as-a-service businesses) — fine for our use; not MIT, don't misdescribe.
+- **GLM-5.3** has no published per-token rate on Z.ai's own card (coding-plan-gated at launch) — third-party per-token rates ($1.40/$4.40) are the budgeting basis, and that's another reason to route via non-Chinese aggregators.
+- Both are harness-gated identically to Set A models: bias probe included, calibration published.
+
+**Volume economics at campaign scale** (~100 claims/day, ~5 search queries/claim): Set A verdict-critical spend ≈ $15–50/day; Set B ≈ $3–10/day; total LLM+search (either set) ≈ **$10–50/day blended with batch discounts applied** — inside the business model with headroom, which is what keeps the accuracy-dominant principle affordable.
+
+**Batch / non-realtime processing (50% discount — applies to most of our workload):**
 
 All three major providers offer a **flat 50% discount** on asynchronous batch processing (24-hour SLA; Anthropic reports most batches completing <1 hour in practice; no quality difference — same models, same outputs, different timing):
 
@@ -64,12 +87,23 @@ All three major providers offer a **flat 50% discount** on asynchronous batch pr
 | **OpenAI Batch API** | JSONL upload, 50k requests/batch | 50% in+out | **Flex processing** offers the same 50% with full caching support on GPT-5+ models |
 | **Gemini Batch API** (Vertex) | GCS/BigQuery-style job | 50% in+out (verify per model — embedding batch is only 20%) | Tightly integrated with GCS; heavier ergonomics |
 
+**Open-weight third-party hosts: batch support confirmed on the providers we'd actually use.** This matters because our open-weights routing (Kimi K3, GLM-5.3, DeepSeek weights via non-Chinese operators) goes through these aggregators, not origin APIs:
+
+| Provider | Batch discount | Notes |
+|---|---|---|
+| **Fireworks AI** (serves DeepSeek, GLM-5.2, Kimi K2.6-class) | **Flat 50% off serverless in+out for async batch**; cached-input discounts steeper still (DeepSeek V4 Pro cache ≈92% off, GLM 5.2 ≈90% off, Kimi K2.6 ≈83% off) | Batch + cache stack — same lever the big-three offer, on open weights |
+| **Together AI** | **50% batch discount** on async workloads | Broadest open-weight catalogue (200+ models); pay-as-you-go |
+| **DeepInfra** | No published batch tier — competes on list price instead (typically cheapest per-token on shared models, e.g. Llama 3.3 70B ≈$0.23/$0.40) | Zero-retention inference by default; resells Claude models too (one key reaches open weights + Claude) |
+| **OpenRouter** (Kimi K3, GLM-5.3-Flash routable) | No batch tier — per-token with ~5.5% platform fee on pay-as-you-go; routes between providers on price/speed | Use as gateway/fallback, not for batch economics |
+
+**Read-through:** batch discounts are **not** a big-three-only feature — Fireworks and Together match the 50% on the open-weight models we'd route through them. The practical consequence: the batching strategy above applies to the whole routing table, and model choice per role doesn't have to trade batch economics away. Where a provider lacks a batch tier (DeepInfra), its lower list price partially compensates — and it's the natural fallback for realtime-lane work.
+
 **Our workload is batch-shaped by nature** — this is a major cost lever, not an edge case:
 
 - **Naturally batch (route through batch APIs, 50% off):** daily Hansard ingestion + claim extraction; release ingestion and triage; the daily digest; topic-pack pre-computation; **all harness/scoring runs**; evidence-field expansion; repeat-claim embedding jobs; nightly re-verification of temporal claims.
 - **Realtime only (interactive, list price):** verdict pages a user is actively viewing, contest-form responsiveness, second-opinion passes on publish-day verdicts, any live-event coverage.
 - **Hybrid pattern for the verdict role:** adjudicate overnight in batch at 50% off (most claims come from yesterday's ingestion), with realtime escalation only for high-impact verdicts needing same-day publication. Publish-time pressure is the exception, not the rule.
-- **Batch + caching stack** (Anthropic explicitly): topic-pack prompts (large, stable system prompts with the pack contents) hit prompt-cache multipliers inside batch — the topic-pack mode's effective cost drops toward ~5–10% of list for cached input.
+- **Batch + caching stack** (Anthropic explicitly; Fireworks likewise): topic-pack prompts (large, stable system prompts with the pack contents) hit prompt-cache multipliers inside batch — the topic-pack mode's effective cost drops toward ~5–10% of list for cached input.
 
 **Estimated effect:** of total LLM token spend, ~80–90% is batchable → effective blended discount ≈ 40–45%. Campaign-peak LLM spend drops from the ~$50–150/day range toward **~$10–50/day**. The accuracy-dominant routing above becomes cheaper still, which further removes any cost pressure toward weaker models in verdict roles.
 
