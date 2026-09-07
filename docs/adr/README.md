@@ -10,7 +10,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0004](0004-statistical-claim-engine.md) | Statistical-claim engine within a multi-mode verification layer (revised after `docs/MISINFO-TAXONOMY.md`) | Revised, Proposed |
 | [0005](0005-contestation-mechanism-v1.md) | Contestation v1: structured contest + validation + human review | Proposed |
 | [0006](0006-verdict-language-and-mutation-freeze.md) | Verdict language standard + mutation freeze | Proposed |
-| [0007](0007-llm-search-provider-selection.md) | LLM/search provider selection | **Open** |
+| [0007](0007-llm-search-provider-selection.md) | LLM/search provider selection — accuracy-dominant, tiered by task | Open (recommendation recorded; harness-gated) |
 | [0008](0008-ground-truth-set-construction.md) | Ground-truth set construction | Proposed |
 | [0009](0009-public-proposal-of-sources-and-authorities.md) | Public proposal of claim sources and evidence authorities | Proposed |
 
