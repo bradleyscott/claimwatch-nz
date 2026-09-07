@@ -30,6 +30,27 @@ Every verified claim deposits into the store:
 - the grid computation result (which axes were material, what they showed);
 - the verdict and its audit trail.
 
+### Claimant entities (people, parties, and affiliation)
+
+Every claim is attributed to a **claimant entity**, resolved at ingestion:
+
+- **Person entities** — politicians, commentators, officials, public figures. Each carries: name, current party affiliation (if any, with affiliation history — people change parties), role (MP / minister / candidate / commentator / other), and source links for the attribution (Hansard record, release byline, etc.).
+- **Party/organisation entities** — parties, ministries, government agencies, and outlets speaking institutionally ("New Zealand First states…", "the Ministry of Health advises…"). These carry affiliation to no one; they *are* the principal.
+- **Attribution resolution is conservative**: a claim is attributed to a person when the source clearly identifies them (Hansard speaker attribution, release byline, quoted name); attributed to the party/organisation alone when the statement is institutional; and attributed to "unattributed" when unclear — never guessed. Party affiliation of a person is metadata from public sources (parliamentary records), never inferred from what they say.
+- **Claims carry the affiliation *at time of statement*** — affiliations change (crossings, retirements, candidate selections during the campaign); the store records affiliation history so a claim's attribution is stable even as the person's status changes.
+
+### Reliability profiles (aggregate statistics, published carefully)
+
+Attribution enables per-claimant and per-party aggregate views: **of claims checked, how many were supported / refuted / not-enough-evidence, and how often corrected**. This is genuinely useful public information — but it is the most attackable surface in the system, so it is built with strict guardrails:
+
+1. **Verdicts stay claim-level.** Reliability profiles are *aggregations over published verdicts* — they never feed back into individual verdicts, queue priority, or grid computation. A politician's track record never biases how their next claim is checked. This is structural: the verification loop does not receive claimant identity as input.
+2. **Published only with base-rate context**: "12 of 18 checked claims supported" means nothing without the volume (18 checked, 40+ seen, most not checkable) and the selection reality that claims reaching verdicts are not a random sample. Profiles show what was checked and how it resolved — never a "truthiness score".
+3. **Minimum-volume thresholds** before a profile renders publicly (e.g. ≥10 verified claims), to avoid single-claim caricatures.
+4. **Party vs person separation**: party profiles aggregate institutional statements; person profiles aggregate individual claims. They are never blended — a minister misquoting a statistic is not "the party lying".
+5. **Corrections weigh in the claimant's favour** in profile presentation: the correction-linked view (claim → correction) is shown as the fuller picture, and profiles highlight correction counts as good practice rather than burying them.
+
+Reliability profiles are a **post-verification layer**: they read the store, they don't write to it. This keeps the assessment function (verdicts) cleanly separated from the accountability function (track records), which is what lets both be defensible.
+
 The store is **claim-anchored** — every entry exists because a real claim needed it. Repeat claims resolve in seconds against accumulated evidence (the repeat-matching mechanism from ADR-0002's lane design). Adjacent claims (same indicator, different framing) reuse the series already fetched and extend the grid computation with the new fingerprint's variants. Over the campaign, indicator-level structure — the equivalent of packs — **emerges from claim traffic**: the store organises itself around what was actually disputed.
 
 ### Claim relationships (linking claims into narratives)
@@ -83,4 +104,5 @@ The grid axes remain pre-declared and published before campaign peak — identic
 - **Grid axes are pre-declared; grid computation is on demand** — the methodology page publishes the axes and the rule that materiality selection is automated but auditable.
 - **The electoral-process lane is a retrieval-priority rule** (Electoral Commission consulted first, fastest verification path), not a pre-computed pack.
 - **The claim graph is a new build item**: typed-relationship detection (repeats / corrects / contradicts / refines / responds-to) sits alongside repeat-matching in the store; correction-linking needs the conservative review queue before publication.
+- **Claimant entities and reliability profiles are new build items**: entity resolution at ingestion, affiliation history, and the aggregate profile layer — with the structural firewall (verification loop never sees claimant identity) enforced in code, not policy.
 - **Narrative rendering**: verdict pages for linked claims show their relationship chains (claim → correction → refinement), giving readers the full picture — and making the store's history navigable, which is what makes the correction incentive real.
