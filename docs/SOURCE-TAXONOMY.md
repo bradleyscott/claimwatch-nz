@@ -31,24 +31,40 @@ Sources are selected to cover the matrix — every row and column should have at
 
 ### 1.3 Proposed claim-source set (v1)
 
-| Outlet/source | Matrix cells | Access status (per COVERAGE.md probe) |
+Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` for method); "⚠️ unprobed" means not yet tested at that date.
+
+| Outlet/source | Matrix cells | Access status (probe result) |
 |---|---|---|
-| **Beehive.govt.nz** | primary claims, executive | ✅ verified RSS |
+| **Beehive.govt.nz** | primary claims, executive | ✅ verified RSS (`/rss.xml`, 30 items) |
 | **Hansard** | primary claims, parliament | ✅ verified |
-| **RNZ** | public broadcaster, national, radio text, Māori (te-manu-korihi), Pacific, regional via LDR | ✅ verified RSS, ~20 feeds |
-| **TVNZ / 1News** | public TV, mass audience | ⚠️ not yet probed — build-week task |
-| **Stuff** | private national + regional titles (dominant regional reach) | ✅ verified Atom feeds |
+| **RNZ** | public broadcaster, national, radio text, Māori (te-manu-korihi), Pacific, regional via LDR | ✅ verified RSS (~20 feeds; `political.xml` 16 items) |
+| **TVNZ / 1News** | public TV, mass audience | ✅ site reachable (2.6MB JS-heavy HTML; no RSS found — headless rendering needed) |
+| **Stuff** | private national + regional titles (dominant regional reach) | ✅ verified Atom feeds (`/rss?section=/politics`, 25 items) |
 | **NZ Herald** | private national, largest newsroom | ✅ accessible but feed degraded; paywall policy applies |
-| **Newsroom** | trust-owned, public-interest journalism | ⚠️ not yet probed |
-| **The Post / The Press** | private, South Island | ⚠️ not yet probed |
-| **Otago Daily Times** | independent, provincial, 2nd-most-trusted brand (Trust in News 2026 survey) | ⚠️ not yet probed |
-| **Interest.co.nz** | economics/housing specialist — where economic claims often originate | ⚠️ not yet probed |
-| **Waatea News** | Māori radio/news | ⚠️ not yet probed |
-| **Te Ao Māori News / E-Tangata** | Māori perspectives | ⚠️ not yet probed |
-| **PMN (Pacific Media Network) / Kaniva Tonga etc.** | Pacific communities | ⚠️ not yet probed |
-| **Indian Weekender / ethnic media** | ethnic communities | ⚠️ not yet probed — v1.1 |
-| **Party release pages** | primary claims, all parties | ✅ reachable (JS-rendered; Playwright needed); 2 domains need re-verification |
-| **User submissions** | everything else, crowd-prioritised | designed (ADR-0002) |
+| **Newsroom** | trust-owned, public-interest journalism | ✅ **verified RSS** (`newsroom.co.nz/feed/`, 10 items) |
+| **The Post** | private, Wellington+Christchurch daily | ✅ **verified Atom** (`/rss?section=/`, 79 items; `/politics` section 28 items) |
+| **The Press** | private, Christchurch | ✅ **verified Atom** (`/rss?section=/`, 55 items) |
+| **Otago Daily Times** | independent, provincial, 2nd-most-trusted brand (Trust in News 2026) | ⚠️ site reachable; **no feed found** (404s) — headless scrape path |
+| **Interest.co.nz** | economics/housing specialist — where economic claims often originate | ✅ **verified RSS** (`/rss`, working feed) |
+| **Waatea News** | Māori radio/news | ⚠️ JS redirect to `/lander` — needs headless rendering |
+| **Te Ao Māori News** | Māori perspectives | ✅ reachable (HTML; feed unknown) |
+| **E-Tangata** | Māori long-form, trust-owned | ✅ reachable (static HTML — easy scrape) |
+| **PMN (Pacific Media Network)** | Pacific communities | ✅ reachable (JS-heavy; headless path) |
+| **Indian Weekender** | ethnic communities | ✅ reachable (HubSpot-built; scrapeable) |
+| **National Party releases** | primary claims | ✅ reachable (Vercel/Next — headless) |
+| **Labour Party releases** | primary claims | ✅ `labour.org.nz/news/` reachable (200; `/media_hub` 404 — use `/news/`) |
+| **ACT releases** | primary claims | ✅ reachable (Framer-built — headless) |
+| **Green Party releases** | primary claims | ✅ reachable (JS-heavy — headless) |
+| **NZ First releases** | primary claims | ⚠️ **domain unresolved** (`nzfirst.org.nz` and `nzfirst.nz` both fail DNS as of probe) — verify current domain at build week |
+| **Te Pāti Māori releases** | primary claims | ⚠️ `tepatimaori.co.nz` parked; `tepatimaori.nz` resolves but serves a stub — verify at build week |
+| **User submissions** | everything else, crowd-prioritised | designed (ADR-0002 lane 5) |
+
+**Probe notes (2026-09-07):**
+- **Newsroom, The Post, The Press all have working feeds** — the earlier "⚠️ not yet probed" row entries resolve favourably. The Post's feed carries 79 items at root with a working `/politics` section (28 items).
+- **1News**: no RSS found (404s on `/rss` and `/feeds/`); site is JS-rendered (Next.js, same Arc stack family as NZ Herald). Headless render or their sitemap is the ingestion path.
+- **Waatea**: JS redirect pattern (`/lander`) — needs headless rendering, not a simple scrape.
+- **Te Pāti Māori + NZ First domains**: the domains we had recorded are wrong or abandoned (parked page / DNS failure). Party websites get re-verified at build week 1 — expected finding for minor-party web presences, not a blocker.
+- **Otago Daily Times**: site serves 200 to pages but all probed feed paths 404. Headless scrape path assumed.
 
 **Wire service note:** much NZ political copy originates from the NZ press gallery via NZME/Stuff shared content. Dedupe-by-claim (not by outlet) prevents the same wire story from three outlets counting as three independent claim sources.
 
