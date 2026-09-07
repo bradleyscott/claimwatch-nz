@@ -54,6 +54,27 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 
 **Volume economics at campaign scale** (~100 claims/day, ~5 search queries/claim): verdict-critical spend ≈ $15–50/day; total LLM+search ≈ $50–150/day at campaign peak. Orders of magnitude inside the business model; accuracy-dominant selection is affordable.
 
+### Batch / non-realtime processing (50% discount — applies to most of our workload)
+
+All three major providers offer a **flat 50% discount** on asynchronous batch processing (24-hour SLA; Anthropic reports most batches completing <1 hour in practice; no quality difference — same models, same outputs, different timing):
+
+| Provider | Mechanism | Discount | Practical notes |
+|---|---|---|---|
+| **Anthropic Message Batches API** | 100k requests/batch, results retained 29 days | 50% in+out, all models | **Caching stacks with batch** (Opus cached input in batch ≈ 95% off list); most batches <1h despite 24h SLA |
+| **OpenAI Batch API** | JSONL upload, 50k requests/batch | 50% in+out | **Flex processing** offers the same 50% with full caching support on GPT-5+ models |
+| **Gemini Batch API** (Vertex) | GCS/BigQuery-style job | 50% in+out (verify per model — embedding batch is only 20%) | Tightly integrated with GCS; heavier ergonomics |
+
+**Our workload is batch-shaped by nature** — this is a major cost lever, not an edge case:
+
+- **Naturally batch (route through batch APIs, 50% off):** daily Hansard ingestion + claim extraction; release ingestion and triage; the daily digest; topic-pack pre-computation; **all harness/scoring runs**; evidence-field expansion; repeat-claim embedding jobs; nightly re-verification of temporal claims.
+- **Realtime only (interactive, list price):** verdict pages a user is actively viewing, contest-form responsiveness, second-opinion passes on publish-day verdicts, any live-event coverage.
+- **Hybrid pattern for the verdict role:** adjudicate overnight in batch at 50% off (most claims come from yesterday's ingestion), with realtime escalation only for high-impact verdicts needing same-day publication. Publish-time pressure is the exception, not the rule.
+- **Batch + caching stack** (Anthropic explicitly): topic-pack prompts (large, stable system prompts with the pack contents) hit prompt-cache multipliers inside batch — the topic-pack mode's effective cost drops toward ~5–10% of list for cached input.
+
+**Estimated effect:** of total LLM token spend, ~80–90% is batchable → effective blended discount ≈ 40–45%. Campaign-peak LLM spend drops from the ~$50–150/day range toward **~$10–50/day**. The accuracy-dominant routing above becomes cheaper still, which further removes any cost pressure toward weaker models in verdict roles.
+
+**Design consequence:** the pipeline's job scheduler separates batch-eligible work from realtime work at the queue level (a `latency_class` field on each job: `batch` vs `interactive`); batch routing is configuration, not per-call decisions.
+
 **Open-weights posture (corrected from original draft):** open-weights models are eligible for any role **where the harness shows them meeting the accuracy bar** — most plausibly bulk triage/extraction (MiniMax/GLM/Qwen-class are frontier-adjacent and nearly free self-hosted). They are *not* presumed excluded, and commercial models are not presumed required. Two practical notes: (a) self-hosting on the homelab GPU is viable for the cheapest tier only if harness-validated; (b) **offshore-processed APIs (DeepSeek) are excluded for this project** — not a quality judgement, but a foreign-processing optics problem during an NZ election that the project does not need.
 
 **Provider-portability constraint (unchanged):** prompts and schemas stay vendor-neutral; routing is configuration, not code.
@@ -64,6 +85,7 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 - **Cheapest-model-everywhere.** Rejected by the accuracy-dominant principle: the verdict role's failure mode (confident wrong answers) is precisely what cheap models are worse at.
 - **Gemini native grounding instead of a separate search API.** Rejected: black-box query control breaks evidence-pack reproducibility; we need query-level control for the sensitivity grid and authority-restricted retrieval.
 - **Frontier-max-everything (Fable 5 / GPT-5.6 Sol at every step).** Rejected on price-performance: 10–50× the cost for roles where mid-tier measurably suffices; reserved for high-impact verdict escalation instead.
+- **Batch-everything including verdicts.** Rejected as universal policy: batch is the default for ingestion-side and evaluation workloads, but publish-day high-impact verdicts need the realtime lane; the `latency_class` split keeps both available.
 
 ## Decision rule for final selection
 
@@ -81,3 +103,5 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 ## Revision note
 
 2026-09-07: original draft incorrectly stated "per ADR-0003, no open-weights constraint" as a *constraint against open-weights* — reframed per Bradley: no such constraint exists; open-weights are eligible wherever harness-validated, commercial models are welcome when affordable, and **accuracy of assessment is the dominant selection criterion**. Research on the Sept-2026 model/search landscape added with recommendations per role; final selection gated on harness results.
+
+2026-09-07 (second revision, per Bradley): batch/non-realtime processing added as a first-class cost lever — all three major providers offer flat 50% batch discounts; ~80–90% of our token spend is batchable (ingestion, triage, harness runs, topic packs, re-verification), with a `latency_class` job split (batch vs interactive) as the design mechanism; batch+caching stacking makes the topic-pack mode's effective cost ~5–10% of list. Campaign-peak LLM estimate revised from ~$50–150/day to ~$10–50/day blended.
