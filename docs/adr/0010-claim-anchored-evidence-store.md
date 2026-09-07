@@ -32,6 +32,27 @@ Every verified claim deposits into the store:
 
 The store is **claim-anchored** — every entry exists because a real claim needed it. Repeat claims resolve in seconds against accumulated evidence (the repeat-matching mechanism from ADR-0002's lane design). Adjacent claims (same indicator, different framing) reuse the series already fetched and extend the grid computation with the new fingerprint's variants. Over the campaign, indicator-level structure — the equivalent of packs — **emerges from claim traffic**: the store organises itself around what was actually disputed.
 
+### Claim relationships (linking claims into narratives)
+
+The store is a graph, not a flat list. Claims are linked by typed relationships:
+
+| Relationship | Meaning | Detected by |
+|---|---|---|
+| **repeats** | substantially the same claim, re-asserted (by anyone) | fingerprint + embedding match (the repeat-matching mechanism) |
+| **corrects** | this claim corrects/retracts/refines an earlier claim (by the same speaker or outlet) | same fingerprint family + later date + corrective language ("I misspoke", "the correct figure is", editorial correction notices); confirmed at mutation review |
+| **contradicts** | this claim asserts the opposite of a prior claim (any speaker) | same fingerprint, opposing verdict direction |
+| **refines** | same subject, narrower/more precise framing (e.g. a monthly figure quoted after an annual one) | shared indicator fingerprint, differing granularity |
+| **responds-to** | this claim was made in direct response to another (debates, press conferences) | temporal + source adjacency; confirmed at mutation review |
+
+**Corrections get first-class treatment.** When claim B **corrects** claim A:
+
+- B's verdict page links visibly to A ("this corrects an earlier statement — see its verdict and history"), and A's page gains a prominent "later corrected by the claimant" banner linking to B. The fuller picture — claim, correction, evidence — is one navigation path from either end.
+- A's page is **not silently re-verdicted**: A keeps its verdict (that *was* the assessment of A), with the correction linked. The narrative is shown, not rewritten — this matters for the audit log and for s 199A first-publication clarity (a correction is a new publication; the earlier verdict is history).
+- Corrections by the *claimant* are surfaced approvingly — the system's tone treats self-correction as good practice, which is both epistemically right and strategically protective (it gives politicians an incentive to correct through us).
+- Correction chains (A → B → C) render as a timeline on each linked page.
+
+**Linking is conservative by default:** automated linking proposes relationships (fingerprint match + corrective-language signals); ambiguous cases are queued for mutation review like contest evidence, and the relationship is only part of the published store once confirmed. False "correction" links would be worse than no links — a claim presented as corrected when it wasn't is a defamatory-adjacent error.
+
 ### What this replaces from the pack design
 
 | Pack-design element | Disposition |
@@ -61,3 +82,5 @@ The grid axes remain pre-declared and published before campaign peak — identic
 - **The store is the asset**: validated evidence chains organised by claim, growing with the campaign — the same licensable/research dataset identified in ADR-0008, now claim-anchored from day one.
 - **Grid axes are pre-declared; grid computation is on demand** — the methodology page publishes the axes and the rule that materiality selection is automated but auditable.
 - **The electoral-process lane is a retrieval-priority rule** (Electoral Commission consulted first, fastest verification path), not a pre-computed pack.
+- **The claim graph is a new build item**: typed-relationship detection (repeats / corrects / contradicts / refines / responds-to) sits alongside repeat-matching in the store; correction-linking needs the conservative review queue before publication.
+- **Narrative rendering**: verdict pages for linked claims show their relationship chains (claim → correction → refinement), giving readers the full picture — and making the store's history navigable, which is what makes the correction incentive real.
