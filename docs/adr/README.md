@@ -12,6 +12,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0006](0006-verdict-language-and-mutation-freeze.md) | Verdict language standard + mutation freeze | Proposed |
 | [0007](0007-llm-search-provider-selection.md) | LLM/search provider selection | **Open** |
 | [0008](0008-ground-truth-set-construction.md) | Ground-truth set construction | Proposed |
+| [0009](0009-public-proposal-of-sources-and-authorities.md) | Public proposal of claim sources and evidence authorities | Proposed |
 
 ## Process
 

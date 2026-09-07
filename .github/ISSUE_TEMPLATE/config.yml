@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Claim submission (post-launch feature)
+    url: https://github.com/bradleyscott/claimwatch-nz/blob/main/docs/adr/0002-ingestion-scope-2026.md
+    about: Submitting content to fact-check will happen on the site after launch — see ADR-0002 lane 5.
+  - name: Contest a verdict (post-launch feature)
+    url: https://github.com/bradleyscott/claimwatch-nz/blob/main/docs/adr/0005-contestation-mechanism-v1.md
+    about: Contested verdicts are handled on the site, not GitHub — described in ADR-0005.

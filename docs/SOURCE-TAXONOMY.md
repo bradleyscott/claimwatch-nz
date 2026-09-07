@@ -119,3 +119,7 @@ This is the v1 map — each row becomes (part of) a topic pack under ADR-0004. T
 3. **LDR network content licensing** — RNZ's personal-use terms vs LDR's explicit republication model (LDR content is *designed* for reuse; confirm terms).
 4. **Who maintains the authority map** — needs a named owner and a review cadence (statistical-series URLs move; see COVERAGE.md health-check item).
 5. **Māori/pasifika media ingestion with te reo content** — v1 processes English; te reo claims are flagged as out-of-scope-for-verdict rather than silently dropped (links to the Māori-language roadmap gap in ARCHITECTURE.md §6).
+
+## Part 4: Public participation in the taxonomy
+
+The coverage matrix and authority map accept public proposals — outlets to monitor, datasets to trust, domains to add — through a scoped, vetted pathway defined in **[ADR-0009](adr/0009-public-proposal-of-sources-and-authorities.md)**. Pre-launch: GitHub issues with proposal templates. Key property: proposals are *consideration, not adoption* — automated scope-checks, a public review period, and maintainer decisions with published reasons; authority-tier changes above T4 additionally require subject-matter review. Community-added entries carry provenance labels in this document's change history.
