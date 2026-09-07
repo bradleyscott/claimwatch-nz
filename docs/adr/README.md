@@ -14,6 +14,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0008](0008-ground-truth-set-construction.md) | Ground-truth evaluation: AVeriTeC immediate benchmark + NZ-labelled calibration set | Proposed |
 | [0009](0009-public-proposal-of-sources-and-authorities.md) | Public proposal of claim sources and evidence authorities | Proposed |
 | [0010](0010-claim-anchored-evidence-store.md) | Claim-anchored evidence store — verify claim-by-claim, accumulate context over time | Proposed |
+| [0011](0011-ingestion-architecture.md) | Ingestion architecture — six lanes, health-checked, feeding the evidence store | Proposed |
 
 ## Process
 
