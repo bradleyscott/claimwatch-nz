@@ -6,6 +6,18 @@
 
 The pipeline uses paid model APIs and a web-search API. The selection principle: **accuracy of assessment is paramount** — there is no constraint against open-weights models, and equally no mandate to avoid commercial frontier models if affordable. Model choice per task is governed by measured performance on *our* harness, not by benchmark folklore. Cost matters, but only relative to accuracy: a wrong verdict during an election costs more than any API bill.
 
+### What the tasks require (task-performance analysis)
+
+| Pipeline role | Task character | Critical model property |
+|---|---|---|
+| **Verdict adjudication** (evidence pack → verdict + confidence) | Reasoning over retrieved evidence; deciding what is *not* established is as important as what is | **Calibration** — the model must reliably refuse "not enough evidence" rather than guess. Hallucination rate on adjudication is the failure mode that kills the project |
+| **Claim-vs-source comparison** (citation checking) | Careful reading: does the cited document say what's claimed (numbers, period, population)? | Extraction precision; low hallucination; number fidelity |
+| **Fingerprint extraction / claim typing / triage** | High-volume structured extraction over mundane text | Structured-output reliability, cost, speed |
+| **Evidence-pack drafting** (justification text) | Summarisation of sourced material with citations | Attribution discipline (no unattributed synthesis), cheap |
+| **Contestation validation** | Source authentication reasoning | Same profile as verdict adjudication |
+
+The decisive property for verdict roles is **calibration-awareness — knowing what it doesn't know** — more than raw benchmark score. A model that is 5% "smarter" but guesses when evidence is thin is worse for us than a slightly weaker model that abstains.
+
 ## Decision
 
 **Selection rule:** models are chosen per pipeline role by measured performance on our labelled harness (`docs/EVALUATION.md`) — accuracy-dominant, then price. The harness gates model choice the same way it gates prompt changes. No model is adopted because a benchmark paper liked it.
