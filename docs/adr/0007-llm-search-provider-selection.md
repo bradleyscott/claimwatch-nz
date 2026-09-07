@@ -72,7 +72,7 @@ The decisive property for roles 1 and 2 is **calibration-awareness — knowing w
 **Open-weight inclusions in both sets (Kimi K3, GLM-5.3) — constraints and notes:**
 - Routed **only via non-Chinese operators** (Fireworks, OpenRouter, DeepInfra, Together — US/EU inference operators), per the foreign-hosted inference rule; aggregator serving-mode recorded in routing config.
 - **Kimi K3 licence** is custom (broad commercial use with conditions for large model-as-a-service businesses) — fine for our use; not MIT, don't misdescribe.
-- **GLM-5.3** has no published per-token rate on Z.ai's own card (coding-plan-gated at launch) — third-party per-token rates ($1.40/$4.40) are the budgeting basis, and that's another reason to route via non-Chinese aggregators.
+- **GLM-5.3** has no published per-token rate on Z.ai's own card (coding-plan-gated at launch) — third-party per-token rates ($1.40/$4.40) are the planning basis, and that's another reason to route via non-Chinese aggregators.
 - Both are harness-gated identically to Set A models: bias probe included, calibration published.
 
 **Volume economics at campaign scale (~100 claims/day, ~5 search queries/claim):** with tiered routing (GLM-5.3-class verdicts batched, frontier models in the audit lane), total LLM+search spend ≈ **$10–50/day blended** at campaign peak — with batch discounts applied, trending toward the low end. Model choice per role is accuracy-dominant; the tiered routing exists so that accuracy doesn't force premium pricing everywhere, and the harness arbitrates per role.
