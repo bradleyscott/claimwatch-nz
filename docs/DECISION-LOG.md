@@ -22,6 +22,7 @@ This is the running log of the design conversations that produced the ADRs. It e
 - ADR-0003 recorded as the first Decided outcome (build open).
 - ADR-0007 (providers) intentionally left Open — needed before pipeline code lands.
 - **ADR-0002 amended after Bradley's review**: fifth ingestion lane added — user-submitted URLs/text as claim pointers. Design responses: fetch-from-source rule (never verify from the submission's own rendering; re-retrieve server-side with archive fallbacks), submissions as queue-priority signal, HDCA guardrails shipping with the feature. Proactive social crawling stays deferred; submissions narrow the broadcast/social coverage gap without a crawler.
+- **ADR-0002 amended again (same day)**: paywalled-content policy added — no circumvention (TPM/ToS), paywalled content is a claim source not an evidence source, fair-dealing-bounded minimal quotation, claim-origin-paywalled labelling, commercial media-monitoring licences noted as the post-election option.
 
 ## Pending decisions (queue for next ADRs)
 

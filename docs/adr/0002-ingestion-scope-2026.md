@@ -23,6 +23,14 @@ Five ingestion lanes for 2026:
 - **Guardrails:** email-verified accounts, per-account rate limits, the claims-not-persons standard applies to submission text (ADR-0006), and submissions are hosted communications under the HDCA content-host process (`docs/LEGAL-COMPLIANCE.md` §4).
 - **What a submission is not:** it is not evidence. It is a *claim pointer*. Evidence comes from what the pipeline retrieves from the source, plus what users submit through the contest pathway (ADR-0005).
 
+**Paywalled sources (part of this ADR):**
+
+- **No circumvention.** The project does not bypass paywalls or technical protection measures (archive mirrors, cache tricks, credential sharing). Beyond the legal exposure (Copyright Act 1994 TPM provisions, terms of service), it would make the project's evidence chain unauditable and partisans would be right to attack it.
+- **Paywalled content is a claim source, not an evidence source.** The claim sentence is extracted from what is legitimately visible (headline, standfirst, RSS metadata, free first paragraphs, user-submitted quote). Verification runs against official and primary sources, which are never paywalled — Stats NZ series, Hansard, legislation, court records. We never need the article's full text to verify the claim.
+- **Fair dealing bounds.** Where a paywalled article is quoted (on a verdict page, as the claim's origin), quotes are minimal — the claim sentence plus attribution and link — within Copyright Act fair dealing for criticism/review and news reporting. No article reproduction, ever.
+- **Access paths used, in order of preference:** (1) free sources carrying the same claim (RNZ/Stuff/1News typically report what NZ Herald Premium analyses); (2) legitimately visible metadata; (3) a user-submitted quote (a subscriber quoting the claim they saw is doing what fair dealing permits an individual to do — the quote is then treated as a claim pointer and re-anchored to official sources); (4) if the claim exists *only* inside a paywalled article and nowhere else, it is marked **"claim origin paywalled — verification limited to the quoted claim"** and proceeds like any other claim-pointer-only case.
+- **Future option, not for 2026:** commercial media-monitoring licences (the legal route NZ PR firms use) if post-election scale justifies it.
+
 **Explicitly deferred:** Parliament TV/broadcast transcription (whisper self-hosting is a time sink; Hansard covers the chamber), **proactive social-platform crawling** (API gating and cost; user submissions cover the highest-value social claims without it).
 
 Press releases are prioritised because they pair **policy proposition + claimed evidence** in one self-published package — enabling citation checking and the statistical-claim engine (ADR-0004) against primary sources.
@@ -38,3 +46,4 @@ Press releases are prioritised because they pair **policy proposition + claimed 
 - Week-1 deliverable is achievable with RSS + simple scrapers.
 - Claims made on broadcast (TV/radio/podcasts) but never in releases, Hansard, or news are out of coverage — acknowledged and stated in the methodology. User submissions narrow, but do not close, this gap (a submitted link to broadcast content can be checked if a transcript or report exists; live audio itself still needs the deferred transcription capability).
 - The submission feature adds the first user-facing moderation surface; rate limits and the HDCA process must ship with it, not after it.
+- **Paywall constraint:** claims that exist *only* behind a paywall are checkable only to the extent of the legitimately visible or user-quoted claim text; the site never hosts paywalled article content. This is stated in the methodology and keeps the project clean of circumvention challenges — a necessary condition for the evidence chain to survive scrutiny.
