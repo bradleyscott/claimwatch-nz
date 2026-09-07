@@ -66,9 +66,3 @@ Pre-launch proposal intake uses two GitHub issue templates in this repo:
 - `.github/ISSUE_TEMPLATE/authority-proposal.md` — evidence-authority proposals
 
 Both are deliberately lightweight: free-text narrative in the proposer's own words; classification (matrix placement, trust tier) is done by the project during review.
-
-## Revision note
-
-2026-09-07 (second revision, per Bradley's review): the fixed 14-day public review period replaced with a public **maintainer decision record** per proposal (reasons published, no fixed window); domain taxonomy clarified as **seeded up front** from established NZ policy groupings (select-committee subject areas, standard classification families) and refined claim-derived, rather than derived from claims alone.
-
-2026-09-07 (first revision): matrix-classification and tier self-assessment removed from the proposer's burden (analysis is the project's job); domain proposals removed entirely (domains are claim-derived). Templates reduced from three to two.

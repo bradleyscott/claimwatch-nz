@@ -1,6 +1,6 @@
 # Taxonomies of misleading information — and what they mean for the verification architecture
 
-*Status: research input to ADR-0004 (statistical-claim engine), prompted by Bradley's concern that the design narrowed to one misleading-claim class. This document surveys the taxonomies of misleading information in the political sphere — much of it developed in the state-actor misinformation context — maps each class to verification approaches, and states what changes in our architecture. Last updated: 2026-09-07.*
+*Status: research input to ADR-0004 (statistical-claim engine). This document surveys the taxonomies of misleading information in the political sphere — much of it developed in the state-actor misinformation context — maps each class to verification approaches, and states what changes in our architecture. Last updated: 2026-09-07.*
 
 ---
 

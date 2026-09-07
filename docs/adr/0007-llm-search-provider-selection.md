@@ -1,10 +1,10 @@
 # ADR-0007: LLM and search provider selection — accuracy-dominant, tiered by task
 
-*Status: Open (recommendation recorded, final decision gated on harness results) · Date: 2026-09-07 · Revised: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: Open (recommendation recorded, final decision gated on harness results) · Date: 2026-09-07 · Deciders: Bradley, Dave*
 
 ## Context
 
-The pipeline uses paid model APIs and a web-search API. The selection principle, per Bradley's correction of the original draft: **accuracy of assessment is paramount** — there is no constraint against open-weights models, and equally no mandate to avoid commercial frontier models if affordable. Model choice per task is governed by measured performance on *our* harness, not by benchmark folklore. Cost matters, but only relative to accuracy: a wrong verdict during an election costs more than any API bill.
+The pipeline uses paid model APIs and a web-search API. The selection principle: **accuracy of assessment is paramount** — there is no constraint against open-weights models, and equally no mandate to avoid commercial frontier models if affordable. Model choice per task is governed by measured performance on *our* harness, not by benchmark folklore. Cost matters, but only relative to accuracy: a wrong verdict during an election costs more than any API bill.
 
 ### What the tasks actually require (task-performance analysis)
 
@@ -75,13 +75,11 @@ All three major providers offer a **flat 50% discount** on asynchronous batch pr
 
 **Design consequence:** the pipeline's job scheduler separates batch-eligible work from realtime work at the queue level (a `latency_class` field on each job: `batch` vs `interactive`); batch routing is configuration, not per-call decisions.
 
-**Open-weights posture (corrected from original draft):** open-weights models are eligible for any role **where the harness shows them meeting the accuracy bar** — most plausibly bulk triage/extraction (MiniMax/GLM/Qwen/Kimi-class are frontier-adjacent and nearly free self-hosted). They are *not* presumed excluded, and commercial models are not presumed required. Two practical notes: (a) self-hosting on the homelab GPU is viable for the cheapest tier only if harness-validated; (b) **foreign-hosted inference APIs in the verdict/validation path are excluded during the election cycle** — see below.
+**Open-weights posture:** open-weights models are eligible for any role **where the harness shows them meeting the accuracy bar** — most plausibly bulk triage/extraction (MiniMax/GLM/Qwen/Kimi-class are frontier-adjacent and nearly free self-hosted). They are *not* presumed excluded, and commercial models are not presumed required. Self-hosting on the homelab GPU is viable for the cheapest tier only if harness-validated; **foreign-hosted inference APIs in the verdict/validation path are excluded during the election cycle** — see below.
 
-### Foreign-hosted inference routing (sharpened after review)
+### Foreign-hosted inference routing
 
-A proposed blanket exclusion of DeepSeek on "optics" alone was challenged — correctly. The reasoning, made precise:
-
-**What is NOT the issue: data protection.** The pipeline sends model APIs only public material — claim text from public sources, retrieved public evidence, public prompts. There is no sensitive data to leak or retain; DeepSeek's retention practices are close to irrelevant to harm. A data-protection framing of the exclusion would be dishonest.
+**What is NOT the issue: data protection.** The pipeline sends model APIs only public material — claim text from public sources, retrieved public evidence, public prompts. There is no sensitive data to leak or retain; any provider's retention practices are close to irrelevant to harm. A data-protection framing of the exclusion would be dishonest.
 
 **What IS the issue: verdict legitimacy under adversarial framing.** The project's credibility model is auditability — nothing requires hostile framing to survive. An election fact-checker whose verdict path routes through a foreign-operated inference API hands every partisan actor a standing delegitimisation line ("Beijing-operated AI decides what's true in NZ elections"), which lands with particular force in the NZ context (Five Eyes membership, live foreign-interference debates, DPMC's counter-interference apparatus). The attack does not require the model to be biased or retain data — it requires only that the routing is true. This is a campaign-period liability, not a permanent one.
 
@@ -90,7 +88,7 @@ A proposed blanket exclusion of DeepSeek on "optics" alone was challenged — co
 1. **During the election cycle (through official results, 27 Nov 2026): no foreign-hosted inference APIs in the verdict, second-opinion, or contestation-validation path** — regardless of country. This includes DeepSeek, Kimi (Moonshot), GLM (Zhipu), Qwen (Alibaba) *hosted APIs* equally, and would equally exclude any other country's hosted inference if it carried the same legitimacy exposure. US-hosted APIs carry a different (weaker, in NZ context) sovereignty framing; they are permitted, and this asymmetry is acknowledged honestly rather than dressed up as perfect neutrality.
 2. **Self-hosted open weights are exempt** — Kimi/GLM/Qwen/MiniMax weights running on NZ-controlled hardware (the homelab GPU) have no foreign operator in the loop and no data egress. For these, the harness is the quality gate — **and the harness includes a bias probe** (the same claims scored across models; systematic partisan-leaning deltas are published per model). Bias probing applies to every model in the routing table, domestic or not.
 3. **Non-Chinese providers serving Chinese-created open weights** (Together AI, Fireworks, Groq, OpenRouter serving DeepSeek/Kimi/GLM/Qwen): **permitted**, on the same footing as other US-hosted inference — the rule binds the *inference operator and its jurisdiction*, not the weights' country of origin. Rationale: the delegitimisation vector is a foreign *operator* processing election-truth adjudication, not the model's training provenance; with a US (or NZ) operator, no foreign state-adjacent entity is in the loop. Model-provenance concerns (training-time bias, alignment differences) are handled by the harness bias probe and open disclosure of the routing table, not by hosting rules. **Practical verification requirement:** some aggregators serve the same model both from their own infrastructure *and* as passthrough to the origin provider's API — routing config must record which serving mode is used, and passthrough-to-origin is treated as using the origin operator (excluded under rule 1). Provider serving-mode is verified once at routing-config time and re-verified at the pre-campaign re-probe.
-4. **Non-verdict roles relax the rule for hosted APIs? No — kept uniform for v1 simplicity:** foreign-hosted APIs are excluded from *all* pipeline roles during the cycle. The cost difference is negligible at our volumes, and a single rule is easier to defend and audit than a per-role carve-out.
+4. **Uniform scope:** foreign-hosted APIs are excluded from *all* pipeline roles during the cycle. The cost difference is negligible at our volumes, and a single rule is easier to defend and audit than a per-role carve-out.
 5. **Post-election:** the rule lapses; foreign-hosted APIs become an ordinary procurement question (cost, quality, terms), still subject to harness and bias-probe gates.
 
 **Why not "just disclose it"?** Disclosure doesn't neutralise the attack — it becomes the headline's verification. The freeze-window discipline (ADR-0006) exists because election-period credibility is structurally different from ordinary operation; this rule is the same logic applied to inference provenance.
@@ -117,13 +115,3 @@ A proposed blanket exclusion of DeepSeek on "optics" alone was challenged — co
 - Cost estimate for the 2026 cycle firms up at ~$2–4K total (well inside budget); the accuracy-dominant rule is affordable at our volumes.
 - The harness becomes load-bearing for procurement, not just quality — it must exist before launch (already required by ADR-0001/0008).
 - Provider-version pinning and routing config become first-class pipeline config items.
-
-## Revision note
-
-2026-09-07: original draft incorrectly stated "per ADR-0003, no open-weights constraint" as a *constraint against open-weights* — reframed per Bradley: no such constraint exists; open-weights are eligible wherever harness-validated, commercial models are welcome when affordable, and **accuracy of assessment is the dominant selection criterion**. Research on the Sept-2026 model/search landscape added with recommendations per role; final selection gated on harness results.
-
-2026-09-07 (second revision, per Bradley): batch/non-realtime processing added as a first-class cost lever — all three major providers offer flat 50% batch discounts; ~80–90% of our token spend is batchable (ingestion, triage, harness runs, topic packs, re-verification), with a `latency_class` job split (batch vs interactive) as the design mechanism; batch+caching stacking makes the topic-pack mode's effective cost ~5–10% of list. Campaign-peak LLM estimate revised from ~$50–150/day to ~$10–50/day blended.
-
-2026-09-07 (third revision, per Bradley's challenge to the DeepSeek exclusion): the "optics" exclusion was imprecise — data protection is explicitly NOT the issue (pipeline sends only public material). The real, sharpened rule: **no foreign-hosted inference APIs in the verdict/validation path during the election cycle**, applied symmetrically (DeepSeek, Kimi, GLM, Qwen hosted APIs equally; US-hosted APIs permitted with the asymmetry acknowledged honestly). Self-hosted open weights on NZ hardware are exempt and harness-gated, with a bias probe added to the harness for every model in the routing table. Rule lapses post-election.
-
-2026-09-07 (fourth revision, per Bradley): the rule clarified to bind the **inference operator and its jurisdiction, not the weights' country of origin** — non-Chinese providers (Together AI, Fireworks, Groq, OpenRouter) serving Chinese-created open weights are permitted on the same footing as other US-hosted inference, with model provenance handled by the bias probe rather than hosting rules. Verification requirement added: aggregators that offer both own-infrastructure serving and passthrough-to-origin must have their serving mode recorded in routing config; passthrough-to-origin counts as the origin operator (excluded).
