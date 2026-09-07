@@ -9,19 +9,12 @@ title: "[SOURCE] "
 
 **URL(s):**
 
-**Coverage dimension(s) it fills** (see docs/SOURCE-TAXONOMY.md §1.2 — tick all that apply):
-- [ ] Ownership/funding model gap (specify: public / trust-owned / independent / other)
-- [ ] Geographic gap (specify: national / main-centre / provincial-rural)
-- [ ] Language or cultural community (specify: Māori / Pacific / ethnic / other)
-- [ ] Format gap (specify: text / radio-TV transcript / press releases / other)
-- [ ] Audience position gap (specify)
+**Why it matters for election claim coverage:** (in your own words, 1–2 sentences — what claims does this outlet surface that current sources don't?)
 
-**Machine access** (if known):
+**Machine access** (if known — skip if unsure):
 - RSS/feed URL, or
 - "unknown — needs probing"
 
-**Why it matters for election claim coverage:** (1–2 sentences — what claims does this outlet surface that current sources don't?)
-
 ---
 
-*Process: automated scope-check runs against submitted URLs (see ADR-0009), then 14-day public review, then maintainer decision with published reason. Proposals are consideration, not adoption.*
+*Process: automated scope-check runs against submitted URLs (see ADR-0009), then 14-day public review, then maintainer decision with published reason. Where the source fits the coverage matrix is determined by project analysis after acceptance — you describe, we classify. Proposals are consideration, not adoption.*

@@ -1,6 +1,6 @@
 ---
 name: "Authority proposal (evidence source)"
-about: Propose a dataset/institution as a trusted evidence authority
+about: Propose a dataset/institution for consideration as an evidence authority
 labels: ["authority-proposal"]
 title: "[AUTHORITY] "
 ---
@@ -9,20 +9,12 @@ title: "[AUTHORITY] "
 
 **URL (dataset or series landing page):**
 
-**Policy domain** (see docs/SOURCE-TAXONOMY.md §2.2): 
+**What policy area is it relevant to?** (in your own words — no taxonomy knowledge needed)
 
-**Proposed authority tier** (see docs/SOURCE-TAXONOMY.md §2.1):
-- [ ] T1 — designated official statistics (Stats NZ)
-- [ ] T2 — official administrative data (agency collections)
-- [ ] T3 — official survey/research instruments
-- [ ] T4 — independent Crown monitors / central agencies
-- [ ] T5 — established research / secondary curators
-- [ ] T6 — international comparators
+**Why should it be trusted as evidence?** (narrative, 2–4 sentences — e.g. statutory role, published methodology, independence, how it handles revisions. Describe why *you* would trust it; formal classification is done in review.)
 
-**Why is this authoritative?** (statutory role, methodology publication, independence, revision policy — 2–4 sentences):
-
-**Machine access** (if known): API/feed/download URL, format
+**Machine access** (if known — skip if unsure): API/feed/download URL, format
 
 ---
 
-*Process: automated scope-check (is the dataset machine-accessible, is the tier plausible), 14-day public review, maintainer decision. Tier changes above T4 additionally require subject-matter review. Rejections are public and reasoned (ADR-0009).*
+*Process: automated scope-check (is the dataset machine-accessible), 14-day public review, maintainer decision. Trust-tier classification is done by the project during review — your narrative informs it but doesn't have to use our categories. Rejections are public and reasoned (ADR-0009).*
