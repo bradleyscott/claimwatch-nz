@@ -89,7 +89,7 @@ stateDiagram-v2
 
 **Reasoning:** every transition is logged; nothing is ever silently edited (ADR-001, ADR-006). The freeze window is the legal design response to Electoral Act s 199A (see legal doc). In v1 the "human check" is a small daily review task by the operator; the post-election design replaces this with bridging-weighted community review (ADR-005).
 
-## 4. The statistical-claim engine (flagship)
+## 4. The statistical-claim engine (the primary mode for statistical claims)
 
 ```mermaid
 flowchart TB

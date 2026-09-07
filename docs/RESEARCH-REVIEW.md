@@ -41,7 +41,7 @@ The **AVeriTeC** shared task (FEVER workshop, real-world claims verified against
 - **2025** (restricted to open-weights models, single GPU, ≤1 min/claim): winner CTU AIC scored **33.17%**.
 - Cross-benchmark evaluation work (2025) found: (a) **retrieval is the primary bottleneck** — replacing retrieved evidence with gold annotations improves verdict accuracy by 14–22 points; (b) **system rankings flip across domains** — winners on one dataset underperform simple baselines on another.
 
-**Design consequence (ADR-001):** automated verdicts are *not* reliable enough to publish as final during an election. Automation's role is triage, drafting, and evidence assembly; the community-contestation layer plus published accuracy measurement is the credibility mechanism. Also: verification accuracy is *much* higher when verification is claim-vs-specific-source (citation checking) than claim-vs-open-web — which drives our flagship design (§2.4).
+**Design consequence (ADR-001):** automated verdicts are *not* reliable enough to publish as final during an election. Automation's role is triage, drafting, and evidence assembly; the community-contestation layer plus published accuracy measurement is the credibility mechanism. Also: verification accuracy is *much* higher when verification is claim-vs-specific-source (citation checking) than claim-vs-open-web — which drives the verification-layer design (§2.4).
 
 ### 2.3 Community correction: what works and what doesn't
 
@@ -50,9 +50,9 @@ The **AVeriTeC** shared task (FEVER workshop, real-world claims verified against
 - **Our key difference** (see ADR-004): X/Meta mutate *visibility* of crowd-written notes via consensus. We mutate *verdicts* via **validated evidence** — a submitted source runs through the verification pipeline (provenance, authority, corroboration checks) and only evidence clearing the bar triggers mutation. One well-sourced contest can win against crowd sentiment; brigading floods noise that dies in validation. This is closer to Wikipedia's verifiability model than to social voting.
 - **Cold start**: bridging maths needs a large active rater pool. At NZ scale we cannot replicate X's dynamics; our v1 contestation is a **structured contest + evidence-validation pipeline with human review**, with bridging-style rating deferred to post-election (ADR-005).
 
-### 2.4 Statistical claims and cherry-picking (our flagship problem class)
+### 2.4 Statistical claims and cherry-picking (the primary mode for statistical claims)
 
-Bradley's core insight from the design discussions: **the main value is checking the evidence politicians cite for policy propositions, and the main risk is stats quoted accurately but painting a convenient, incomplete, or skewed picture.**
+The core insight from the design discussions: **the main value is checking the evidence politicians cite for policy propositions, and the main risk is stats quoted accurately but painting a convenient, incomplete, or skewed picture.**
 
 - This claim class ("crime up 30% since 2017" where the number is true but the framing is selective) is the most common persuasive pattern in campaign material, and standard AFC handles it poorly because the *claim sentence itself is not false*.
 - Academic work exists: cherry-picking detection as *missing-statement identification* (the "Cherry" paper, arXiv:2401.05650, 2024; UTA "Filling the Blanks" thesis, 2025 — detecting cherry-picking by finding what important context is missing, using cross-bias source comparison). This is a live research frontier we would be productising.
@@ -113,7 +113,7 @@ The quick-build version for the 2026 election cycle: **100 labelled claims**, do
 | ADR-001 | Human-in-the-loop posture: automated verdicts published as "open to contest" with no per-verdict sign-off | Proposed |
 | ADR-002 | Ingestion scope for 2026 cycle (Hansard + releases first; TV transcription deferred) | Proposed |
 | ADR-003 | Build vs license Full Fact tooling | Decided: build (open) |
-| ADR-004 | Verification architecture: stat-fingerprint + topic packs as flagship; open-web loop for the long tail | Proposed |
+| ADR-004 | Verification architecture: multi-mode layer (stat-fingerprint + topic packs primary for stats; citation-check; false-context; capped open-web loop) | Proposed |
 | ADR-005 | Contestation mechanism for v1 (structured contest + validation + human mutation review; bridging deferred) | Proposed |
 | ADR-006 | Verdict language standard ("claims, not persons") and mutation freeze | Proposed |
 | ADR-007 | LLM/search provider selection | Open |
