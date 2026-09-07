@@ -33,6 +33,8 @@ Five ingestion lanes for 2026:
 
 **Explicitly deferred:** Parliament TV/broadcast transcription (whisper self-hosting is a time sink; Hansard covers the chamber), **proactive social-platform crawling** (API gating and cost; user submissions cover the highest-value social claims without it).
 
+**Access verification:** every source in this ADR was probed for real availability (feeds, bot protection, degradation) on 2026-09-07 — results and mitigations live in `docs/COVERAGE.md`, which must be re-verified at build week 1 and monitored in production. Coverage is a maintained property of the system, not a one-time setup decision.
+
 Press releases are prioritised because they pair **policy proposition + claimed evidence** in one self-published package — enabling citation checking and the statistical-claim engine (ADR-0004) against primary sources.
 
 ## Alternatives considered

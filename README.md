@@ -29,6 +29,7 @@ Ahead of the 2026 NZ general election (7 November 2026), we are building a publi
 | [`docs/RESEARCH-REVIEW.md`](docs/RESEARCH-REVIEW.md) | Survey of the state of the art: automated fact-checking research, existing systems (open and proprietary), community-correction systems, and NZ-specific data infrastructure. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and reasoning per component. |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | How we measure pipeline and community-layer accuracy against labelled ground truth. |
+| [`docs/COVERAGE.md`](docs/COVERAGE.md) | Verified access map: every cited source probed for API/feed availability, bot protection, and degradation, with mitigations. |
 | [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, and how the design addresses each. |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records — every significant approach decision, its alternatives, and the reasoning. |
 
