@@ -1,34 +1,43 @@
 flowchart TB
-    subgraph SOURCES["NZ open data — public"]
+    subgraph CLAIM_SOURCES["Claim sources — publications that may contain claims"]
         BEEHIVE["Beehive.govt.nz<br/>releases + speeches (RSS)"]
-        PARTIES["Party release pages<br/>scraped"]
+        PARTIES["Party release pages<br/>(headless render)"]
         HANSARD["Hansard<br/>official transcripts"]
-        NEWS["News RSS<br/>RNZ · NZ Herald · Stuff"]
-        STATS["Official series<br/>Stats NZ · MoJ · LAWA · Figure NZ"]
+        NEWS["News RSS<br/>RNZ · NZ Herald · Stuff · Newsroom"]
         SUBMIT["User submissions<br/>URLs + text (claim pointers)"]
+        BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions<br/>(ADR-0014)"]
+    end
+
+    subgraph AUTHORITIES["Verifier authorities — evidence sources<br/>(checked against, never claim feeds)"]
+        STATS["Stats NZ<br/>Aotearoa Data Explorer (SDMX/JSON)"]
+        MOJ["MoJ · Police (policedata.nz)<br/>justice series"]
+        ELECTORAL["Electoral Commission<br/>electoral process + party registration"]
+        OTHER["Treasury · RBNZ · Te Whatu Ora<br/>domain series per T1–T6 map"]
     end
 
     subgraph CW["ClaimWatch (open source)"]
-        INGEST["Ingestion"]
-        TRIAGE["Claim detection + typing"]
-        VERIFY["Verification engine"]
-        STORE["Verdict store<br/>append-only + audit log"]
+        INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0011)"]
+        TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0015)"]
+        VERIFY["Verification engine<br/>multi-mode (ADR-0004)"]
+        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0010)"]
         SITE["Public site<br/>ClaimReview markup"]
-        CONTEST["Contestation intake<br/>+ evidence validation"]
+        CONTEST["Contestation intake<br/>+ evidence validation (ADR-0005)"]
     end
 
     PUBLIC["Public:<br/>read, contest, submit evidence"]
-    SEARCH["Google / Bing<br/>fact-check panels"]
-    AUDIT["Retrospective mutation audit<br/>sampled daily"]
+    SEARCH["Search APIs<br/>Brave · Serper (ADR-0007)"]
+    AUDIT["Retrospective audit<br/>sampled daily, high-impact always"]
 
     BEEHIVE --> INGEST
     PARTIES --> INGEST
     HANSARD --> INGEST
     NEWS --> INGEST
     SUBMIT --> INGEST
+    BCAST --> INGEST
     INGEST --> TRIAGE
     TRIAGE --> VERIFY
-    STATS --> VERIFY
+    VERIFY -- "retrieve official series<br/>(evidence, never claims)" --> AUTHORITIES
+    VERIFY -- "open-web retrieval" --> SEARCH
     VERIFY --> STORE
     STORE --> SITE
     SITE --> SEARCH
