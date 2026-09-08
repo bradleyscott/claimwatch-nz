@@ -1,4 +1,4 @@
-# ADR-0005: Contestation mechanism for v1 — structured contest + evidence validation + human mutation review; bridging deferred
+# ADR-0005: Contestation mechanism for v1 — structured contest + evidence validation + automated mutation with retrospective audit; bridging deferred
 
 *Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
 
@@ -25,7 +25,7 @@ A single well-sourced contest can flip a verdict even if the crowd dislikes it �
 
 - **Full Community Notes model from day one.** Rejected: cold start makes the bridging maths inert at NZ scale; would produce theatre, not governance.
 - **No contestation until post-election.** Rejected: contestation data is itself the research/trust asset; two months of contest logs (even thin) seeds the post-election design.
-- **Fully automated mutation (no review)** — **adopted as the v1 design** (see revised decision above): validated evidence mutates automatically; quality is checked by a *sampled retrospective audit* rather than a pre-publication gate. Residual risk is accepted deliberately: a single adversarial evidence pack that fools the validator would mutate a verdict unattended until caught by audit. Mitigations: audit sampling weighted toward high-impact verdicts, immediate re-mutation capability, and the append-only audit log making any bad mutation publicly reversible within hours. The freeze window (ADR-0006) still bounds the worst-case window.
+- **Human-in-the-loop mutation review (pre-publication human gate).** Considered in the original draft and superseded by the adopted design: validated evidence mutates automatically; quality is checked by a *sampled retrospective audit* rather than a pre-publication gate. Residual risk is accepted deliberately: a single adversarial evidence pack that fools the validator would mutate a verdict unattended until caught by audit. Mitigations: audit sampling weighted toward high-impact verdicts, immediate re-mutation capability, and the append-only audit log making any bad mutation publicly reversible within hours. The freeze window (ADR-0006) still bounds the worst-case window.
 
 ## Consequences
 

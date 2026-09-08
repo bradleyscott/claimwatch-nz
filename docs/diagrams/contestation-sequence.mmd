@@ -2,7 +2,7 @@ sequenceDiagram
     participant U as Member of public
     participant S as Contest intake
     participant V as Validation pipeline
-    participant Q as Mutation review (human, v1)
+    participant Q as Mutation (automated)
     participant D as Verdict store (append-only)
 
     U->>S: dispute verdict + cited sources
@@ -13,7 +13,9 @@ sequenceDiagram
         V->>D: rejection logged (public, with reason)
         V-->>U: notified with reason
     else Evidence passes
-        V->>Q: proposed verdict change + new evidence pack
+        V->>Q: validated evidence triggers mutation
         Q->>D: v(n+1) published with public diff + contributor credit (opt-in)
+        Q->>Q: sampled retrospective audit (high-impact always)
+        Q->>D: audit finding logged
         D-->>U: notified of outcome
     end

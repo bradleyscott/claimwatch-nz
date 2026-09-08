@@ -19,7 +19,7 @@ flowchart TB
 
     PUBLIC["Public:<br/>read, contest, submit evidence"]
     SEARCH["Google / Bing<br/>fact-check panels"]
-    STEWARDS["Mutation review queue<br/>human check (v1)"]
+    AUDIT["Retrospective mutation audit<br/>sampled daily"]
 
     BEEHIVE --> INGEST
     PARTIES --> INGEST
@@ -35,5 +35,5 @@ flowchart TB
     SITE --> PUBLIC
     PUBLIC --> CONTEST
     CONTEST --> VERIFY
-    CONTEST --> STEWARDS
-    STEWARDS --> STORE
+    CONTEST --> AUDIT
+    AUDIT --> STORE

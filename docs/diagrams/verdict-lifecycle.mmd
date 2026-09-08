@@ -4,8 +4,9 @@ stateDiagram-v2
     PUBLISHED --> CONTESTED: contest submitted
     CONTESTED --> VALIDATING: evidence validation runs
     VALIDATING --> PUBLISHED: evidence rejected (reason logged, public)
-    VALIDATING --> MUTATION_REVIEW: evidence accepted, change proposed
-    MUTATION_REVIEW --> PUBLISHED: human check approves, v2 published with diff
-    MUTATION_REVIEW --> PUBLISHED: human check rejects (reason logged, public)
+    VALIDATING --> MUTATED: evidence accepted, verdict mutates automatically
+    MUTATED --> PUBLISHED: v2 published with diff
+    MUTATED --> AUDIT: sampled retrospective audit (high-impact always)
+    AUDIT --> PUBLISHED: audit confirms (or reverts with reason)
     PUBLISHED --> FROZEN: freeze window (5-7 Nov)
     FROZEN --> PUBLISHED: freeze lifts (after 27 Nov)

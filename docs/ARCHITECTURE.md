@@ -29,7 +29,7 @@ flowchart TB
 
     PUBLIC["Public:<br/>read, contest, submit evidence"]
     SEARCH["Google / Bing<br/>fact-check panels"]
-    stewards["Mutation review queue<br/>human check (v1)"]
+    AUDIT["Retrospective audit<br/>sampled daily, high-impact always"]
 
     BEEHIVE --> INGEST
     PARTIES --> INGEST
@@ -44,8 +44,9 @@ flowchart TB
     SITE --> PUBLIC
     PUBLIC --> CONTEST
     CONTEST --> VERIFY
-    CONTEST --> stewards
-    stewards --> STORE
+    CONTEST --> VERIFY
+    CONTEST --> AUDIT
+    AUDIT --> STORE
 ```
 
 **Reasoning:** sources are deliberately limited to public, structured, official data for v1 (ADR-002). Social platforms are excluded — API costs and gating are high, and Hansard + releases + news cover the bulk of claimable on-record material. The verification engine reads official statistical series directly rather than relying on what a release cited (ADR-004) — the citing politician chooses the evidence; we reconstruct the field.
@@ -80,14 +81,14 @@ stateDiagram-v2
     PUBLISHED --> CONTESTED: contest submitted
     CONTESTED --> VALIDATING: evidence validation runs
     VALIDATING --> PUBLISHED: evidence rejected<br/>(rejection reason logged, public)
-    VALIDATING --> MUTATION_REVIEW: evidence accepted<br/>verdict change proposed
-    MUTATION_REVIEW --> PUBLISHED: human check approves<br/>v2 published with diff
-    MUTATION_REVIEW --> PUBLISHED: human check rejects<br/>(reason logged, public)
+    VALIDATING --> MUTATED: evidence accepted<br/>verdict mutates automatically<br/>v2 published with diff
+    MUTATED --> AUDIT: sampled retrospective audit<br/>(all high-impact reviewed)
+    AUDIT --> PUBLISHED: audit confirms (or reverts<br/>with reason, both logged)
     PUBLISHED --> FROZEN: mutation freeze window<br/>(5–7 Nov 2026)
     FROZEN --> PUBLISHED: freeze lifts (after 27 Nov)
 ```
 
-**Reasoning:** every transition is logged; nothing is ever silently edited (ADR-001, ADR-006). The freeze window is the legal design response to Electoral Act s 199A (see legal doc). In v1 the "human check" is a small daily review task by the operator; the post-election design replaces this with bridging-weighted community review (ADR-005).
+**Reasoning:** every transition is logged; nothing is ever silently edited (ADR-001, ADR-006). Mutation is fully automated — a validated evidence pack triggers the change, and a sampled retrospective audit (all high-impact mutations reviewed) checks validator quality without gating it (ADR-005). The freeze window is the legal design response to Electoral Act s 199A (see legal doc).
 
 ## 4. The statistical-claim engine (the primary mode for statistical claims)
 
@@ -116,7 +117,8 @@ sequenceDiagram
     participant U as Member of public
     participant S as Contest intake
     participant V as Validation pipeline
-    participant Q as Mutation review (human, v1)
+    participant Q as Mutation (automated)
+    participant A as Retrospective audit
     participant D as Verdict store (append-only)
 
     U->>S: dispute verdict + cited sources
@@ -127,8 +129,10 @@ sequenceDiagram
         V->>D: rejection logged (public, with reason)
         V-->>U: notified with reason
     else Evidence passes
-        V->>Q: proposed verdict change + new evidence pack
+        V->>Q: validated evidence pack triggers mutation
         Q->>D: v(n+1) published with public diff<br/>+ contributor credit (opt-in)
+        Q->>Q: sampled retrospective audit<br/>(all high-impact reviewed)
+        Q->>D: audit finding logged (revert w/ reason if needed)
         D-->>U: notified of outcome
     end
 ```
