@@ -32,12 +32,23 @@ Every verified claim deposits into the store:
 
 ### Claimant entities (people, parties, and affiliation)
 
-Every claim is attributed to a **claimant entity**, resolved at ingestion:
+Every claim is attributed to a **claimant entity**, resolved at ingestion. Entities are **first-class objects in the store** — not metadata fields on claims — so claims are retrievable by person or party as a primary navigation path:
 
-- **Person entities** — politicians, commentators, officials, public figures. Each carries: name, current party affiliation (if any, with affiliation history — people change parties), role (MP / minister / candidate / commentator / other), and source links for the attribution (Hansard record, release byline, etc.).
+- **Person entities** — politicians, commentators, officials, public figures. Each carries: name (+ aliases and name variants: "David Seymour", "Seymour", "the ACT leader"), current party affiliation (if any, with affiliation history — people change parties), role (MP / minister / candidate / commentator / other), and source links for the attribution (Hansard record, release byline, etc.).
 - **Party/organisation entities** — parties, ministries, government agencies, and outlets speaking institutionally ("New Zealand First states…", "the Ministry of Health advises…"). These carry affiliation to no one; they *are* the principal.
 - **Attribution resolution is conservative**: a claim is attributed to a person when the source clearly identifies them (Hansard speaker attribution, release byline, quoted name); attributed to the party/organisation alone when the statement is institutional; and attributed to "unattributed" when unclear — never guessed. Party affiliation of a person is metadata from public sources (parliamentary records), never inferred from what they say.
 - **Claims carry the affiliation *at time of statement*** — affiliations change (crossings, retirements, candidate selections during the campaign); the store records affiliation history so a claim's attribution is stable even as the person's status changes.
+
+#### Cross-links to canonical external records
+
+Each entity carries stable **cross-links to canonical external records**, so every claim page and profile page connects to independent, well-maintained context:
+
+- **Person entities** link to their **Wikipedia entry** (canonical, maintained, citable — biographical context stays out of our verdict pages and links to it instead). Where a person has no Wikipedia entry, that link is simply absent — we never create biography.
+- **Party entities** link to their **Electoral Commission registration record** (registration status, logo, secretary, MLA data) and their Wikipedia entry.
+- Links are stored as data on the entity (one place), rendered on every claim page, profile page, and in ClaimReview metadata (the `author`/`itemReviewed.author` fields) — so search engines and other fact-checkers resolve the same entities.
+- Cross-link targets are **fetched, not guessed**: entity resolution matches against the external record (Wikipedia title/API, Electoral Commission register) at entity creation, and the match is human-reviewed for seed entities (MPs, parties, major commentators) since a wrong cross-link attaches our verdicts to the wrong person's record.
+
+Retrieval by entity is then a first-class query: **all claims by a person** (across lanes and outlets), **all claims by a party** (institutional + member statements, separable per the profile guardrails below), and **all claims by members of party X** — the last only via affiliation-at-time, which is what makes it well-defined. These entity pages are the natural entry point for the public ("what has [leader] claimed, and what happened when we checked it?") and the natural unit for the reliability profiles.
 
 ### Reliability profiles (aggregate statistics, published carefully)
 
@@ -104,5 +115,5 @@ The grid axes remain pre-declared and published before campaign peak — identic
 - **Grid axes are pre-declared; grid computation is on demand** — the methodology page publishes the axes and the rule that materiality selection is automated but auditable.
 - **The electoral-process lane is a retrieval-priority rule** (Electoral Commission consulted first, fastest verification path), not a pre-computed pack.
 - **The claim graph is a new build item**: typed-relationship detection (repeats / corrects / contradicts / refines / responds-to) sits alongside repeat-matching in the store; correction-linking needs the conservative review queue before publication.
-- **Claimant entities and reliability profiles are new build items**: entity resolution at ingestion, affiliation history, and the aggregate profile layer — with the structural firewall (verification loop never sees claimant identity) enforced in code, not policy.
+- **Claimant entities and reliability profiles are new build items**: entity resolution at ingestion, affiliation history, and the aggregate profile layer — with the structural firewall (verification loop never sees claimant identity) enforced in code, not policy. Entities are first-class store objects with canonical cross-links (Wikipedia, Electoral Commission register), making claims-by-person and claims-by-party primary retrieval paths.
 - **Narrative rendering**: verdict pages for linked claims show their relationship chains (claim → correction → refinement), giving readers the full picture — and making the store's history navigable, which is what makes the correction incentive real.
