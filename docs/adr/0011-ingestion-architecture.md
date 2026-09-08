@@ -33,6 +33,29 @@ The parser contract is therefore **per-format, not per-site**: a shared interfac
 
 Extraction failures raise health alerts like fetch failures — an extracted-empty result from a known-nonempty document is a defect, not a quiet zero.
 
+### The extraction ladder (deterministic first, LLM to get unstuck)
+
+Deterministic extractors and LLMs have complementary failure modes, and the design uses each for what it does best:
+
+- **Deterministic parsers are cheap, fast, and stable** — but brittle: they get *stuck* when markup drifts, and a stuck parser produces silence, not errors.
+- **LLMs are flexible and get *unstuck*** — they can find the content through an unfamiliar layout, a half-changed template, or a format nobody wrote a parser for — but they are comparatively expensive, slower, and can mis-extract with confidence.
+
+So extraction is a **ladder**, not a choice:
+
+| Tier | Mechanism | When | Cost posture |
+|---|---|---|---|
+| **1 — deterministic** | per-format parsers above | always, first | negligible; the steady state |
+| **2 — LLM-assisted** | schema-constrained LLM extraction over the raw document (same output schema as Tier 1: text + structure + provenance) | Tier-1 failure *or* Tier-1 output failing its validation checks (empty body, no title, schema mismatch) | rare by construction; batch-priced per ADR-0007 |
+| **3 — degraded** | headless render retry, then mark source degraded | Tier-2 failure | escalated via the health ladder |
+
+Design details that make the ladder trustworthy:
+
+- **Provenance records which tier produced every extraction** (`extraction_method: deterministic | llm-assisted | llm-only`), carried through to the verdict page's evidence chain. Deterministic and LLM output are never silently equivalent — the audit trail distinguishes them.
+- **The Tier-2 rate is itself a monitoring instrument.** A source's LLM-fallback rate should be near zero in steady state; a rising rate is the earliest possible signal of markup drift — the LLM keeps the pipeline running *and* its invocation pattern tells you the deterministic parser needs fixing. Stuck-ness becomes measurable instead of silent.
+- **Numeric cross-checks.** Where both tiers extract the same numeric field (the case that matters for the sensitivity grid), values are compared: agreement → high confidence; disagreement → the field is flagged for review rather than silently taking either. LLM extraction of numbers is the riskiest point of the ladder, and the grid is only as good as its numbers.
+- **Downstream verification still checks against the re-fetched source** (fetch-from-source discipline), so an LLM mis-extraction is caught by the loop's claim-vs-source check — the ladder never becomes a single point of failure for accuracy.
+- **The ladder learns toward determinism.** Tier-2 extractions accumulate as examples; when a source's fallback rate stays elevated, the recurring pattern gets a deterministic parser written (the LLM solves it; the code keeps the solution). Tier-2 is the scout, not the resident.
+
 ### Lane mechanics
 
 | Lane | Mechanism | Cadence | Notes |
@@ -107,6 +130,8 @@ Design elements in this ADR trace to measured results in the open-source fact-ch
 ## Consequences
 
 - **Build order**: RSS lanes first (week 1), Hansard parser + headless party renderers (week 1–2), submissions form (week 2, ships with HDCA process), commentator watchlist last (week 3) — it is a configuration of mechanisms the other lanes already provide.
+- **The extraction ladder makes markup drift non-fatal**: Tier-2 keeps content flowing through site changes while the deterministic parser is repaired — the difference between a two-hour parse gap and a two-day one during the campaign.
+- **LLM-extraction spend is bounded by construction**: Tier-2 fires only on Tier-1 failure/validation miss, so its cost scales with drift events, not document volume; the per-source fallback rate is tracked and the drift signal is the actionable output.
 - **The parser contract** (per-format extraction interface: listing → item → clean text + structure + provenance) is the reusable unit; a new party site or commentator outlet is a new parser instance, registered via config, proposed publicly via ADR-0009. New *formats* (a new PDF layout, a new data API) are new extractor implementations.
 - **The verification loop inherits question decomposition, multi-hop retrieval, hybrid store search, dynamic depth, and NLI justification auditing** from this ADR — these are its accuracy-critical behaviours, and the harness (ADR-0008) should exercise each of them as separable stages.
 - **Health monitoring is not optional infrastructure** — it ships with the first lane, not after launch; extraction failures join fetch failures as alertable defects; the public coverage page is its user-facing face.
