@@ -49,7 +49,17 @@ publication (1) ──< segment (n) ──< claim (n) ── discourse window (1
 
 They compose rather than compete: **publication = the whole occasion, segment = the relevant portion, window = the immediate span**. A verdict page can show all three — "in a Morning Report interview (publication) responding to the host's question about hospital waitlists (segment), the Minister said… (window)". Each level's summary is stored once and referenced, not regenerated per claim.
 
-### 4. How each level feeds verification
+### 4. How each level feeds verification — with on-demand access to all levels
+
+The verification loop treats context as **available on demand at all three levels, up to and including the full publication**: the claim's immediate window and the segment summary are included by default (cheap, pre-computed); but the loop may pull **deeper into any level when it judges it needed** — the full transcript, the whole document, the whole episode. This is the same principle as the retrieval loop itself (ADR-0011): the model decides whether its current evidence suffices, and asks for more when it doesn't.
+
+- **Default context pack (automatic, every verification)**: claim + discourse window + segment summary + publication summary + publication metadata. This is the standard conditioning input — bounded, cached, and batch-priced.
+- **On-demand expansion (the loop requests it)**: when the default pack leaves a question open, the loop can request (1) the **full segment content** (the whole Q&A exchange, verbatim), (2) the **full publication** (whole transcript or whole document text), (3) **adjacent segments** in the same publication (e.g. the speaker's earlier answer on the same topic). The request is logged with its reason (structured output), so the audit trail shows not just what context was used but *why* the loop went looking.
+- **The long-context economics work**: broadcast transcripts are the large case — a full Morning Report transcript is ~10–20k words (~15–30k tokens); modern verdict-role models (ADR-0007 routing) handle that context comfortably, and the loop only pays for it when it fetches. Most claims resolve from the default pack; full-document pulls are the exception the loop escalates to.
+- **What the loop never gets**: the claimant's identity (the ADR-0010 firewall is absolute — no reliability profiles, party platform, or speaker history in the verification context, even on demand) and anything from other publications beyond what retrieval legitimately brings (the loop's open-web retrieval remains the cross-publication instrument; context records are intra-publication only).
+- **Statistical mode note**: the fingerprint/grid computation is unaffected (it runs on the fingerprint and official series); deeper context pulls mainly serve interpretation (what was the speaker's deployment) and the open-web/citation modes.
+
+Per-level detail:
 
 - **Publication level**: venue/occasion (already an ADR-0015 field, now sourced from the publication record rather than re-derived per claim — `speech_context` becomes a publication field); publication date anchors temporal reasoning (a claim about "last year" is fingerprinted against the publication's event date); publisher type informs the evidence-authority emphasis (a ministry release claims against its own data differently than a party page).
 - **Segment level**: the question text seeds question-generation for the open-web loop (the claim was an *answer* — what was asked shapes what is being asserted); the segment summary gives the verification loop its scoping ("this claim is one of three answers on housing in this segment"); debate exchanges carry the `responds-to` relationship naturally (ADR-0010).
