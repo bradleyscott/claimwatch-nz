@@ -20,6 +20,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0014](0014-broadcast-podcast-interviews.md) | Broadcast/podcast interviews — transcripts-first (published text only); self-generated transcription out of scope | Proposed |
 | [0015](0015-claim-contextualisation.md) | Claim contextualisation — discourse context as a first-class input to verification | Proposed |
 | [0016](0016-publication-and-segment-context.md) | Publication record and segment context — the document hierarchy around claims | Proposed |
+| [0017](0017-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure, fatality visible | Proposed |
 
 ## Process
 
