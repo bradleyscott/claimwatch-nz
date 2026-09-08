@@ -18,7 +18,8 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0012](0012-pipeline-observability.md) | Pipeline observability — Grafana-only, one platform; LLM observability via OTel GenAI conventions | Proposed |
 | [0013](0013-implementation-technology-choices.md) | Implementation technology — TypeScript + Vercel AI SDK, Postgres/pgvector/pg_cron data plane | Proposed |
 | [0014](0014-broadcast-podcast-interviews.md) | Broadcast/podcast interviews — transcripts-first (published text only); self-generated transcription out of scope | Proposed |
-| [0015](0015-claim-contextualisation.md) | Claim contextualisation — the discourse window that informs verification | Proposed |
+| [0015](0015-claim-contextualisation.md) | Claim contextualisation — discourse context as a first-class input to verification | Proposed |
+| [0016](0016-publication-and-segment-context.md) | Publication record and segment context — the document hierarchy around claims | Proposed |
 
 ## Process
 
