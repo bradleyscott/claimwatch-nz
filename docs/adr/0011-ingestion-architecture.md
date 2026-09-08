@@ -19,6 +19,17 @@ What remains is the ingestion **architecture**: the pipeline shape, per-lane mec
 
 Ingestion produces **documents with provenance** — never bare text. Every document entering the pipeline carries: source ID, canonical URL, retrieval timestamp, retrieval method (feed / scrape / headless render / submission re-fetch), and content hash. This provenance is what makes verdict pages auditable and what anchors ADR-0010's attribution.
 
+### Reprocessing (every stage is re-runnable, by design)
+
+The pipeline is **idempotent at every stage boundary**: each stage (normalise → attribute → dedupe → triage → verify) is a pure function from stored inputs to stored outputs, with its inputs retained. That makes reprocessing a first-class operation, not a rebuild:
+
+- **What is retained**: raw fetched documents (with provenance), extraction outputs, claim records, fingerprints, verdicts, and the pipeline **version + model version** that produced each — every artefact is reproducible and attributable to the code/model that made it.
+- **What can be reprocessed**: any claim set, at any scope (one claim, one source, one lane, everything), against any pipeline version — improved claim detection, a fixed parser, a new fingerprint scheme, an upgraded verification model. Because inputs are stored, reprocessing consumes the same originals, not a lossy downstream copy.
+- **How it runs**: reprocessing is a batch job per ADR-0007 (50% batch pricing — another reason the batch posture pays). Backfills are rate-limited and prioritised (e.g. claims with live verdict pages first, since those are published).
+- **What changes on the record**: a reprocessed verdict does not silently overwrite. The new verdict version is appended with its pipeline/model version; if the verdict changes, ADR-0005's mutation flow applies — public diff, audit log entry, and (during the freeze window) the ADR-0006 hold. Verdict *history* is the record; the current verdict is just the latest version. This is what makes "we improved the algorithm and re-checked" an auditable, publishable statement rather than a quiet rewrite.
+- **Harness-gated reprocessing**: a pipeline change that triggers a reprocess must have passed the ADR-0008 regression gate first — reprocessing is how an improvement ships, and the harness is what proves it's an improvement. Mass re-verdictions without a harness pass is the failure mode this rule exists to prevent (an unvetted "improvement" rewriting hundreds of published verdicts is precisely the "they rewrote history" attack the project's audit posture exists to repel).
+- **The extraction ladder composes with reprocessing**: a repaired deterministic parser (Tier-1) can reprocess everything a drift period pushed through Tier-2, with the numeric cross-checks validating the two agree.
+
 ### Format-aware extraction (not one generic parser)
 
 The AVeriTeC shared task's clearest operational lesson: a generic single-strategy extractor (Trafilatura) **silently failed to retrieve the gold document for 297 of 500 development examples** — PDFs, video transcripts, and tables were the failure modes, and the system that added PDF/YouTube extraction (Dunamu-ML) achieved the task's best retrieval score. A generic "clean text" contract would fail the same way here, and the failure would be invisible (the health record sees a successful parse of the wrong thing, or nothing).
@@ -137,3 +148,4 @@ Design elements in this ADR trace to measured results in the open-source fact-ch
 - **Health monitoring is not optional infrastructure** — it ships with the first lane, not after launch; extraction failures join fetch failures as alertable defects; the public coverage page is its user-facing face.
 - **Playwright headless rendering is a bounded, known cost**: ~6 party sites + a few commentator sites, checked a few times daily, from a NZ-routed egress. Re-probe before relying on it at scale (COVERAGE.md cadence).
 - **Ingestion never writes verdicts** — it fills the store with attributed, provenance-carrying documents and detected claims; verification is a separate queue (separation that also enforces the ADR-0010 firewall: ingestion knows claimant identity, verification must not use it).
+- **Raw-document retention is the price of reprocessability** — storage for the campaign corpus (documents, extractions, claim records, verdict versions) is modest at our volumes and is the enabling cost for every other reprocessing property above.
