@@ -15,7 +15,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0009](0009-public-proposal-of-sources-and-authorities.md) | Public proposal of claim sources and evidence authorities | Proposed |
 | [0010](0010-claim-anchored-evidence-store.md) | Claim-anchored evidence store — verify claim-by-claim, accumulate context over time | Proposed |
 | [0011](0011-ingestion-architecture.md) | Ingestion architecture — six lanes, health-checked, feeding the evidence store | Proposed |
-| [0012](0012-pipeline-observability.md) | Pipeline observability — hosted free tiers, OTel-instrumented, Discord-alerted | Proposed |
+| [0012](0012-pipeline-observability.md) | Pipeline observability — two tools (Grafana Cloud + PostHog), LLM observability on Grafana | Proposed |
 
 ## Process
 
