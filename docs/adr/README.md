@@ -16,6 +16,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 | [0010](0010-claim-anchored-evidence-store.md) | Claim-anchored evidence store — verify claim-by-claim, accumulate context over time | Proposed |
 | [0011](0011-ingestion-architecture.md) | Ingestion architecture — six lanes, health-checked, feeding the evidence store | Proposed |
 | [0012](0012-pipeline-observability.md) | Pipeline observability — Grafana-only, one platform; LLM observability via OTel GenAI conventions | Proposed |
+| [0013](0013-implementation-technology-choices.md) | Implementation technology — TypeScript + Vercel AI SDK, Postgres/pgvector/pg_cron data plane | Proposed |
 
 ## Process
 
