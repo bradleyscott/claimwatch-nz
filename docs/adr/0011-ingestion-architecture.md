@@ -19,6 +19,20 @@ What remains is the ingestion **architecture**: the pipeline shape, per-lane mec
 
 Ingestion produces **documents with provenance** — never bare text. Every document entering the pipeline carries: source ID, canonical URL, retrieval timestamp, retrieval method (feed / scrape / headless render / submission re-fetch), and content hash. This provenance is what makes verdict pages auditable and what anchors ADR-0010's attribution.
 
+### Format-aware extraction (not one generic parser)
+
+The AVeriTeC shared task's clearest operational lesson: a generic single-strategy extractor (Trafilatura) **silently failed to retrieve the gold document for 297 of 500 development examples** — PDFs, video transcripts, and tables were the failure modes, and the system that added PDF/YouTube extraction (Dunamu-ML) achieved the task's best retrieval score. A generic "clean text" contract would fail the same way here, and the failure would be invisible (the health record sees a successful parse of the wrong thing, or nothing).
+
+The parser contract is therefore **per-format, not per-site**: a shared interface (`extract(document) → clean text + structure + provenance`) with format-specific implementations:
+
+- **HTML articles** (Beehive, news, party items): readability-style extraction;
+- **PDF** (agency reports cited as evidence, some party releases): pdfplumber-style extraction with table awareness;
+- **Tables/spreadsheets** (Stats NZ series exports, Treasury tables): structured extraction preserving row/column identity — a statistic without its row/column context is worthless for the sensitivity grid;
+- **Official data APIs** (Stats NZ Aotearoa Data Explorer SDMX/JSON, per COVERAGE): native JSON parsing, not scraping;
+- **Transcripts** (Hansard XML, any YouTube evidence): speaker-turn-preserving extraction — speaker turns are attribution signals, and flattening them destroys them.
+
+Extraction failures raise health alerts like fetch failures — an extracted-empty result from a known-nonempty document is a defect, not a quiet zero.
+
 ### Lane mechanics
 
 | Lane | Mechanism | Cadence | Notes |
@@ -56,17 +70,45 @@ Every lane obeys the ADR-0002 rule, implemented once: **stored canonical URL →
 
 Ingestion resolves **where the claim came from** (document + speaker, conservatively per ADR-0010) and passes claimant-entity candidates to the store. Hansard provides the strongest attribution signal; party releases attribute to the party entity; news items attribute to the quoted speaker with the article as source link. Attribution never guesses (ADR-0010).
 
+Entity linking is budgeted as its own component with its own failure accounting — the iCheck team's post-mortem (ClaimBuster/ClaimReview lineage) records that "data extraction, cleaning, and linking took huge amounts of effort", and entity linking was where systems of this class historically bled time. Name disambiguation (two MPs with similar names; "the Minister" without a name; commentator name variants) is a known-hard problem: candidates are proposed by the pipeline, resolved conservatively (ADR-0010's "never guessed" rule), and unresolvable attributions surface as **"unattributed"** with the evidence chain shown — never silently guessed into a person entity.
+
+### Verification-loop handoff: question generation and retrieval discipline
+
+What ingestion hands the verification loop, and how the loop retrieves, follows the strongest measured finding across the AVeriTeC shared task (21 systems), FEVER/CheckThat workshops, and FIRE: **generating search questions beats searching for the claim verbatim**. Top systems generated fact-checking questions (decomposing the claim into what would need to be true), retrieved against those questions, and iterated multi-hop — each retrieval round conditioned on the previous round's findings. Question generation is also cheap: smaller models were competitive at it (per ADR-0007's tiering, this is a Flash-class task).
+
+Concretely, adopted into the verification loop's retrieval stage (informed by ADR-0004/0010, specified here because it's the ingestion→verification interface):
+
+- **Question decomposition before retrieval**: each claim yields multiple targeted questions (per sub-fact), not a single claim-string query.
+- **Multi-hop conditional retrieval**: retrieve → assess what's still missing → generate next question → retrieve again. Not one-shot.
+- **Hybrid retrieval over the evidence store**: BM25-style keyword match + dense embeddings (gte-family perform well per shared-task results) → rerank top candidates.
+- **Confidence-based retrieval depth** (FIRE's core mechanism): the loop decides per step whether the evidence is sufficient or a further query is needed — dynamic depth, capped. This is the mechanism that makes the open-web lane affordable (7.6× LLM / 16.5× search cost reduction measured by FIRE vs fixed-depth loops).
+- **Justification auditing**: generated justifications are NLI-audited against their cited evidence before publication (the CLEF 2026 CheckThat Task 3 pattern — citation-precision scoring): every justification sentence must be entailed by the evidence it cites; audit failures route to the mutation-review queue rather than publishing.
+
 ## Alternatives considered
 
 - **Single monolithic scraper with per-source plugins.** Rejected for v1: six lanes have genuinely different shapes (feed / headless / batch / event); a common interface over all of them hides lane-specific failure modes (a plugin that breaks inside a monolith is invisible until its health record alerts anyway). Lanes share the normalise/attribute/dedupe stages but run as separate workers.
+- **One generic text extractor for all document types.** Rejected on shared-task evidence: generic extraction (Trafilatura-class) silently missed the gold document in a majority of AVeriTeC dev examples where PDFs/tables/transcripts were the evidence; format-aware extraction with per-format failure alerts is the direct response.
+- **Retrieval by claim-string search only** (no question decomposition). Rejected on shared-task evidence: question generation was the most consistent differentiator between top and bottom systems; verbatim claim search is the baseline behaviour that scores lowest.
+- **Fixed-depth retrieval loops.** Rejected on FIRE's measured results: confidence-based dynamic depth achieves comparable accuracy at 7.6× lower LLM and 16.5× lower search cost — the difference between the open-web lane being affordable or not.
 - **Third-party news-aggregation API** (e.g. commercial media monitoring) for the news lane. Rejected: cost, licence terms, and it reintroduces a dependency ADR-0003 rejected; RSS + targeted headless fetch covers the need.
 - **Deduplicate at document level only.** Rejected: the unit of public value is the claim; document-level dedupe would show the same claim as six separate verdicts, fracturing the record and triple-charging verification cost.
 - **Queue sources by reach/importance statically.** Deferred: queue priority is dynamic (submissions bump, occurrences accumulate); a static importance table invites "you prioritised our opponents' outlets" arguments. Order of ingestion ≠ order of verification.
 
+## Evidence base
+
+Design elements in this ADR trace to measured results in the open-source fact-checking literature, reviewed 2026-09-08:
+
+- **AVeriTeC shared task (FEVER 2024, 21 systems)**: question generation as the top-system differentiator; multi-hop conditional retrieval; hybrid BM25+dense retrieval with gte-family embedders; Trafilatura scraper failure (297/500 dev examples missing gold docs); Dunamu-ML's PDF/YouTube extraction achieving best retrieval; veracity prediction benefiting from large models while question generation did not. Primary source: "The Automated Verification of Textual Claims (AVeriTeC) Shared Task" (arXiv 2410.23850).
+- **FIRE (FEVER/NAACL 2025)**: confidence-based iterative retrieval with unified decision mechanism; 7.6× LLM / 16.5× search cost reduction at comparable accuracy. Primary source: mbzuai-nlp/fire.
+- **Full Fact production system**: check-worthiness scoring, repeat-claim matching as the central asset, extraction/cleaning/linking as the dominant engineering cost. Primary source: Full Fact automation papers and blog.
+- **CLEF CheckThat! 2025–2026**: hybrid retrieval + question enrichment pipelines; Task 3 (2026) introduced NLI-based citation auditing of generated fact-checking articles — the pattern adopted for justification auditing.
+- **Fathom (FEVER 2025) / HerO (AVeriTeC runner-up) / AIC CTU (long-context on-prem RAG)**: HyDE-style question expansion and modular lightweight pipelines as the reproducible open-source pattern.
+
 ## Consequences
 
 - **Build order**: RSS lanes first (week 1), Hansard parser + headless party renderers (week 1–2), submissions form (week 2, ships with HDCA process), commentator watchlist last (week 3) — it is a configuration of mechanisms the other lanes already provide.
-- **The parser contract** (listing → item → clean text + provenance) is the reusable unit; a new party site or commentator outlet is a new parser instance, registered via config, proposed publicly via ADR-0009.
-- **Health monitoring is not optional infrastructure** — it ships with the first lane, not after launch; the public coverage page is its user-facing face.
+- **The parser contract** (per-format extraction interface: listing → item → clean text + structure + provenance) is the reusable unit; a new party site or commentator outlet is a new parser instance, registered via config, proposed publicly via ADR-0009. New *formats* (a new PDF layout, a new data API) are new extractor implementations.
+- **The verification loop inherits question decomposition, multi-hop retrieval, hybrid store search, dynamic depth, and NLI justification auditing** from this ADR — these are its accuracy-critical behaviours, and the harness (ADR-0008) should exercise each of them as separable stages.
+- **Health monitoring is not optional infrastructure** — it ships with the first lane, not after launch; extraction failures join fetch failures as alertable defects; the public coverage page is its user-facing face.
 - **Playwright headless rendering is a bounded, known cost**: ~6 party sites + a few commentator sites, checked a few times daily, from a NZ-routed egress. Re-probe before relying on it at scale (COVERAGE.md cadence).
 - **Ingestion never writes verdicts** — it fills the store with attributed, provenance-carrying documents and detected claims; verification is a separate queue (separation that also enforces the ADR-0010 firewall: ingestion knows claimant identity, verification must not use it).
