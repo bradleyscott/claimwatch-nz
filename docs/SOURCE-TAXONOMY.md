@@ -2,7 +2,7 @@
 
 *Two distinct roles, kept separate by design: **claim sources** are publications that may contain claims — they flow into ingestion and are checked; **evidence authorities** are sources we have independently assessed as trustworthy for their domain (the T1–T6 map below) — the verification engine consults them as evidence, and their content is never treated as claims to be checked. The same source can play both roles for different artefacts (a Hansard debate is a claim source; the official series behind a statistic is evidence). See ARCHITECTURE.md §1.*
 
-*Status: proposed. This document separates two decisions that ADR-0002 (ingestion scope) and ADR-0004 (statistical engine) both depend on but neither fully defines:*
+*Status: proposed. This document separates two decisions that ADR-0006 (ingestion scope) and ADR-0005 (statistical engine) both depend on but neither fully defines:*
 
 1. **Claim sources** — what we monitor for claims. The requirement is *breadth without bias*: a cross-section of NZ media so that which claims we see isn't determined by which outlets we happen to subscribe to.
 2. **Evidence sources** — what we verify against. The requirement is a *mapped, trusted authority per topic*: when a claim about health waitlists or crime rates arrives, the pipeline must know exactly which sources are authoritative, which are alternate framings, and how conflicts between them are resolved.
@@ -29,7 +29,7 @@ Sources are selected to cover the matrix — every row and column should have at
 | **Format** | Text/news · radio/TV transcripts · press releases (primary claim sources, not media) · Hansard (the on-the-record baseline) |
 | **Audience/community served** | General national · business/economics readership · Māori audiences · Pacific audiences · ethnic/community audiences · youth/social · regional communities |
 
-**Why "audience" and not "political position":** an outlet's audience is observable (who reads/watches it, what it covers for whom) without the project publishing judgements about other outlets' political leanings — which would be subjective, attackable ("the fact-checkers labelled us X-leaning"), and unnecessary for the audit's job. The audit's question is **"which audiences and communities are not producing claims into our system?"** — a gap question answerable from audience descriptors, not a leaning question. Verdict criteria are party-blind by construction (ADR-0006), and no source is included or excluded based on any assessment of its politics.
+**Why "audience" and not "political position":** an outlet's audience is observable (who reads/watches it, what it covers for whom) without the project publishing judgements about other outlets' political leanings — which would be subjective, attackable ("the fact-checkers labelled us X-leaning"), and unnecessary for the audit's job. The audit's question is **"which audiences and communities are not producing claims into our system?"** — a gap question answerable from audience descriptors, not a leaning question. Verdict criteria are party-blind by construction (ADR-0002), and no source is included or excluded based on any assessment of its politics.
 
 ### 1.3 Proposed claim-source set (v1)
 
@@ -59,7 +59,7 @@ Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` fo
 | **Green Party releases** | primary claims | ✅ reachable (JS-heavy — headless) |
 | **NZ First releases** | primary claims | ✅ **domain found** — `www.nzfirst.nz` (the `.org.nz` we had recorded is dead; `nzfirst.co.nz` redirects there); news at `nzfirst.nz/news` (JS-rendered — headless) |
 | **Te Pāti Māori releases** | primary claims | ✅ **domain found** — `www.maoriparty.org.nz` (the `.co.nz` we had recorded is parked); JS-rendered — headless; news path TBD at build week |
-| **User submissions** | everything else, crowd-prioritised | designed (ADR-0002 lane 5) |
+| **User submissions** | everything else, crowd-prioritised | designed (ADR-0006 lane 5) |
 
 **Probe notes (2026-09-07):**
 - **Newsroom, The Post, The Press all have working feeds** — the earlier "⚠️ not yet probed" row entries resolve favourably. The Post's feed carries 79 items at root with a working `/politics` section (28 items).
@@ -74,7 +74,7 @@ Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` fo
 
 ### 1.4 What we deliberately do NOT monitor (and the stated consequence)
 
-- Social platforms (crawl): coverage gap delegated to user submissions (ADR-0002)
+- Social platforms (crawl): coverage gap delegated to user submissions (ADR-0006)
 - Podcasts/talkback/broadcast: deferred (transcription); consequence stated in methodology — claims that live only on air are out of scope until post-election
 - Overseas media except when cited by NZ actors (then it's a citation-check case)
 
@@ -97,7 +97,7 @@ Access statuses below were **live-probed 2026-09-07** (see `docs/COVERAGE.md` fo
 
 ### 2.2 Authority map by election-relevant policy domain
 
-This is the v1 map — each row is retrieval guidance for the claim-anchored evidence store under ADR-0010. The selection criterion: **domains where campaign claims concentrate**, cross-checked against 2020/2023 campaign topic frequency and news volume. "Denominator family" lists the alternative framings the sensitivity grid must compute.
+This is the v1 map — each row is retrieval guidance for the claim-anchored evidence store under ADR-0005. The selection criterion: **domains where campaign claims concentrate**, cross-checked against 2020/2023 campaign topic frequency and news volume. "Denominator family" lists the alternative framings the sensitivity grid must compute.
 
 | Policy domain | T1/T2 primary authorities | T3/T4 alternates | Key denominator family |
 |---|---|---|---|
@@ -117,7 +117,7 @@ This is the v1 map — each row is retrieval guidance for the claim-anchored evi
 | **Public service/state sector** | Public Service Commission workforce data | Treasury/DIA | headcount vs spend; per-capita admin cost |
 
 **Map hygiene rules:**
-- Every domain declares: primary authority (with series IDs), alternates, denominator family, series vintages, and revision policy — these configure the retrieval loop (ADR-0010).
+- Every domain declares: primary authority (with series IDs), alternates, denominator family, series vintages, and revision policy — these configure the retrieval loop (ADR-0005).
 - A claim citing a source *outside* the map gets the open-web loop plus an explicit note that no pre-vetted authority exists for the domain.
 - The map is versioned and public; domain experts (academic and official-statistics people) are invited to contest entries — same mutation model as verdicts.
 
@@ -126,7 +126,7 @@ This is the v1 map — each row is retrieval guidance for the claim-anchored evi
 - **NZ Herald Premium analysis**: covered by the paywall policy, not the authority map (it's a claim source, never evidence).
 - **Claims about the future** (forecasts, pledges): checkable only as *consistency* claims ("does this pledge match the published fiscal forecasts?") — the map supports that; outcome verification is impossible. The verdict vocabulary includes "pledge — not yet checkable."
 - **International claims** rely on T6 comparators with their own revision cycles; vintage-dating is mandatory here.
-- **Domain coverage vs capacity**: the v1 map ships with the eight highest-traffic domains fully specified (crime, economy, employment, immigration, housing, health, education, welfare); the rest are added to the authority map as claim volume justifies (ADR-0010) — the table above is the target state, not the v1 delivery.
+- **Domain coverage vs capacity**: the v1 map ships with the eight highest-traffic domains fully specified (crime, economy, employment, immigration, housing, health, education, welfare); the rest are added to the authority map as claim volume justifies (ADR-0005) — the table above is the target state, not the v1 delivery.
 
 ---
 
@@ -140,4 +140,4 @@ This is the v1 map — each row is retrieval guidance for the claim-anchored evi
 
 ## Part 4: Public participation in the taxonomy
 
-The coverage matrix and authority map accept public proposals — outlets to monitor, datasets to consider as evidence — through a scoped, vetted pathway defined in **[ADR-0009](adr/0009-public-proposal-of-sources-and-authorities.md)**. Pre-launch: GitHub issues with proposal templates. Design principles: **the proposer describes, the project classifies** (no matrix or tier self-assessment is asked of the public); **the domain taxonomy is seeded up front** from established NZ policy groupings (select-committee subject areas, standard classification families) and refined claim-derived — domain proposals are not accepted; and **decisions are recorded, not scheduled** — each proposal gets a public maintainer decision record with reasons, no fixed review window. Proposals are *consideration, not adoption*: automated scope-checks and maintainer decision records gate adoption; authority-tier changes above T4 additionally require subject-matter review. Community-added entries carry provenance labels in this document's change history.
+The coverage matrix and authority map accept public proposals — outlets to monitor, datasets to consider as evidence — through a scoped, vetted pathway defined in **[ADR-0013](adr/0009-public-proposal-of-sources-and-authorities.md)**. Pre-launch: GitHub issues with proposal templates. Design principles: **the proposer describes, the project classifies** (no matrix or tier self-assessment is asked of the public); **the domain taxonomy is seeded up front** from established NZ policy groupings (select-committee subject areas, standard classification families) and refined claim-derived — domain proposals are not accepted; and **decisions are recorded, not scheduled** — each proposal gets a public maintainer decision record with reasons, no fixed review window. Proposals are *consideration, not adoption*: automated scope-checks and maintainer decision records gate adoption; authority-tier changes above T4 additionally require subject-matter review. Community-added entries carry provenance labels in this document's change history.

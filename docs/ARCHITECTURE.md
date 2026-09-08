@@ -16,7 +16,7 @@ flowchart TB
         HANSARD["Hansard<br/>official transcripts"]
         NEWS["News RSS<br/>RNZ · NZ Herald · Stuff · Newsroom"]
         SUBMIT["User submissions<br/>URLs + text (claim pointers)"]
-        BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions (ADR-0014)"]
+        BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions (ADR-0007)"]
     end
 
     subgraph AUTHORITIES["Verifier authorities — evidence sources (never claim feeds)"]
@@ -27,16 +27,16 @@ flowchart TB
     end
 
     subgraph CW["ClaimWatch (open source)"]
-        INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0011)"]
-        TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0015)"]
-        VERIFY["Verification engine<br/>multi-mode (ADR-0004)"]
-        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0010)"]
+        INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0006)"]
+        TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0008)"]
+        VERIFY["Verification engine<br/>multi-mode (ADR-0005)"]
+        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)"]
         SITE["Public site<br/>ClaimReview markup"]
-        CONTEST["Contestation intake<br/>+ evidence validation (ADR-0005)"]
+        CONTEST["Contestation intake<br/>+ evidence validation (ADR-0002)"]
     end
 
     PUBLIC["Public:<br/>read, contest, submit evidence"]
-    SEARCH["Search APIs<br/>Brave · Serper (ADR-0007)"]
+    SEARCH["Search APIs<br/>Brave · Serper (ADR-0011)"]
     AUDIT["Retrospective audit<br/>sampled daily, high-impact always"]
 
     BEEHIVE --> INGEST
@@ -59,9 +59,9 @@ flowchart TB
     AUDIT --> STORE
 ```
 
-**Reasoning:** claim sources and verifier authorities are deliberately kept as separate subgraphs with separate flows. Claim sources flow through ingestion into claim detection; verifier authorities are **consulted by the verification engine as evidence** — a one-directional evidence lookup, never a claim feed. A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is enforceable structurally: claim-source content enters the evidence store only through claim extraction; authority content enters the evidence store only as referenced evidence items. Sources are deliberately limited to public, structured, official data for v1 (ADR-0002); social platforms are excluded. The verification engine reads official series directly rather than relying on what a release cited (ADR-0004) — the citing politician chooses the evidence; we reconstruct the field.
+**Reasoning:** claim sources and verifier authorities are deliberately kept as separate subgraphs with separate flows. Claim sources flow through ingestion into claim detection; verifier authorities are **consulted by the verification engine as evidence** — a one-directional evidence lookup, never a claim feed. A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is enforceable structurally: claim-source content enters the evidence store only through claim extraction; authority content enters the evidence store only as referenced evidence items. Sources are deliberately limited to public, structured, official data for v1 (ADR-0006); social platforms are excluded. The verification engine reads official series directly rather than relying on what a release cited (ADR-0005) — the citing politician chooses the evidence; we reconstruct the field.
 
-Note the one deliberate overlap: Hansard and Beehive releases appear in the claim-source graph **and** their underlying data/records can serve as evidence. The role is determined per-artefact by document type (a minister's statement in Hansard is a claim source; the Hansard record *of who said what and when* is also attribution evidence; a MoJ statistics table is pure evidence). The ADR-0009 authority-proposal pathway governs what counts as an authority; the claim-source pathway (also ADR-0009) governs what gets ingested.
+Note the one deliberate overlap: Hansard and Beehive releases appear in the claim-source graph **and** their underlying data/records can serve as evidence. The role is determined per-artefact by document type (a minister's statement in Hansard is a claim source; the Hansard record *of who said what and when* is also attribution evidence; a MoJ statistics table is pure evidence). The ADR-0013 authority-proposal pathway governs what counts as an authority; the claim-source pathway (also ADR-0013) governs what gets ingested.
 
 ## 2. Pipeline dataflow
 
@@ -70,7 +70,7 @@ flowchart LR
     A["Raw document<br/>release / Hansard / article"] --> B["Sentence split<br/>+ metadata"]
     B --> C{"LLM triage:<br/>checkable claim?"}
     C -- "no" --> Z["dropped<br/>(logged for eval)"]
-    C -- "yes" --> D["Claim record:<br/>text + type + fingerprint<br/>+ discourse context (ADR-0015)<br/>+ publication/segment refs (ADR-0016)"]
+    C -- "yes" --> D["Claim record:<br/>text + type + fingerprint<br/>+ discourse context (ADR-0008)<br/>+ publication/segment refs (ADR-0008)"]
     D --> E{"Claim type"}
     E -- "statistical" --> F["Fingerprint match<br/>to evidence store"]
     F --> G["Sensitivity grid<br/>over official series"]
@@ -82,7 +82,7 @@ flowchart LR
     J --> K["Verdict store<br/>versioned, labelled open-to-contest"]
 ```
 
-**Reasoning:** three verification modes by claim class (ADR-0004). Statistical claims resolve against the claim-anchored evidence store (fast, high accuracy, compounding — see ADR-0010); citation-backed claims get a bounded claim-vs-source comparison; everything else gets the general open-web loop with question decomposition and confidence-capped retrieval depth (per ADR-0011's evidence-base findings) — we know from AVeriTeC that this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest." Every claim carries its publication/segment references and discourse window (ADR-0015/0016), available to the verifier on demand up to full-document depth.
+**Reasoning:** three verification modes by claim class (ADR-0005). Statistical claims resolve against the claim-anchored evidence store (fast, high accuracy, compounding — see ADR-0005); citation-backed claims get a bounded claim-vs-source comparison; everything else gets the general open-web loop with question decomposition and confidence-capped retrieval depth (per ADR-0006's evidence-base findings) — we know from AVeriTeC that this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest." Every claim carries its publication/segment references and discourse window (ADR-0008), available to the verifier on demand up to full-document depth.
 
 ## 3. Verdict lifecycle (the mutation model)
 
@@ -100,14 +100,14 @@ stateDiagram-v2
     FROZEN --> PUBLISHED: freeze lifts (after 27 Nov)
 ```
 
-**Reasoning:** every transition is logged; nothing is ever silently edited (ADR-0001, ADR-0006). Mutation is fully automated — a validated evidence pack triggers the change, and a sampled retrospective audit (all high-impact mutations reviewed) checks validator quality without gating it (ADR-0005). The freeze window is the legal design response to Electoral Act s 199A (see legal doc).
+**Reasoning:** every transition is logged; nothing is ever silently edited (ADR-0001, ADR-0002). Mutation is fully automated — a validated evidence pack triggers the change, and a sampled retrospective audit (all high-impact mutations reviewed) checks validator quality without gating it (ADR-0002). The freeze window is the legal design response to Electoral Act s 199A (see legal doc).
 
 ## 4. The statistical-claim engine (the primary mode for statistical claims)
 
 ```mermaid
 flowchart TB
     CLAIM["Quoted claim:<br/>'Crime up 30% since 2017'"] --> FP["Fingerprint extraction<br/>indicator × population × geography ×<br/>time window × baseline × unit"]
-    FP --> CTX["Discourse context (ADR-0015):<br/>policy proposal, argument direction —<br/>selects MATERIAL grid rows"]
+    FP --> CTX["Discourse context (ADR-0008):<br/>policy proposal, argument direction —<br/>selects MATERIAL grid rows"]
     FP --> MATCH{"Match in evidence store?"}
     MATCH -- "yes" --> SERIES["Accumulated evidence<br/>(series already fetched,<br/>versioned)"]
     MATCH -- "no" --> RETRIEVE["Retrieve series<br/>from verifier authorities"]
@@ -118,10 +118,10 @@ flowchart TB
     CLASS -- "no" --> V2["Verdict: accurate but incomplete<br/>+ alternatives table + charts"]
     V2 --> FIELD["Evidence field<br/>append-only, versioned"]
     V1 --> FIELD
-    FIELD --> PUBLISH["Published verdict page:<br/>chart-first, ClaimReview markup,<br/>'as deployed' line (ADR-0015)"]
+    FIELD --> PUBLISH["Published verdict page:<br/>chart-first, ClaimReview markup,<br/>'as deployed' line (ADR-0008)"]
 ```
 
-**Reasoning:** the claim itself is often true — the verdict is about the *representativeness of the framing*, and (per ADR-0015) the framing is assessed against the claim's discourse context: the policy proposal it supports and its argument direction determine which grid rows are material to the deployment, while the grid itself stays pre-declared and identical for every claimant (the defence against "you invented the standard to hurt us"). The claim-anchored evidence store turns live verification into fingerprint-match + arithmetic against official data — series accumulate from real claims, so repeat and adjacent claims resolve from stored evidence (ADR-0010). See ADR-0004 and `docs/EVALUATION.md` for how this is graded.
+**Reasoning:** the claim itself is often true — the verdict is about the *representativeness of the framing*, and (per ADR-0008) the framing is assessed against the claim's discourse context: the policy proposal it supports and its argument direction determine which grid rows are material to the deployment, while the grid itself stays pre-declared and identical for every claimant (the defence against "you invented the standard to hurt us"). The claim-anchored evidence store turns live verification into fingerprint-match + arithmetic against official data — series accumulate from real claims, so repeat and adjacent claims resolve from stored evidence (ADR-0005). See ADR-0005 and `docs/EVALUATION.md` for how this is graded.
 
 ## 5. Contestation → validation → mutation
 
@@ -150,16 +150,16 @@ sequenceDiagram
     end
 ```
 
-**Reasoning:** the validation step is the anti-brigading mechanism in v1 (ADR-0005) — noise can be submitted but must survive provenance checks to matter, so volume attacks are neutralised by quality gates rather than by vote arithmetic. Every rejection is public and reasoned, which keeps the process auditable and keeps bad-faith actors visible.
+**Reasoning:** the validation step is the anti-brigading mechanism in v1 (ADR-0002) — noise can be submitted but must survive provenance checks to matter, so volume attacks are neutralised by quality gates rather than by vote arithmetic. Every rejection is public and reasoned, which keeps the process auditable and keeps bad-faith actors visible.
 
 ## 6. What we are explicitly NOT building for 2026
 
-- Parliament TV / broadcast transcription — broadcast claims enter via publisher transcripts/captions only; **self-generated transcription is out of scope** (ADR-0014)
+- Parliament TV / broadcast transcription — broadcast claims enter via publisher transcripts/captions only; **self-generated transcription is out of scope** (ADR-0007)
 - Social-platform firehose ingestion
-- Bridging-weighted community rating (post-election, with data to justify it — ADR-0005)
+- Bridging-weighted community rating (post-election, with data to justify it — ADR-0002)
 - Māori-language claim processing (acknowledged gap; roadmap item with iwi/kaupapa partners)
 - Auto-publishing verdicts without the contest pathway
-- Pre-computed topic packs (superseded by the claim-anchored evidence store — ADR-0010)
+- Pre-computed topic packs (superseded by the claim-anchored evidence store — ADR-0005)
 
 ## 7. Hosting and operations
 
@@ -167,7 +167,7 @@ Self-hosted on existing infrastructure (Proxmox cluster) behind Cloudflare; zero
 
 ## 8. Implementation stack
 
-TypeScript (Vercel AI SDK, no orchestration framework), Postgres as the single data plane (pgvector + FTS + pg_cron), Drizzle schema/migrations — per ADR-0013. The validation slice (ingest Beehive/RNZ/Stuff → triage → verify → store → AVeriTeC export → cost telemetry) is the first build target.
+TypeScript (Vercel AI SDK, no orchestration framework), Postgres as the single data plane (pgvector + FTS + pg_cron), Drizzle schema/migrations — per ADR-0014. The validation slice (ingest Beehive/RNZ/Stuff → triage → verify → store → AVeriTeC export → cost telemetry) is the first build target.
 
 ## 9. Diagram index
 

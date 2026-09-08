@@ -1,26 +1,40 @@
 # Architecture Decision Records
 
-Significant decisions are recorded here, one file each, numbered sequentially. Statuses: Proposed → Accepted / Superseded.
+Decisions are recorded here, one file each, grouped by subject area. Statuses: Proposed → Accepted / Superseded. Renumbered 2026-09-08 for coherence — the ADR set is the stable record; history is preserved in git.
+
+## Trust and publication model
 
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-automated-verdicts-as-contestable-assessments.md) | Automated verdicts as contestable assessments, not authoritative facts | Proposed |
-| [0002](0002-ingestion-scope-2026.md) | Ingestion scope 2026: releases, Hansard, news RSS, user submissions, commentator watchlist; no broadcast/social crawling | Proposed |
-| [0003](0003-build-open-vs-license-full-fact.md) | Build open-source vs license Full Fact tooling | **Decided: build open** |
-| [0004](0004-statistical-claim-engine.md) | Statistical-claim engine within a multi-mode verification layer (informed by `docs/MISINFO-TAXONOMY.md`) | Proposed |
-| [0005](0005-contestation-mechanism-v1.md) | Contestation v1: structured contest + validation + human review | Proposed |
-| [0006](0006-verdict-language-and-mutation-freeze.md) | Verdict language standard + mutation freeze | Proposed |
-| [0007](0007-llm-search-provider-selection.md) | LLM/search provider selection — accuracy-dominant, tiered by task | Open (recommendation recorded; harness-gated) |
-| [0008](0008-ground-truth-set-construction.md) | Ground-truth evaluation: AVeriTeC immediate benchmark + NZ-labelled calibration set | Proposed |
-| [0009](0009-public-proposal-of-sources-and-authorities.md) | Public proposal of claim sources and evidence authorities | Proposed |
-| [0010](0010-claim-anchored-evidence-store.md) | Claim-anchored evidence store — verify claim-by-claim, accumulate context over time | Proposed |
-| [0011](0011-ingestion-architecture.md) | Ingestion architecture — six lanes, health-checked, feeding the evidence store | Proposed |
-| [0012](0012-pipeline-observability.md) | Pipeline observability — Grafana-only, one platform; LLM observability via OTel GenAI conventions | Proposed |
-| [0013](0013-implementation-technology-choices.md) | Implementation technology — TypeScript + Vercel AI SDK, Postgres/pgvector/pg_cron data plane | Proposed |
-| [0014](0014-broadcast-podcast-interviews.md) | Broadcast/podcast interviews — transcripts-first (published text only); self-generated transcription out of scope | Proposed |
-| [0015](0015-claim-contextualisation.md) | Claim contextualisation — discourse context as a first-class input to verification | Proposed |
-| [0016](0016-publication-and-segment-context.md) | Publication record and segment context — the document hierarchy around claims | Proposed |
-| [0017](0017-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure, fatality visible | Proposed |
+| [0002](0002-verdict-language-mutation-freeze-contestation.md) | Contestation, mutation, verdict language, and the election-window freeze | Proposed |
+| [0003](0003-build-open-vs-license-full-fact.md) | Build the pipeline open-source rather than licensing Full Fact AI tooling | **Decided** |
+| [0004](0004-verdict-schema-and-benchmark-alignment.md) | Verdict schema, benchmark alignment, and honest abstention | Proposed |
+
+## Verification architecture
+
+| ADR | Title | Status |
+|---|---|---|
+| [0005](0005-verification-layer.md) | The verification layer — multi-mode engine, sensitivity grid, evidence store | Proposed |
+| [0006](0006-ingestion-architecture.md) | Ingestion — six lanes, extraction ladder, health checking, dedupe, retrieval discipline | Proposed |
+| [0007](0007-broadcast-and-context-scope.md) | Broadcast/podcast interviews and the context scope boundary | Proposed |
+| [0008](0008-claim-context-and-document-hierarchy.md) | Claim context — discourse window, publication/segment hierarchy, on-demand depth | Proposed |
+| [0009](0009-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure | Proposed |
+
+## Measurement and providers
+
+| ADR | Title | Status |
+|---|---|---|
+| [0010](0010-ground-truth-evaluation.md) | Ground-truth evaluation — AVeriTeC benchmark + NZ-labelled calibration set | Proposed |
+| [0011](0011-provider-selection.md) | LLM and search provider selection — accuracy-dominant, harness-gated | Open (harness-gated) |
+| [0012](0012-observability.md) | Pipeline observability — Grafana-only, OTel GenAI conventions | Proposed |
+
+## Community input and implementation
+
+| ADR | Title | Status |
+|---|---|---|
+| [0013](0013-public-proposals.md) | Public proposal of claim sources and evidence authorities | Proposed |
+| [0014](0014-implementation-technology.md) | Implementation technology — TypeScript, Vercel AI SDK, Postgres data plane | Proposed |
 
 ## Process
 
@@ -31,7 +45,7 @@ Significant decisions are recorded here, one file each, numbered sequentially. S
 
 ## Conventions
 
-- Numbering never reuses numbers.
+- Numbering never reuses numbers within a generation of the ADR set; this set is numbered as consolidated records.
 - "Deciders" lists the humans who made the call.
 - Every ADR carries a **Context → Decision → Alternatives → Consequences** structure.
 - When implementation contradicts an accepted ADR, the ADR is superseded first, in the open, before the code changes.

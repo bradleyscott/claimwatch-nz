@@ -26,6 +26,6 @@ Claims below a confidence threshold are published as **open questions** ("we cou
 
 ## Consequences
 
-- The evaluation harness is load-bearing: without published accuracy, "open to contest" becomes "we guess." This ADR makes ADR-0008 a dependency.
+- The evaluation harness is load-bearing: without published accuracy, "open to contest" becomes "we guess." This ADR makes ADR-0010 a dependency.
 - Every verdict page must display the evidence pack and contest affordance from day one — the label is meaningless without the mechanism.
-- The mutation freeze (ADR-0006) partially re-introduces human control at the highest-risk moment.
+- The mutation freeze (ADR-0002) partially re-introduces human control at the highest-risk moment.

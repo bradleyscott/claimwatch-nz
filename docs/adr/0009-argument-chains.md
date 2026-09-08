@@ -1,4 +1,4 @@
-# ADR-0017: Argument chains — showing whether claim verdicts are fatal to a proposition
+# ADR-0009: Argument chains — showing whether claim verdicts are fatal to a proposition
 
 *Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
 
@@ -8,7 +8,7 @@ Verdicts are claim-level, and claims in isolation are only half the picture. A s
 
 The single-claim verdict cannot reveal this. A "Supported" verdict on a statistic tells the reader the number checks out; it does not tell them whether the argument built on it survives — the inference may be broken (per-capita crime fell; the rise predates the policy being attacked). Equally, a "Refuted" premise may be peripheral to the argument rather than fatal. Readers evaluating a proposition want the chain, not fifteen disconnected verdicts.
 
-The building blocks all exist: per-claim verdicts, typed claim relationships (ADR-0010), discourse context with detected proposals (ADR-0015), publication/segment structure (ADR-0016). What is missing is the explicit **chain assembly** — and its central risk, identified throughout this project's design history: **reconstructing an argument can fabricate positions the speaker never voiced**. A hallucinated premise node is an unmade claim attributed to a named person — the worst failure mode in the system (ADR-0014's reasoning, applied to structure rather than transcription). The design therefore rests on one load-bearing rule: **chains are assembled from stored, verified artefacts; edges must be grounded in the quoted discourse; nothing is inferred that isn't traceable to the stored text.**
+The building blocks all exist: per-claim verdicts, typed claim relationships (ADR-0005), discourse context with detected proposals (ADR-0008), publication/segment structure (ADR-0008). What is missing is the explicit **chain assembly** — and its central risk, identified throughout this project's design history: **reconstructing an argument can fabricate positions the speaker never voiced**. A hallucinated premise node is an unmade claim attributed to a named person — the worst failure mode in the system (ADR-0007's reasoning, applied to structure rather than transcription). The design therefore rests on one load-bearing rule: **chains are assembled from stored, verified artefacts; edges must be grounded in the quoted discourse; nothing is inferred that isn't traceable to the stored text.**
 
 **Evidence base:** LLM-based argument mining is now a mature research area (survey: arXiv:2506.16383, 2025) — claim extraction, premise–claim relation detection, stance detection, and argument summarisation are all demonstrated components; political-domain argument mining (debates, speeches) is the standard application domain. Argument mining outputs are treated in that literature as *structured extractions from text* — which is what the grounding rule makes them here. The CheckThat! 2026 Task 3 pipeline (full fact-check article generation with NLI-based citation auditing) demonstrates the assemble-then-audit pattern at article level; we apply the same discipline at argument level.
 
@@ -20,7 +20,7 @@ The building blocks all exist: per-claim verdicts, typed claim relationships (AD
 
 A chain is a directed structure: **proposition node** → **claim nodes** → linked by **inference edges**.
 
-- **Proposition node**: from ADR-0015's `attached_proposal` (detected in the discourse window — never inferred from speaker identity). A proposition with no attached proposal generates no chain; the system does not invent one.
+- **Proposition node**: from ADR-0008's `attached_proposal` (detected in the discourse window — never inferred from speaker identity). A proposition with no attached proposal generates no chain; the system does not invent one.
 - **Claim nodes**: existing verified claims in the store — chains reference claims by ID; they never re-state, rephrase, or add claims. Every node's verdict comes from the claim's own record.
 - **Inference edges**: each edge connects a claim (or the proposition) to the next step, and **must cite the stored text where the connection appears** — the window quote, segment summary, or publication text containing the connective discourse ("which is why we need…", "the result of this failure is…"). Two edge types:
   - **stated** — the discourse itself makes the link ("crime is up 30%, *so* the current approach isn't working"): the edge cites the exact span.
@@ -30,9 +30,9 @@ No edge without a textual anchor; no node without a verdict; no proposition with
 
 ### 2. Where chains come from (assembly, not generation)
 
-Chains are assembled **per publication/segment** (ADR-0016): an argumentative release or debate exchange yields one chain; a technical briefing with no argumentative structure yields none, and the system records that. Assembly is an LLM pass over the stored discourse (window text + segment content + publication context — all quotable artefacts), producing a **structured chain record**: nodes = references to existing claim records; edges = {type: stated|unstated-inference, anchor_span, from, to}. The chain record is **immutable extraction output** — versioned, model-attributed, reprocessable like every other pipeline artefact (ADR-0011), and its grounding anchors make it auditable: any edge can be clicked through to the text that justifies it.
+Chains are assembled **per publication/segment** (ADR-0008): an argumentative release or debate exchange yields one chain; a technical briefing with no argumentative structure yields none, and the system records that. Assembly is an LLM pass over the stored discourse (window text + segment content + publication context — all quotable artefacts), producing a **structured chain record**: nodes = references to existing claim records; edges = {type: stated|unstated-inference, anchor_span, from, to}. The chain record is **immutable extraction output** — versioned, model-attributed, reprocessable like every other pipeline artefact (ADR-0006), and its grounding anchors make it auditable: any edge can be clicked through to the text that justifies it.
 
-- **Cross-publication chains are aggregates, not generated structures**: the "case for X across the campaign" view is assembled by grouping verified claims by `attached_proposal` (ADR-0015) and using the claim graph (ADR-0010 repeats/contradicts) — this is aggregation over existing records, not generation. It shows how the same statistic was deployed by different speakers, and how the proposition's evidential base evolved.
+- **Cross-publication chains are aggregates, not generated structures**: the "case for X across the campaign" view is assembled by grouping verified claims by `attached_proposal` (ADR-0008) and using the claim graph (ADR-0005 repeats/contradicts) — this is aggregation over existing records, not generation. It shows how the same statistic was deployed by different speakers, and how the proposition's evidential base evolved.
 - **The proposition view aggregates nothing unverified**: if only two claims were ever made for a proposition, the view shows two claims — it never extrapolates the argument beyond what was said.
 
 ### 3. Rendering: the argument view
@@ -49,8 +49,8 @@ The summary line is compositional and factual: *"Three of the five claims this a
 ### 4. Guardrails
 
 - **No chain without a verified proposition and verified claim nodes.** Empty-shell chains (proposition + inferred premises + no checked claims) are not published — a chain with no verified nodes renders as "claims associated with this proposition are being verified", not as an argument.
-- **The chain record is contestable**: "that's not the argument I made" is a standard mutation-pathway contest against the chain record (ADR-0005), with the edge anchors as the audit surface — the same discipline as contesting any other extraction.
-- **No argument-level verdict class is added to the harness schema.** The four AVeriTeC classes (ADR-0008) remain the verdict universe; chains compose them. Any future argument-level judgement is a new, separately-harnessed question — not a silent extension.
+- **The chain record is contestable**: "that's not the argument I made" is a standard mutation-pathway contest against the chain record (ADR-0002), with the edge anchors as the audit surface — the same discipline as contesting any other extraction.
+- **No argument-level verdict class is added to the harness schema.** The four AVeriTeC classes (ADR-0010) remain the verdict universe; chains compose them. Any future argument-level judgement is a new, separately-harnessed question — not a silent extension.
 - **The firewall holds**: chain assembly, like all verification, never receives claimant identity. Chains are assembled from discourse records only.
 - **Chain assembly is optional per publication**: only argumentative discourse yields chains; the absence of a chain is recorded as such ("no policy argument attached to this claim in its source discourse") rather than manufactured.
 
@@ -64,7 +64,7 @@ The summary line is compositional and factual: *"Three of the five claims this a
 ## Consequences
 
 - **A new pipeline stage after verification**: chain assembly (batch-priced, Flash-class for simple chains; the assembly pass runs over stored text and emits structured records). Cost is one pass per argumentative publication — small relative to verification.
-- **Store schema gains `argument_chain` records** (Drizzle, ADR-0013): nodes referencing claim IDs, edges with anchors, proposition reference, model version. Immutable, reprocessable, contestable.
-- **Site feature**: the argument view on verdict pages + the proposition-level cross-campaign view. The "Context of the claim" section (ADR-0015/0016) gains a link to the chain it belongs to.
+- **Store schema gains `argument_chain` records** (Drizzle, ADR-0014): nodes referencing claim IDs, edges with anchors, proposition reference, model version. Immutable, reprocessable, contestable.
+- **Site feature**: the argument view on verdict pages + the proposition-level cross-campaign view. The "Context of the claim" section (ADR-0008/0016) gains a link to the chain it belongs to.
 - **The harness extension**: chain-assembly labels on a subset of the NZ set (does the assembled chain match what human labellers reconstruct from the same discourse?) — measured before the feature is prominent on the site.
 - **The trust posture is unchanged**: verdicts remain claim-level and harness-gated; chains are records of what was argued, composed from verified parts, contestable end-to-end. What the reader gains is the reasoning context that makes a verdict's *significance* visible — which is the difference between a database of checked claims and a tool for evaluating policy argument.

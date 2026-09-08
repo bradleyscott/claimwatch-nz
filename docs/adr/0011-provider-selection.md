@@ -1,4 +1,4 @@
-# ADR-0007: LLM and search provider selection — accuracy-dominant, tiered by task
+# ADR-0011: LLM and search provider selection — accuracy-dominant, tiered by task
 
 *Status: Open (recommendations recorded, final decision gated on harness results) · Date: 2026-09-07 · Deciders: Bradley, Dave*
 
@@ -46,7 +46,7 @@ The decisive property for verdict roles is **calibration-awareness — knowing w
 | Gemini 3.7 Flash (Google) | ~0.75 / 3.75-class (promo) | Prior Flash; 3.8 supersedes |
 | Kimi K3 (Moonshot — via non-Chinese operators: Fireworks, OpenRouter, DeepInfra) | 3.00 / 15.00 (cache-hit $0.30) | 1M context; open weights (custom licence, not MIT); Intelligence Index #5, LCR #2; multimodal |
 | GLM-5.3 / 5.3-Flash (Z.ai, via aggregators) | 1.40 / 4.40 (cache $0.26); Flash $0.075/$0.25 on OpenRouter ($0.15/$0.50 direct) — third-party rates; no published Z.ai rate (coding-plan-gated at launch) | Open weights; strong agentic/coding benchmarks |
-| DeepSeek V4 Flash | 0.14 / 0.28 | Cheapest; **origin-operator API excluded during the election cycle** (foreign-hosted rule, ADR-0007); non-Chinese operators serving these weights permitted |
+| DeepSeek V4 Flash | 0.14 / 0.28 | Cheapest; **origin-operator API excluded during the election cycle** (foreign-hosted rule, ADR-0011); non-Chinese operators serving these weights permitted |
 
 **Volume economics at campaign scale** (~100 claims/day, ~5 search queries/claim): with tiered routing (Gemini 3.8 Flash-class bulk, Fable 5.1/Opus 5 verdicts), total LLM+search spend ≈ **$10–50/day blended** at campaign peak — with batch discounts applied, trending toward the low end. Model choice per role is accuracy-dominant; the tiered routing exists so that accuracy doesn't force premium pricing everywhere, and the harness arbitrates per role.
 
@@ -100,7 +100,7 @@ Open-weights models (Kimi K3, GLM-5.3, DeepSeek weights via non-Chinese operator
 4. **Uniform scope:** foreign-hosted APIs are excluded from *all* pipeline roles during the cycle. The cost difference is negligible at our volumes, and a single rule is easier to defend and audit than a per-role carve-out.
 5. **Post-election:** the rule lapses; foreign-hosted APIs become an ordinary procurement question (cost, quality, terms), still subject to harness and bias-probe gates.
 
-**Why not "just disclose it"?** Disclosure doesn't neutralise the attack — it becomes the headline's verification. The freeze-window discipline (ADR-0006) exists because election-period credibility is structurally different from ordinary operation; this rule is the same logic applied to inference provenance.
+**Why not "just disclose it"?** Disclosure doesn't neutralise the attack — it becomes the headline's verification. The freeze-window discipline (ADR-0002) exists because election-period credibility is structurally different from ordinary operation; this rule is the same logic applied to inference provenance.
 
 **Provider-portability constraint (unchanged):** prompts and schemas stay vendor-neutral; routing is configuration, not code.
 
@@ -114,7 +114,7 @@ Open-weights models (Kimi K3, GLM-5.3, DeepSeek weights via non-Chinese operator
 
 ## Decision rule for final selection
 
-1. Build the n=100 harness (ADR-0008) with 2–3 candidate models per role.
+1. Build the n=100 harness (ADR-0010) with 2–3 candidate models per role.
 2. Score accuracy, calibration (abstention quality), structured-output reliability, cost — publish the matrix.
 3. Pick winners per role; re-run the harness on any provider model-version change (the harness pins versions).
 4. During the campaign, model-version pinning is strict: no silent provider upgrades; changes go through the harness first.

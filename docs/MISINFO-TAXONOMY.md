@@ -1,6 +1,6 @@
 # Taxonomies of misleading information — and what they mean for the verification architecture
 
-*Status: research input to ADR-0004 (statistical-claim engine) and to the verification layer design. This document surveys the taxonomies of misleading information in the political sphere — much of it developed in the state-actor misinformation context — maps each class to a verification approach, and states what the architecture does per class. Last updated: 2026-09-07.*
+*Status: research input to ADR-0005 (statistical-claim engine) and to the verification layer design. This document surveys the taxonomies of misleading information in the political sphere — much of it developed in the state-actor misinformation context — maps each class to a verification approach, and states what the architecture does per class. Last updated: 2026-09-07.*
 
 ---
 
@@ -12,7 +12,7 @@ Election-period claims mislead through several distinct mechanisms, and no singl
 - **The seven content types** (Wardle / First Draft, CC-BY) — a content-shaped typology ordered loosely by intent to deceive: satire/parody → false connection → misleading content → false context → imposter content → manipulated content → fabricated content.
 - **Technique distributions from campaign-scale empirical work** — the Elections24Check collaborative study of the 2024 European Parliament elections published what fact-checkers actually verified: **decontextualisation (false context) 59.3%** of verified disinformation, **fabricated content 32.9%**, with verdicts breaking down false 59.4% / **missing context 23.4%** / partly false 5.4% / true 10.4%, and **electoral integrity the top topic (20.5%)** ahead of migration (12.9%). Influence-operation frameworks (**DISARM**, open source, CC-BY-SA) add the campaign-level TTP vocabulary — used here only for tagging what we observe and for partner escalation, not for campaign detection, which is out of scope.
 
-The empirical distributions matter because they discipline design: **true-but-decontextualised content dominates** what fact-checkers verify (59%), and **technically-true-but-selective claims** ("cherry-picking") are the shared failure class across both the academic taxonomies and the argumentation literature (KnOD 2021: false narratives work by omitting crucial argument components and cherry-picking accurate-but-atypical instances). Statistical selectivity — the class ADR-0004's engine targets — is one important member of that family, not the whole of it.
+The empirical distributions matter because they discipline design: **true-but-decontextualised content dominates** what fact-checkers verify (59%), and **technically-true-but-selective claims** ("cherry-picking") are the shared failure class across both the academic taxonomies and the argumentation literature (KnOD 2021: false narratives work by omitting crucial argument components and cherry-picking accurate-but-atypical instances). Statistical selectivity — the class ADR-0005's engine targets — is one important member of that family, not the whole of it.
 
 ---
 
@@ -22,7 +22,7 @@ Each misleading-information class, its NZ election relevance, the appropriate ve
 
 | Class (Wardle type) | NZ election relevance | Verification approach | Machine tractability |
 |---|---|---|---|
-| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) — the "skewed picture" class | **ADR-0004 engine**: fingerprint + claim-anchored evidence store + sensitivity grid | **High** (claim-vs-official-series) |
+| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) — the "skewed picture" class | **ADR-0005 engine**: fingerprint + claim-anchored evidence store + sensitivity grid | **High** (claim-vs-official-series) |
 | **4. False context / decontextualisation** | Dominant technique in EU 2024; cheap to run: old footage re-dated, other-country incidents framed as NZ, ex-MP statements re-attributed | **Provenance matching**: retrieve original context (date, source, place), compare to claimed context; image/date search; archived-source tracing | Medium-high for text (date/source matching); medium for media |
 | **7. Fabricated content** | Second in EU; pure falsehoods about opponents, invented quotes, fabricated statistics | **Open-web verification loop** (our capped FIRE-style mode) — the mode we already planned | Medium-low (AVeriTeC ceiling applies) — hence capped, confidence-labelled |
 | **6. Manipulated media / deepfakes** | Generative-AI arms race noted by EDMO as the defining 2024/25 shift; NZ-relevant for candidate-impersonation audio/video | **Provenance-first**: C2PA/Content Credentials where present; reverse search for originals; detection models are unreliable — never verdict on "is this AI" alone | **Out of scope v1**; partner-referral path (platform/API provenance checks, academic partners); methodology states the limit honestly |
@@ -35,7 +35,7 @@ Each misleading-information class, its NZ election relevance, the appropriate ve
 
 ---
 
-## 3. What this means for the verification layer (summary; detail in ADR-0004)
+## 3. What this means for the verification layer (summary; detail in ADR-0005)
 
 1. **The verification layer is multi-mode by design** — one mode per tractable class: topic-pack mode (statistical claims), citation-check mode (claim-vs-cited-source), false-context/provenance mode (decontextualisation), and the capped open-web loop (fabricated and everything else).
 2. **Triage is technique-aware** — the triage pass classifies suspected misleading-*technique* alongside check-worthiness, routing each claim to the mode built for it.

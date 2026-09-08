@@ -64,7 +64,7 @@ Applies to digital communications about **individuals** that breach communicatio
 | HDCA notice workflow + Netsafe linkage | Contest intake / moderation | To build with contest feature |
 | Privacy-minimal contributor accounts | Contest intake | To build with contest feature |
 | Court-matter suppression flag | Verification engine | Backlog |
-| Copyright: fair-dealing quotation bounds + paywall policy | Verdict pages + ingestion (ADR-0002) | Designed |
+| Copyright: fair-dealing quotation bounds + paywall policy | Verdict pages + ingestion (ADR-0006) | Designed |
 | Pre-launch electoral-law legal review | — | Budgeted, before soft launch |
 
 ## 7. Open legal questions

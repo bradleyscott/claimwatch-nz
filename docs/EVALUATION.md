@@ -1,6 +1,6 @@
 # Evaluation: measuring the pipeline and the community layer
 
-*Status: proposed. This doc defines the two-layer evaluation harness the project treats as its core trust asset. Related ADRs: ADR-0008 (ground-truth evaluation), ADR-0001 (automation posture), ADR-0004 (verification modes).*
+*Status: proposed. This doc defines the two-layer evaluation harness the project treats as its core trust asset. Related ADRs: ADR-0010 (ground-truth evaluation), ADR-0001 (automation posture), ADR-0005 (verification modes).*
 
 ---
 
@@ -8,7 +8,7 @@
 
 ClaimWatch has no editorial masthead. An automated verdict system that can be mutated by public contestation must earn trust another way: **published, reproducible accuracy measurement.** Every credibility question about the system ("how do we know the AI is right?", "does the crowd make it better or worse?") gets the same answer: labelled ground truth, a blind scoring run, and published numbers — refreshed with every pipeline change and every labelled-set version.
 
-This follows the methodology of the AVeriTeC shared tasks: systems are scored against claims with human-verified answers, and accuracy is reported so systems are comparable. The evaluation is **two-layer** (see ADR-0008): **Layer 1 — AVeriTeC's public dataset** (~4,568 real-world claims, public evaluation script, published reference scores) as the immediate benchmark for the generic open-web verification loop from day one; **Layer 2 — the NZ-labelled set** as the domain calibration set exercising the NZ source ecosystem. Both are reported separately, never blended.
+This follows the methodology of the AVeriTeC shared tasks: systems are scored against claims with human-verified answers, and accuracy is reported so systems are comparable. The evaluation is **two-layer** (see ADR-0010): **Layer 1 — AVeriTeC's public dataset** (~4,568 real-world claims, public evaluation script, published reference scores) as the immediate benchmark for the generic open-web verification loop from day one; **Layer 2 — the NZ-labelled set** as the domain calibration set exercising the NZ source ecosystem. Both are reported separately, never blended.
 
 ## 2. The ground-truth sets
 
