@@ -76,7 +76,7 @@ Design details that make the ladder trustworthy:
 | **Hansard** | Official daily transcripts (download + parse) | Daily batch | Speaker attribution is structural (Hansard markup) — the cleanest claimant-entity source. Feeds person-entity resolution directly |
 | **News RSS** | RNZ (~20 feeds), Stuff Atom, NZH `arc/outboundfeeds` (thin — see risks), Newsroom, The Post, The Press | 15 min | Claim-source and context lane. Full-item fetch only for items that pass triage (fetch-on-verify: headlines are cheap, articles are not) |
 | **User submissions** | Form → server-side re-fetch (ADR-0002 rules) | Event-driven | Never trusted; rate-limited; HDCA process attached |
-| **Commentator watchlist** | Per-register-entry: outlet RSS where free, own-site scrape, platform RSS where legitimate (Substack), submissions otherwise | 2 h, staggered | Register mechanics per ADR-0002 |
+| **Commentator watchlist** | Per-register-entry: outlet RSS where free, own-site scrape, platform RSS where legitimate (Substack), submissions otherwise | 2 h, staggered | Register mechanics per ADR-0002; broadcast/podcast interviews per ADR-0014's transcripts-first lane |
 
 ### Health checking (the silently-empty-feed failure mode)
 
