@@ -35,6 +35,7 @@ Decisions are recorded here, one file each, grouped by subject area. Statuses: P
 |---|---|---|
 | [0013](0013-public-proposals.md) | Public proposal of claim sources and evidence authorities | Proposed |
 | [0014](0014-implementation-technology.md) | Implementation technology — TypeScript, Vercel AI SDK, Postgres data plane | Proposed |
+| [0018](0018-institutional-claim-sources.md) | Institutional claim sources — think tanks, lobbies, unions, sector peak bodies | Proposed |
 
 ## Process
 
