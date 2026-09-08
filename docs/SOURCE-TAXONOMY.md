@@ -1,5 +1,7 @@
 # Source taxonomy: claim sources and evidence authorities
 
+*Two distinct roles, kept separate by design: **claim sources** are publications that may contain claims — they flow into ingestion and are checked; **evidence authorities** are sources we have independently assessed as trustworthy for their domain (the T1–T6 map below) — the verification engine consults them as evidence, and their content is never treated as claims to be checked. The same source can play both roles for different artefacts (a Hansard debate is a claim source; the official series behind a statistic is evidence). See ARCHITECTURE.md §1.*
+
 *Status: proposed. This document separates two decisions that ADR-0002 (ingestion scope) and ADR-0004 (statistical engine) both depend on but neither fully defines:*
 
 1. **Claim sources** — what we monitor for claims. The requirement is *breadth without bias*: a cross-section of NZ media so that which claims we see isn't determined by which outlets we happen to subscribe to.

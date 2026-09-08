@@ -19,7 +19,7 @@ flowchart TB
         BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions (ADR-0014)"]
     end
 
-    subgraph AUTHORITIES["Verifier authorities — evidence sources (checked against, never claims)"]
+    subgraph AUTHORITIES["Verifier authorities — evidence sources (never claim feeds)"]
         STATS["Stats NZ<br/>Aotearoa Data Explorer (SDMX/JSON)"]
         MOJ["MoJ · Police (policedata.nz)<br/>justice series"]
         ELECTORAL["Electoral Commission<br/>electoral process + party registration"]
