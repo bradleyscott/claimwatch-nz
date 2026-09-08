@@ -1,68 +1,96 @@
-# ADR-0015: Claim contextualisation — the discourse window that informs verification
+# ADR-0015: Claim contextualisation — discourse context as a first-class input to verification
 
 *Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
 
 ## Context
 
-A claim sentence is not self-contained. "Net migration was 55,000 last year" is a number; whether it is *misleading* depends on the discourse around it — which policy proposal it was deployed to support, which policy assumptions the speaker's argument rests on, whether the speaker is attacking the government's record or defending their own, and what the immediate conversational move was (a question answered, an attack answered, a proposal introduced). The same number supporting a "cut the intake" proposal reads differently from the same number defending "record arrivals under our plan."
+A claim sentence is not self-contained. "Net migration was 55,000 last year" is a number; whether it is *misleading* depends on the surrounding discourse — which policy proposal it was deployed to support, what the speaker's argument rests on, whether the speaker was answering a hostile question or making an unprompted claim, and what the immediately preceding sentences established. The current design verifies extracted sentences: triage detects a checkable claim, fingerprint-matches it, and runs the grid or loop. What is missing is a **contextualisation stage** — capturing and structuring the surrounding discourse so verification can ask not just "is this number accurate?" but "is this number, as deployed here, misleading?"
 
-The current design verifies claims as extracted sentences: triage detects a checkable claim, fingerprint-matches it, and runs the grid or loop. What is missing is **the contextualisation stage** — capturing the surrounding discourse at ingestion so verification can ask not just "is this number accurate?" but "is this number, as deployed here, misleading?" Without it, two failures occur: (a) a selective statistic is verified "accurate" because the sentence is true, when its *deployment* was misleading; (b) context that would excuse a claim (a speaker immediately qualifying their own figure) is lost, producing false alarms. Both are verification errors caused by treating the claim sentence as the whole utterance.
+Two failure modes follow from verifying the sentence in isolation:
 
-This ADR defines how context is captured, structured, and fed to verification. It composes with the existing designs: the sensitivity grid already answers "is the framing representative of the field?" (ADR-0004) — contextualisation answers "what was the speaker using the framing to do?"
+- **False negatives**: a selective statistic is verified "accurate" because the sentence is true, when its *deployment* was misleading — the class the project exists for.
+- **False alarms**: qualifying context is lost ("that was the figure at the time — it has since improved, which is why I opposed the cut") and the verdict reads the claim as worse than it was.
+
+There is also a structural warning from the research literature: the Decompose-Then-Verify paradigm's own error analysis (Hu et al., "Decomposition Dilemmas," NAACL 2025) identifies **"omission of context information" — missing key details and logical relationships — as a primary decomposition failure that distorts semantics** and can make sub-claims incomplete or misleading. Our pipeline extracts claims from documents; that failure mode applies to us directly. Context handling is not an enrichment — it is a correctness requirement of the extraction stage itself.
+
+This ADR supersedes the initial contextualisation sketch, which over-committed: it assumed claims arrive in interviews, always deployed in support of policy proposals, with a fixed taxonomy of discourse roles. The evidence base shows a different shape.
+
+## What the research supports (evidence base)
+
+1. **Context measurably improves fact-checking** — the foundational result is Atanasova et al., "Automatic Fact-Checking Using Context and Discourse Information" (JDIQ 2019): modelling the claim **in the context of the full intervention and the previous/following turns** improved check-worthiness detection by **+4.2 MAP from context features, +1.5 from discourse features**; P@5 dropped 0.800→0.550 when context was removed. Context+discourse features *alone* matched ClaimBuster. The mechanism generalises: the claim's neighbours carry information the claim sentence lacks.
+2. **Context is a standard metadata dimension of the canonical datasets**: LIAR records each statement's *context/venue* ("stated in a Fox News interview", "presidential announcement speech") as a first-class field alongside speaker, party, and history; LIAR2 adds speaker credibility history and justifications. The field's existence signals that the community treats the *venue/occasion of a claim* as verification-relevant — the same statistic said in a press conference vs a TikTok is a different fact-checking object.
+3. **Stance detection is the mature adjacent task** (survey: arXiv 2506.16383): identifying an author's position *toward a target* (pro/con/neutral), with conversational-context stance detection an active sub-field. The framing of ADR-0015's first draft — classifying what the claim "supports or attacks" — is stance detection, and the research treats it as a *property of the text relative to a target*, discoverable when the text carries the signal, not assumable.
+4. **Claim normalization (CheckThat! 2025, 20 languages)** formalises the operation that makes context usable: transform a noisy in-context utterance into a **concise, standalone, verifiable statement**. This is the pipeline operation that reconciles "context matters" with "the loop needs an atomic claim" — normalisation is a *lossless-as-possible* projection of the utterance out of its discourse, and its errors are the known hazard.
+5. **The decomposition hazard is measured**: "Decomposition Dilemmas" (NAACL 2025) shows decomposition's effect on final fact-checking accuracy is *inconsistent* — gains on complex inputs, degradation on simple ones, with omission-of-context errors the identified mechanism. Design consequence: **the utterance and its context must remain the verifiable artefacts alongside the extracted claim**, never discarded after extraction.
+6. **The claim's own veracity schema must include context-dependence as a first-class outcome**: the community QA annotation in Atanasova et al. uses labels including "Factual — Conditionally True (true in some cases, false in others, depending on conditions the answer does not mention)". Our verdict vocabulary (ADR-0004/0006) already has "accurate but incomplete"; this research confirms context-conditionality is a *recognised verdict class*, not a judgement call bolted on.
 
 ## Decision
 
-### 1. Capture the discourse window at extraction, not at verification
+**Every claim record carries a stored discourse window; the window is structured into typed, low-commitment contextual fields that condition retrieval and presentation; the evidence standard never varies with context; and all contextual fields are published and contestable.**
 
-Every extracted claim carries a **discourse window**: the surrounding text the claim appears in, captured at extraction time from the source document — the speaker's full paragraph(s) around the claim, the question that prompted it (for interviews/Hansard, the preceding speaker turn), and document metadata (title, section, release/programme type). This is cheap and deterministic: the extractor already has the document; the window is a span, not an interpretation. The claim record stores the window (capped, e.g. ±500 words or the containing speaker turn), so verification never has to re-fetch and re-scope.
+### 1. The discourse window (capture, not interpretation)
 
-- **Broadcast/clip claims (ADR-0014)**: the window is the surrounding caption cues (say, ±30s or the whole speaker turn), anchored by the media_anchor timestamps already stored.
-- **Releases/articles**: the window is the section/paragraph block around the claim plus the document title and headline.
-- **Interviews with turn structure** (transcripts, ZB/RNZ segments): the window includes the interviewer's question — the single most important contextualiser for spoken claims ("Isn't it true that crime is up?" produces a different discourse position than an unprompted assertion).
+Every extracted claim stores the **surrounding text it appeared in** — captured deterministically at extraction:
 
-### 2. Structure the context: the policy-support frame
+- the containing paragraph(s) (capped span, e.g. ±300 words);
+- for turn-structured sources (Hansard, transcripts, interviews): the **preceding speaker turn** — for ADR-0014 caption claims, the surrounding caption cues anchored by `media_anchor`;
+- document-level metadata: title/headline, section, venue type (release / debate / interview / press conference / article / social post).
 
-At triage, the LLM classifies the claim's **discourse role** from the window — what the claim is doing in the surrounding argument. Structured output (Zod, per ADR-0013), fields:
+This is a *span*, not an interpretation — the extractor already has the document, the cost is near zero, and it preserves exactly what later stages need. **Every claim gets a window; nothing is assumed about its shape.**
 
-- **policy_proposal**: the proposal/position the claim supports or attacks, in neutral phrasing ("opposes the bed tax", "proposes cutting the ETS review") — or none if purely retrospective.
-- **policy_assumptions**: the implicit premises the speaker's argument rests on ("immigration is too high", "crime is rising due to this government") — the bridge from statistic to proposal.
-- **discourse_role**: `supports-own-proposal` / `attacks-opponent-record` / `defends-own-record` / `responds-to-question` / `answers-criticism` / `neutral-statement`.
-- **direction**: is the statistic being framed as evidence *of a problem* (bad number → change needed) or *of success* (good number → stay the course)?
-- **attributed_to_party_position**: whether the argument is the speaker's own platform or a characterisation of an opponent's.
+### 2. Structured context fields — typed, bounded, and conservative
 
-These fields are **extracted, not judged** — they describe the discourse structure, they do not evaluate it. The classification is conservative: low-confidence roles are recorded as `unclassified` rather than guessed (the ADR-0010 never-guessed rule applied to context).
+At triage, an LLM pass over the window extracts **optional, typed fields** — all optional, all low-commitment:
 
-### 3. How the context informs verification (per mode)
+- **`speech_context`** (from LIAR's schema): venue/occasion of the statement — "press release", "debate", "interview on RNZ Morning Report", "social media post". Deterministic from the source; no inference needed.
+- **`policy_topic`** (if any): the policy area the surrounding discourse concerns ("housing supply", "sentencing"). Free-text, normalised against the domain taxonomy.
+- **`attached_proposal`** (if any): a proposal/position explicitly referenced in the window as supported/attacked by the claim. **Detected only when the window contains it** — never inferred from the speaker's identity or party. A statistic in a technical briefing and the same statistic in a campaign ad produce different records, and neither is assumed absent when present or present when absent.
+- **`argument_direction`** (if detectable): whether the statistic is deployed as evidence of a problem or of success. This is stance detection over the window — recorded only at confident levels, else null.
+- **`context_qualifiers`**: qualifications the speaker themselves attached in the window ("up from a low base", "excluding seasonal effects", "under the policy we campaigned on") — this is the false-alarm protection: a claim the speaker already qualified verifies against the qualified form.
 
-- **Statistical claims (ADR-0004 engine)**: the grid already computes whether the framing is representative of the field. Context sharpens two steps:
-  - **Grid-row materiality**: the discourse role determines which grid alternatives are *material to check*. A number framed as evidence of a crisis ("record crime!") makes the long-window and per-capita rows decisive (does the record hold over 10 years? per 100k?); a number offered as a success claim makes the denominator-family row decisive (is the metric one the field considers valid?). The context selects which grid rows the verdict page foregrounds — the grid itself stays pre-declared and identical for everyone (the anti-invented-standard defence is untouched).
-  - **The "deployed as" line**: the verdict page shows the policy proposal the statistic was supporting, and states the verdict against *that deployment*: "accurate as stated; as deployed here (supporting X), the framing omits Y, which is material to X." The reader sees both the number's status and its use.
-- **Citation-backed claims**: the window reveals whether the citation is doing direct work (proposal cites the study) or decorative work (study mentioned as colour) — which changes how hard the citation check binds.
-- **Open-web loop claims**: the policy assumptions field seeds question generation — the loop decomposes the *argument*, not just the sentence (e.g. "does cutting the ETS review change emissions outcomes?" is a better retrieval question than the quoted sentence). This is the AVeriTeC multi-hop lesson (ADR-0011) applied with context: question generation conditions on the discourse role.
-- **False-context / decontextualisation mode (ADR-0004)**: the discourse window is the primary instrument — the mode's core question is "is this real content deployed in a context that changes its meaning?", which is exactly the stored window plus retrieval for the original context.
+All fields are **extracted-if-present, never assumed**: the schema is optional-typed throughout, and the never-guessed rule (ADR-0010) applies — an absent field is an absent field, not an inferred default. The classification prompt is published, and the fields are auditable against the stored window (the LLM proposes; the auditable artefact is the window text itself).
 
-### 4. What context is NOT allowed to do (guardrails)
+### 3. How context conditions verification (per mode)
 
-- **Context never changes the evidence standard.** The grid, the authority map, and the verification rules are identical regardless of discourse role — a government statistician's number and an opposition attack number run the same grid. What varies is presentation emphasis and question-generation seed, never the criterion.
-- **Discourse classification is published on the verdict page.** The reader sees the captured window (quoted, with the media anchor per ADR-0014) and the extracted discourse role — so the contextualisation itself is contestable like everything else. A speaker who disputes the characterisation ("I wasn't framing it as a crisis") can contest the *context record* through the standard mutation pathway.
-- **The window is quoted, never paraphrased into the verdict.** The verdict's "as deployed" language references the stored window text; the LLM proposes the framing characterisation, the auditable artefact is the window itself.
-- **Party-position classification stays out of verdict weighting** — consistent with SOURCE-TAXONOMY's rule that political-position metadata informs auditing, never verdict computation. The discourse role is about *this sentence's* argumentative function, not the speaker's politics.
+- **Statistical claims (ADR-0004 engine)**: the sensitivity grid remains pre-declared, identical for every claimant, and computed from the fingerprint alone. Context enters at two points, presentation-level only:
+  - **Grid-row emphasis**: `argument_direction` and `attached_proposal` determine which grid alternatives are *material to foreground* on the verdict page (a number framed as crisis evidence foregrounds the long-window and per-capita rows; a success claim foregrounds the denominator-family row). The grid is computed fully either way — context selects what the page leads with.
+  - **The "as deployed" line**: when `attached_proposal` exists, the verdict page states the deployment: *"The figure is accurate as stated; in support of [proposal], the framing omits [grid finding], which is material to that proposal."* When no proposal is attached, the page simply reports the grid result against the framing.
+- **Citation-backed claims**: the window shows whether the citation does direct argumentative work or decorative work — which sets how strictly the citation-check binds (a decorative mention failing a full check yields "the cited source does not support the framing").
+- **Open-web loop**: question generation conditions on the window — the loop decomposes the *argument* where one is present (per AVeriTeC's multi-hop finding, ADR-0011), and the plain claim where no argumentative frame exists.
+- **False-context / decontextualisation mode (ADR-0004)**: the stored window is the primary instrument — the mode's core question ("is real content deployed in a context that changes its meaning?") is exactly the stored window plus retrieval for the original context.
 
-### 5. Context in the store and on the page
+### 4. Guardrails
 
-The claim record gains a `discourse_context` object: `{ window_text, window_span, prompt_turn?, discourse_role, policy_proposal, policy_assumptions[], extraction_model_version }`. Verdict pages render a "Context of the claim" section: the quoted window, the speaker's stated purpose (the proposal), and the verdict's "as deployed" line. Repeat claims (ADR-0010 relationships) compare discourse contexts — the same statistic deployed under different proposals appears as one claim with multiple deployment contexts, which is precisely the fuller picture the linking system is for.
+- **Context never changes the evidence standard.** The grid, authority map, and verification rules are identical regardless of any context field — a crisis-framed number and a success-framed number run the same grid. Context affects emphasis, question seeds, and page presentation; never the criterion.
+- **Every context field is published on the verdict page** with the quoted window — so the contextualisation itself is contestable like everything else. A speaker who disputes the characterisation ("I wasn't attaching it to that proposal") contests the *context record* through the standard mutation pathway (ADR-0005).
+- **The window is quoted, never paraphrased into the verdict** — the LLM proposes field values; the auditable artefact is the stored window text.
+- **No inference from speaker identity.** `attached_proposal` comes from the window text only — the speaker's party, platform, or history never fills a context field. (The firewall from ADR-0010 — verification never receives claimant identity — is preserved.)
+
+### 5. Schema and rendering
+
+The claim record gains `discourse_context`: `{ window_text, window_span, prompt_turn?, speech_context?, policy_topic?, attached_proposal?, argument_direction?, context_qualifiers[], extraction_model_version }` — all optional except the window. Verdict pages render a **"Context of the claim"** section: the quoted window (with media anchor where applicable per ADR-0014), the extracted frame fields, and the "as deployed" verdict line. Repeat claims (ADR-0010) compare discourse contexts: the same statistic deployed under different proposals is one claim with multiple deployment contexts — the fuller picture the linking system exists for.
 
 ## Alternatives considered
 
-- **Verify the sentence in isolation (status quo).** Rejected: structurally unable to catch deployment-level misleadingness — the class the project exists for. The grid partially covers it (representativeness of the field) but misses the proposal-connection entirely.
-- **Full-argument reconstruction** (parse the speaker's whole speech/release into an argument graph, verify the argument). Rejected for v1: high LLM cost and the inference chain is exactly where hallucinated "context" could fabricate positions the speaker didn't hold — the same never-make-claims principle as ADR-0014, applied to context. The structured role-classification keeps the LLM's interpretive step bounded and auditable (the window text is stored; the role label is checkable against it).
-- **Human editorial context-writing per claim.** Rejected: no editorial staff is the project's defining constraint (ADR-0001); the LLM-proposed + auditable window approach is the automatable equivalent.
-- **Context from retrieved coverage only** (what the media said around the claim). Deferred as a *secondary* context source: what matters most is the claimant's own deployment; media framing is a later enrichment, not the primary context.
+- **Verify the sentence in isolation (status quo).** Rejected: structurally unable to catch deployment-level misleadingness, and — per the decomposition literature — the isolation itself is a known error source (omission-of-context distorts the extracted claim).
+- **The initial fixed taxonomy** (interview-shaped, always-for-a-proposal, closed role set). Rejected: over-committed assumptions the evidence doesn't support; replaced by optional typed fields with conservative detection.
+- **Full-argument reconstruction** (parse the whole speech/release into an argument graph). Rejected for v1: high cost, and the inference chain is where hallucinated "context" could fabricate positions the speaker didn't hold — the ADR-0014 never-make-claims principle applied to context. Bounded field extraction over the stored window keeps the interpretive step auditable.
+- **Stance/proposal classification as a hard pipeline gate** (verification blocks until context resolves). Rejected: context is *input enrichment*; a claim with null context fields still verifies — with the page simply not showing an "as deployed" line. Blocking would make the pipeline brittle and bias toward confidently-classified (probably simple) claims.
+- **Media framing as context** (what coverage said around the claim). Deferred as secondary enrichment — the claimant's own deployment is primary; retrieved framing is a later addition.
+- **Human editorial context per claim.** Rejected: no editorial staff is the defining constraint (ADR-0001); LLM-proposed fields over a stored, quotable window is the automatable equivalent, auditable like every other pipeline output.
+
+## Evidence base
+
+- Atanasova et al., "Automatic Fact-Checking Using Context and Discourse Information" (JDIQ 2019; arXiv:1908.01328): context features +4.2 MAP / P@5 0.800→0.550 removed; discourse features +1.5 MAP; both critical to state-of-the-art check-worthiness; veracity annotation includes "Conditionally True" as a first-class label. Datasets/code public.
+- LIAR (Wang 2017) / LIAR2: context/venue as a standard verification-relevant metadata field; speaker credibility history added in LIAR2.
+- CheckThat! 2025 Task 2 (claim normalization): the formalisation of projecting an in-context utterance to a standalone verifiable statement — 20 languages, active task.
+- Hu et al., "Decomposition Dilemmas" (NAACL 2025): decomposition error taxonomy with omission-of-context as a first-class failure mode; inconsistent effect on verification accuracy — granularity must be balanced.
+- Stance detection literature (survey arXiv:2506.16383): stance is text-relative and discoverable, including in conversational context — supporting the "detect only when present" posture.
 
 ## Consequences
 
-- **Triage gains a structured discourse-role output** — Flash-class cost (one more Zod field set per claim), batch-priced like the rest of triage.
-- **The claim record schema gains `discourse_context`** — defined in `packages/store` (Drizzle), populated by triage, immutable like the rest of the extraction outputs, reprocessable like them.
-- **The verdict page template gains the "Context of the claim" section** — window quote + discourse role + "as deployed" verdict line. This is a site feature from the first published verdicts, not a later enhancement, because the verdict vocabulary ("accurate but incomplete — material to this deployment") depends on it.
-- **Harness implication (ADR-0008)**: the NZ-labelled set gains a discourse-role field per label — the stratification can then measure whether contextualisation improves verdict quality (does knowing the deployment change the verdict distribution?). The harness runs with and without context as an ablation — that number tells us what the context layer is actually worth.
-- **Guardrail posture is unchanged**: context sharpens question-generation and presentation; it never biases the evidence standard, the grid, or the criterion. The party-blind rule extends to context: the same claim text in the same discourse role gets the same verification regardless of speaker.
+- **Triage gains an optional structured context pass** over the stored window — Flash-class cost (per ADR-0007), batch-priced; fields optional, so the pass short-circuits cleanly when the window carries no signal.
+- **The claim record schema gains `discourse_context`** — defined in `packages/store` (Drizzle), populated by triage, immutable extraction output, reprocessable like all others (ADR-0011).
+- **The verdict page template gains the "Context of the claim" section** from the first published verdicts — window quote, frame fields (where present), "as deployed" line when applicable. The verdict vocabulary ("accurate but incomplete — material to this deployment") depends on it.
+- **The harness measures the layer** (ADR-0008): the NZ-labelled set gains context fields; scoring runs as an ablation (with/without context conditioning) — the published number tells us what contextualisation is actually worth rather than assuming it.
+- **Guardrail posture unchanged**: context conditions presentation and question seeds, never the criterion. Party-blind extends to context — same claim text in the same window gets the same verification regardless of speaker.
