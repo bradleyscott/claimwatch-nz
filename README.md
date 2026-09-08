@@ -32,6 +32,7 @@ Ahead of the 2026 NZ general election (7 November 2026), we are building a publi
 | [`docs/COVERAGE.md`](docs/COVERAGE.md) | Verified access map: every cited source probed for API/feed availability, bot protection, and degradation, with mitigations. |
 | [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Source taxonomy: the claim-source coverage matrix (anti-bias) and the evidence-authority map (trusted sources per policy domain, with precedence rules). |
 | [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Taxonomies of misleading information (Wardle/First Draft types, information disorder, DISARM/FIMI, empirical EU-2024 distributions) mapped to verification approaches — the research input that reshaped the verification layer. |
+| [`docs/WEBSITE-UX-RESEARCH.md`](docs/WEBSITE-UX-RESEARCH.md) | What PolitiFact, Full Fact, Snopes, and FactCheck.org let users do, and how this project's public site should present verdicts, evidence packs, argument chains, and entity track records. |
 | [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, and how the design addresses each. |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records — every significant approach decision, its alternatives, and the reasoning. |
 
