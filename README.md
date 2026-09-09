@@ -34,6 +34,7 @@ Ahead of the 2026 NZ general election (7 November 2026), we are building a publi
 | [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Taxonomies of misleading information (Wardle/First Draft types, information disorder, DISARM/FIMI, empirical EU-2024 distributions) mapped to verification approaches — the research input that reshaped the verification layer. |
 | [`docs/WEBSITE-UX-RESEARCH.md`](docs/WEBSITE-UX-RESEARCH.md) | What PolitiFact, Full Fact, Snopes, and FactCheck.org let users do, and how this project's public site should present verdicts, evidence packs, argument chains, and entity track records. |
 | [`docs/DISCOVERY-MECHANISM.md`](docs/DISCOVERY-MECHANISM.md) | How users find information on the site: ClaimReview-marked SSR verdict pages for Google/Fact Check Explorer, faceted browse off the structured store, hybrid text+semantic search with paste-a-quote jump, and the recency feed + newsletter habit loop. |
+| [`docs/USER-SUBMISSIONS.md`](docs/USER-SUBMISSIONS.md) | How users submit claims/articles/sources for verification: source-URL intake vs claim intake with fuzzy match against the existing corpus, public verification-request status tracking, the locating step and never-trust boundary, and deduped demand-count prioritisation. |
 | [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, and how the design addresses each. |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records — every significant approach decision, its alternatives, and the reasoning. |
 
