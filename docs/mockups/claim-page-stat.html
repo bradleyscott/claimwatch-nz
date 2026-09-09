@@ -35,14 +35,21 @@
 
   /* ===== 2 · VERDICT ===== */
   .verdictcard{background:#fdf8ef;border-color:#eddfc2}
-  .vrule{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--v-ref) 0%,var(--v-ref) 22%,var(--v-nei) 22%,var(--v-nei) 40%,var(--v-inc) 40%,var(--v-inc) 72%,var(--v-sup) 72%,var(--v-sup) 100%);position:relative}
-  .vpin{position:absolute;top:-9px;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:#fff;border:4px solid var(--v-inc);box-shadow:0 2px 8px rgba(0,0,0,.18)}
-  .vlabels{display:flex;justify-content:space-between;font-size:11.5px;color:#9b7a45;margin-top:10px;font-weight:600}
-  .vlabels .here{color:#8a5a12;font-weight:800}
-  .vword{margin-top:22px;font-size:36px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:#8a5a12}
+  /* verdict title FIRST (top of card), spectrum BELOW it */
+  .vword{font-size:36px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:#8a5a12}
   .vplain{margin-top:8px;font-size:18.5px;line-height:1.42;font-weight:600;color:#33270f;max-width:640px}
   .vmeta{margin-top:10px;font-size:12.5px;color:#a58a55}
   .deploy{margin-top:14px;font-size:12.5px;color:#8a5a12;border-left:3px solid #eddfc2;padding-left:12px}
+  /* spectrum sits under the title, above the plain answer */
+  .spectrum{margin-top:22px;position:relative;padding-top:9px}
+  .vrule{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--v-ref) 0%,var(--v-ref) 22%,var(--v-nei) 22%,var(--v-nei) 40%,var(--v-inc) 40%,var(--v-inc) 72%,var(--v-sup) 72%,var(--v-sup) 100%)}
+  /* pin centred inside the 'incomplete' segment (40%–72% → mid ≈ 56%) */
+  .vpin{position:absolute;top:0;left:56%;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:#fff;border:4px solid var(--v-inc);box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .vlabels{display:flex;font-size:11.5px;color:#9b7a45;margin-top:8px;font-weight:600}
+  .vlabels span:nth-child(1){width:22%}
+  .vlabels span:nth-child(2){width:18%}
+  .vlabels span:nth-child(3){width:32%}
+  .vlabels span:nth-child(4){width:28%;text-align:right}
 
   /* ===== 3 · WHAT'S GOING ON ===== */
   .lead{font-size:20px;font-weight:700;line-height:1.45;letter-spacing:-.005em}
@@ -114,11 +121,14 @@
 
   <!-- 2 · VERDICT CARD -->
   <div class="card verdictcard">
-    <div class="vrule"><span class="vpin"></span></div>
-    <div class="vlabels"><span>False</span><span>Not enough evidence</span><span class="here">Accurate but incomplete</span><span>Supported</span></div>
     <div class="vword">Accurate but incomplete</div>
-    <div class="vplain">The two numbers are right — but the fall was already underway before this government's changes took effect.</div>
-    <div class="vmeta">confidence 90% · checked against Stats NZ series · no disputes</div>
+    <div class="vmeta" style="margin-top:6px">confidence 90% · no disputes</div>
+    <div class="spectrum">
+      <span class="vpin"></span>
+      <div class="vrule"></div>
+      <div class="vlabels"><span>False</span><span>Not enough evidence</span><span style="color:#8a5a12;font-weight:800;text-align:center">Accurate but incomplete</span><span>Supported</span></div>
+    </div>
+    <div class="vplain" style="margin-top:18px">The two numbers are right — but the fall was already underway before this government's changes took effect.</div>
     <div class="deploy">Used to back up the claim that government immigration settings caused the fall</div>
   </div>
 
