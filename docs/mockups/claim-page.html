@@ -2,17 +2,17 @@
 <html lang="en-NZ">
 <head>
 <meta charset="utf-8">
-<title>ClaimWatch NZ — verdict page v5 · editorial treatment (illustrative)</title>
+<title>ClaimWatch NZ — verdict page v6 · refined separation (illustrative)</title>
 <style>
   :root{
-    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --line:#e8e4dc;
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
     --blue:#155cc4;
-    --v-inc:#c47f1d; --v-inc-soft:#f3e3c4;
+    --v-inc:#c47f1d; --v-inc-soft:#f6ecd6;
     --v-ref:#c0392b; --v-nei:#64748b; --v-sup:#15803d;
   }
   *{box-sizing:border-box;margin:0}
   body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
-  .wrap{max-width:760px;margin:0 auto;padding:0 22px}
+  .wrap{max-width:800px;margin:0 auto;padding:0 22px}
   header.site{background:var(--ink);color:#fff}
   .sitebar{display:flex;align-items:center;gap:26px;padding:13px 0}
   .logo{font-weight:800;font-size:19px}
@@ -20,47 +20,50 @@
   nav{display:flex;gap:19px;font-size:14px;color:#c3cad4}
   nav b{color:#fff}
   .search{margin-left:auto;background:#223146;border:1px solid #3a4a5f;color:#9aa5b1;border-radius:9px;padding:7px 12px;font-size:13px;min-width:210px}
-  .crumbs{font-size:12.5px;color:var(--mut);padding:24px 0 8px}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:24px 0 14px}
+
+  /* ---- quiet section separation: whitespace + hairline + label, no shadowed cards ---- */
+  section{margin-top:40px}
+  .shead{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:20px}
+  .shead h2{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .shead .snote{font-size:12.5px;color:#b3b9c0}
 
   /* ============ 1 · CLAIM ============ */
-  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint, #9aa2ad);margin-bottom:12px}
+  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
   .quote{font-family:Georgia,"Times New Roman",serif;font-size:31px;line-height:1.26;letter-spacing:-.01em}
   .quote .hl{background:linear-gradient(180deg,transparent 60%,#ffe9a8 60%)}
   .who{margin-top:16px;font-size:13.5px;color:var(--mut)}
   .who b{font-weight:600;color:#3c4654}
   .who .sep{color:#c6cad1;margin:0 6px}
 
-  /* ============ 2 · VERDICT — band + spectrum, no dial ============ */
-  .verdict{margin-top:30px}
+  /* ============ 2 · VERDICT (v3 arrangement: rule+spectrum, labels under, word, confidence demoted) ============ */
+  .verdict{margin-top:34px;padding-bottom:6px}
   .vrule{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--v-ref) 0%,var(--v-ref) 22%,var(--v-nei) 22%,var(--v-nei) 40%,var(--v-inc) 40%,var(--v-inc) 72%,var(--v-sup) 72%,var(--v-sup) 100%);position:relative}
   .vpin{position:absolute;top:-9px;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:#fff;border:4px solid var(--v-inc);box-shadow:0 2px 8px rgba(0,0,0,.18)}
   .vlabels{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:10px;font-weight:600}
   .vlabels .here{color:#8a5a12;font-weight:800}
-  .vword{margin-top:26px;font-size:38px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:#8a5a12}
+  .vword{margin-top:24px;font-size:38px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:#8a5a12}
   .vplain{margin-top:8px;font-size:19px;line-height:1.42;font-weight:600;color:#33270f;max-width:620px}
   .vmeta{margin-top:10px;font-size:12.5px;color:var(--mut)}
-  .deploy{margin-top:16px;font-size:12.5px;color:#8a5a12;border-left:3px solid var(--v-inc-soft);padding-left:12px}
+  .deploy{margin-top:14px;font-size:12.5px;color:#8a5a12;border-left:3px solid var(--v-inc-soft);padding-left:12px}
 
-  /* ============ sections: no cards — rules + whitespace ============ */
-  section{padding:44px 0 8px}
-  section + section{border-top:1px solid var(--line)}
-  section h2{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:20px}
-
-  /* story */
+  /* ============ 3 · STORY ============ */
   .lead{font-size:20px;font-weight:700;line-height:1.45;letter-spacing:-.005em}
   .lead em{font-style:normal;background:linear-gradient(180deg,transparent 60%,#ffe9a8 60%)}
-  .story p{margin-top:16px;font-size:16.5px;color:#2c3644;max-width:660px}
-  .facts{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:24px 0 6px}
-  .fact .fk{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
-  .fact .fv{margin-top:6px;font-size:17px;font-weight:700;line-height:1.4}
-  .fact .fs{font-size:12.5px;color:var(--mut);margin-top:4px}
+  .story p{margin-top:16px;font-size:16.5px;color:#2c3644;max-width:680px}
+  .facts{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:22px 0 4px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .fact{padding:16px 20px 16px 0}
+  .fact + .fact{border-left:1px solid var(--line);padding-left:20px}
+  .fact .fk{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .fact .fv{margin-top:6px;font-size:17.5px;font-weight:700;line-height:1.38}
+  .fact .fs{font-size:12.5px;color:var(--mut);margin-top:5px}
   .fact.up .fv{color:var(--v-ref)}
   .fact.flat .fv{color:var(--v-sup)}
-  .pull{margin-top:24px;font-size:20px;font-weight:700;line-height:1.42;letter-spacing:-.005em}
+  .pull{margin-top:22px;font-size:20px;font-weight:700;line-height:1.42;letter-spacing:-.005em}
   .pull .k{color:var(--v-inc)}
 
-  /* media */
-  .mediabar{display:flex;align-items:center;gap:16px;background:#0d1a2b;border-radius:14px;padding:14px 18px;color:#dfe6ee;max-width:660px}
+  /* ============ 4 · MEDIA ============ */
+  .mediabar{display:flex;align-items:center;gap:16px;background:#0d1a2b;border-radius:14px;padding:14px 18px;color:#dfe6ee;max-width:680px}
   .play{width:44px;height:44px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 4px 12px rgba(21,92,196,.4)}
   .mediabar .t{font-size:13.5px}
   .mediabar .t b{color:#fff;font-size:14.5px}
@@ -69,32 +72,33 @@
   .track .pos:after{content:"14:22";position:absolute;top:-20px;left:-14px;font-size:10.5px;color:#bcd0ea;font-weight:600}
   .tier2note{font-size:12.5px;color:var(--mut);margin-top:12px}
 
-  /* evidence: quiet typographic labels, hanging layout */
-  .ev{max-width:700px}
-  .ev{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:20px 0}
+  /* ============ 5 · EVIDENCE — hairline rows + hanging labels (kept) ============ */
+  .ev{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:18px 0}
   .ev + .ev{border-top:1px solid var(--line)}
+  .ev:first-of-type{border-top:1px solid var(--line)}
   .ev .lab{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding-top:3px}
   .ev .lab small{display:block;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:#b3b9c0;margin-top:3px}
   .ev .body b{font-size:15.5px;font-weight:700}
   .ev .body .sub{font-size:13.5px;color:var(--mut);margin-top:4px;line-height:1.5}
-  .calc{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:transparent;border-left:2px solid var(--line);padding:4px 0 4px 18px;margin-top:10px;line-height:1.8}
+  .calc{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:10px;line-height:1.8;max-width:520px}
   .calc .win{color:var(--v-sup);font-weight:700}
   .calc .lose{color:var(--v-ref);font-weight:700}
   .calc .tag{color:#b3b9c0}
 
-  /* related: simple text list, no cards */
+  /* ============ related — hairline rows (kept) ============ */
   .rel{max-width:700px}
   .relrow{display:flex;align-items:baseline;gap:14px;padding:12px 0;font-size:15px}
   .relrow + .relrow{border-top:1px solid var(--line)}
-  .relrow .rk{flex:none;width:170px;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .relrow:first-child{border-top:1px solid var(--line)}
+  .relrow .rk{flex:none;width:180px;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
   .relrow a{color:var(--blue);text-decoration:none;font-weight:600}
   .relrow .rv{color:#2c3644}
 
   .metarow{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);padding:10px 0 0}
-  .pipe{font-size:12px;color:#8a919b;border-left:1px dashed var(--line);padding-left:16px;margin-top:18px}
-  .contest{max-width:700px;font-size:15px;padding-top:8px}
+  .pipe{font-size:12px;color:#8a919b;border-left:1px dashed var(--line);padding-left:16px;margin-top:16px}
+  .contest{font-size:15px;margin-top:20px}
   .contest b{font-weight:800}
-  .fb{display:flex;gap:10px;align-items:center;margin:20px 0 0;font-size:14px;color:var(--mut)}
+  .fb{display:flex;gap:10px;align-items:center;margin:18px 0 0;font-size:14px;color:var(--mut)}
   .fb .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 16px;font-weight:600;color:#3c4654}
   .footer{padding:30px 0 46px;color:#a5abb4;font-size:12px;text-align:center}
 </style></head>
@@ -116,16 +120,16 @@
   <!-- 2 · VERDICT -->
   <div class="verdict">
     <div class="vrule"><span class="vpin"></span></div>
-    <div class="vlabels"><span>False</span><span>Not enough evidence</span><span style="color:#8a5a12;font-weight:800">Accurate but incomplete</span><span>Supported</span></div>
+    <div class="vlabels"><span>False</span><span>Not enough evidence</span><span class="here">Accurate but incomplete</span><span>Supported</span></div>
     <div class="vword">Accurate but incomplete</div>
-    <div class="vmeta">confidence 92% · stable — no disputes</div>
     <div class="vplain">True — but only if you pick the right starting year.</div>
+    <div class="vmeta">confidence 92% · stable — no disputes</div>
     <div class="deploy">Used to back up the government's law-and-order record</div>
   </div>
 
   <!-- 3 · WHAT'S GOING ON -->
   <section class="story">
-    <h2>What's going on here</h2>
+    <div class="shead"><h2>What's going on here</h2></div>
     <div class="lead">The number is real — but <em>2023 was a bad year to start counting from</em>.</div>
     <p>Police-recorded crime really did fall 12% between 2023 and 2025. But 2023 was the tail end of the pandemic, when crime was unusually high. It's like celebrating weight loss after a holiday feast — the starting point flatters the result.</p>
     <div class="facts">
@@ -145,7 +149,7 @@
 
   <!-- 4 · HEAR IT -->
   <section class="mediasec">
-    <h2>Hear it for yourself</h2>
+    <div class="shead"><h2>Hear it for yourself</h2></div>
     <div class="mediabar">
       <span class="play"><svg width="15" height="15" viewBox="0 0 14 14"><path d="M3 2l10 5-10 5z" fill="#fff"/></svg></span>
       <span class="t"><b>1News At Six, 8 Sep 2026</b><br>48-second clip</span>
@@ -157,7 +161,7 @@
 
   <!-- 5 · EVIDENCE -->
   <section>
-    <h2>What we checked it against</h2>
+    <div class="shead"><h2>What we checked it against</h2><span class="snote">public · re-runnable</span></div>
     <div class="ev">
       <div class="lab">Official data<small>Stats NZ</small></div>
       <div class="body"><b>Police-recorded offences (Dec 2025 release)</b>
@@ -188,7 +192,7 @@
 
   <!-- related -->
   <section>
-    <h2>Related</h2>
+    <div class="shead"><h2>Related</h2></div>
     <div class="rel">
       <div class="relrow"><span class="rk">Same speaker, same topic</span><span class="rv">6 claims — <a href="#">2 were wrong</a></span></div>
       <div class="relrow"><span class="rk">This claim elsewhere</span><span class="rv">Repeated twice since 8 Sep — <a href="#">see each time</a></span></div>
@@ -196,12 +200,12 @@
     </div>
   </section>
 
-  <section style="border-top:none;padding-bottom:0">
+  <section style="border-top:none">
     <div class="metarow"><span>Checked 41 min after the briefing</span><span>·</span><span><a href="#" style="color:var(--blue);text-decoration:none">How we check claims</a></span><span>·</span><span>Request a check · 0 others asked</span></div>
     <div class="pipe"><b>How this verdict was made:</b> produced by our automated pipeline (v0.9.2) and quality-audited. Data tables, prompt versions and audit results are logged and public. Changelog →</div>
-    <div class="contest" style="border:none;padding-left:0;margin-top:22px"><b>Think we've got this wrong?</b> <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">Tell us</a> — with a source we should have used. Contests are public, and when one checks out we change the verdict and show the change history. Nobody's above a correction, including us.</div>
+    <div class="contest"><b>Think we've got this wrong?</b> <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">Tell us</a> — with a source we should have used. Contests are public, and when one checks out we change the verdict and show the change history. Nobody's above a correction, including us.</div>
     <div class="fb">Was this useful? <span class="btn">👍 Yes</span> <span class="btn">👎 Something's off</span> <span class="btn">✎ Tell us more</span></div>
   </section>
 
-<div class="footer">Mockup v5 · illustrative content only — claims, figures and verdicts shown are examples, not published checks.</div>
+<div class="footer">Mockup v6 · illustrative content only — claims, figures and verdicts shown are examples, not published checks.</div>
 </div></body></html>
