@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Feed mockup (illustrative)</title>
+<style>
+  :root{
+    --ink:#14202e; --paper:#faf9f7; --card:#ffffff; --line:#e3e0da; --mut:#5c6673;
+    --sup:#1a7f37; --sup-bg:#eaf4ec; --ref:#b42318; --ref-bg:#fbeae8;
+    --inc:#b54708; --inc-bg:#fdf3e7; --nei:#545b66; --nei-bg:#eef0f2; --pledge:#4c5b8a; --pledge-bg:#edf0f8;
+  }
+  *{box-sizing:border-box; margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif; background:var(--paper); color:var(--ink); font-size:15px; line-height:1.5}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px}
+  header.site{background:var(--ink); color:#fff}
+  .sitebar{display:flex; align-items:center; gap:28px; padding:14px 0}
+  .logo{font-weight:800; font-size:19px; letter-spacing:-.01em}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex; gap:20px; font-size:14px; color:#c7cdd4}
+  nav b{color:#fff}
+  .search{margin-left:auto; background:#233246; border:1px solid #3a4a5f; color:#9aa5b1; border-radius:8px; padding:7px 12px; font-size:13px; min-width:280px}
+  .banner{background:#eef0f2; color:var(--mut); font-size:12px; padding:6px 0; text-align:center}
+  .headline{display:flex; justify-content:space-between; align-items:baseline; padding:26px 0 10px}
+  h1{font-size:24px; letter-spacing:-.01em}
+  .feednote{font-size:13px; color:var(--mut)}
+  .chips{display:flex; gap:8px; padding-bottom:18px}
+  .chip{font-size:12.5px; border:1px solid var(--line); background:var(--card); border-radius:999px; padding:4px 12px; color:var(--ink)}
+  .chip.on{background:var(--ink); color:#fff; border-color:var(--ink)}
+  .cols{display:grid; grid-template-columns:1fr 320px; gap:28px; padding-bottom:48px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:16px; overflow:hidden}
+  .vband{display:flex; align-items:center; gap:10px; padding:10px 18px; font-weight:700; font-size:13.5px; letter-spacing:.02em; text-transform:uppercase}
+  .vband svg{flex:none}
+  .band-sup{background:var(--sup-bg); color:var(--sup)}
+  .band-ref{background:var(--ref-bg); color:var(--ref)}
+  .band-inc{background:var(--inc-bg); color:var(--inc)}
+  .band-nei{background:var(--nei-bg); color:var(--nei)}
+  .cbody{padding:16px 18px 14px}
+  .who{font-size:13px; color:var(--mut); margin-bottom:6px}
+  .who b{color:var(--ink)}
+  .quote{font-family:Georgia,"Times New Roman",serif; font-size:19px; line-height:1.35; letter-spacing:-.005em}
+  .cite{font-size:12.5px; color:var(--mut); margin-top:6px}
+  .verdictline{border-top:1px dashed var(--line); margin-top:12px; padding-top:11px; font-size:14.5px}
+  .verdictline b{font-weight:700}
+  .deploy{display:inline-block; margin-top:10px; font-size:12px; color:var(--mut); background:#f2f1ee; border:1px solid var(--line); border-radius:6px; padding:3px 9px}
+  .cfoot{display:flex; gap:16px; align-items:center; padding:10px 18px; background:#fbfaf8; border-top:1px solid var(--line); font-size:12.5px; color:var(--mut)}
+  .hearit{display:flex; align-items:center; gap:8px; color:#1d5dbf; font-weight:600}
+  .hearit .play{width:26px;height:26px;border-radius:50%;background:#1d5dbf;display:flex;align-items:center;justify-content:center}
+  .contest{color:var(--inc); font-weight:600}
+  .spacer{flex:1}
+  .side{font-size:13.5px}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:16px}
+  .panel h3{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin-bottom:10px}
+  .trend{display:flex; gap:6px; margin:10px 0 4px}
+  .bar{flex:1; border-radius:4px 4px 0 0}
+  .bl{font-size:12px; color:var(--mut); display:flex; justify-content:space-between}
+  .mini{padding:8px 0; border-top:1px solid var(--line)}
+  .mini:first-of-type{border-top:none}
+  .mini .mq{font-size:13px; line-height:1.35}
+  .mini .mr{font-size:11.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase}
+  .footer{padding:20px 0 40px; color:var(--mut); font-size:12px; text-align:center}
+</style></head>
+<body>
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch <span class="fern">NZ</span></div>
+  <nav><b>Live feed</b><span>People</span><span>Parties</span><span>Organisations</span><span>Topics</span><span>Methodology</span><span>About</span></nav>
+  <div class="search">🔍 Search a claim, person, or topic…</div>
+</div></header>
+<div class="banner">Election 2026 · 59 days to polling day · <b>214 verdicts published</b> · measured accuracy on labelled set: 87% (see methodology)</div>
+
+<div class="wrap">
+<div class="headline"><h1>Latest verdicts</h1><div class="feednote">Updated continuously · recency-ranked, no engagement ordering</div></div>
+<div class="chips">
+  <span class="chip on">All</span><span class="chip">Housing</span><span class="chip">Immigration</span><span class="chip">Crime &amp; justice</span><span class="chip">Health</span><span class="chip">Economy</span><span class="chip">Education</span><span class="chip">Climate</span><span class="chip">Refuted only</span><span class="chip">Contested</span>
+</div>
+
+<div class="cols">
+<div class="feed">
+
+  <div class="card">
+    <div class="vband band-inc"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 9h8" stroke="currentColor" stroke-width="2"/></svg>Accurate but incomplete <span style="margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none">confidence 92% · contested? no</span></div>
+    <div class="cbody">
+      <div class="who"><b>Christopher Luxon</b> · National — stated 8 Sep 2026 in a post-Cabinet media briefing</div>
+      <div class="quote">“Crime is down 12 percent since this government came to office.”</div>
+      <div class="cite">Source: 1News At Six, 8 Sep 2026 · <span style="color:#1d5dbf">watch from 14:22</span> · publication record</div>
+      <div class="verdictline"><b>The number is right; the comparison chosen does most of the work.</b> Recorded offence count fell 12% versus the 2023 pandemic-elevated baseline — but is roughly flat against 2019, and the NZ Crime &amp; Victimisation Survey shows victimisation unchanged. Comparison across a distorted baseline overstates the fall.</div>
+      <span class="deploy">as deployed — supporting the party's law-and-order record</span>
+    </div>
+    <div class="cfoot">
+      <span class="hearit"><span class="play"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z" fill="#fff"/></svg></span>Hear it · 48s clip</span>
+      <span>Evidence pack: Stats NZ recorded offences + NZCVS</span><span class="spacer"></span><span>Checked in 41 min · full analysis →</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="vband band-ref"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 5l8 8M13 5l-8 8" stroke="currentColor" stroke-width="2"/></svg>Refuted <span style="margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none">confidence 89% · contest under review</span></div>
+    <div class="cbody">
+      <div class="who"><b>David Seymour</b> · ACT — stated 5 Sep 2026 on Q+A</div>
+      <div class="quote">“We spend more on consultants than we do on teachers.”</div>
+      <div class="cite">Source: Q+A, TVNZ · 5 Sep 2026 · <span style="color:#1d5dbf">watch from 22:05</span></div>
+      <div class="verdictline"><b>The claim inverts the actual relationship.</b> FY2025 core public service consultancy spend was $1.1B; teacher salaries alone were $6.8B. Even the widest definition of consultant spend does not approach teacher pay.</div>
+      <span class="deploy">as deployed — attacking public-sector spending priorities</span>
+    </div>
+    <div class="cfoot">
+      <span class="hearit"><span class="play"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 1l7 4-7 4z" fill="#fff"/></svg></span>Hear it · 22s clip</span>
+      <span>Evidence pack: Treasury FY2025 · Ministry of Education staff data</span><span class="spacer"></span><span class="contest">⚑ contest under review</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div="cbody"></div>
+    <div class="vband band-sup"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 9.5l2.6 2.6L13 6.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Supported <span style="margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none">confidence 95%</span></div>
+    <div class="cbody">
+      <div class="who"><b>NZ Council of Trade Unions</b> · stated 3 Sep 2026 in a media release</div>
+      <div class="quote">“Minimum-wage workers have lost ground against the cost of living since 2023.”</div>
+      <div class="cite">Source: NZCTU media release · 3 Sep 2026</div>
+      <div class="verdictline"><b>The cited series supports the claim.</b> Real minimum wage (CPI-adjusted) fell 2.1% from Q3 2023 to Q2 2026. Both series are cited correctly; the denominator choice (CPI-HB) is disclosed.</div>
+      <span class="deploy">as deployed — supporting a minimum-wage policy proposal</span>
+    </div>
+    <div class="cfoot">
+      <span>Evidence pack: Stats NZ CPI + minimum wage series (T1)</span><span class="spacer"></span><span>Checked in 28 min · full analysis →</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="vband band-nei"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 7.2c0-1.6 1.3-2.7 3-2.7s3 1 3 2.5c0 2.2-3 2-3 4.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="13.6" r="1.1" fill="currentColor"/></svg>Not enough evidence <span style="margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none">confidence 61% · requested by 18 people</span></div>
+    <div class="cbody">
+      <div class="who"><b>Winston Peters</b> · NZ First — stated 1 Sep 2026 in a public meeting (viewer submission)</div>
+      <div class="quote">“Two in five young New Zealanders have never held a job.”</div>
+      <div class="cite">Source: viewer-submitted · locating in ingested sources</div>
+      <div class="verdictline"><b>No official series speaks to lifetime job-holding</b> at the claimed scale. NEET-rate data (15–24, not in employment/education) covers a different population (≈11%). Located in no ingested source so far; located in no official series; request open for 9 more days.</div>
+      <span class="deploy">as deployed — attacking labour-market policy of previous government</span>
+    </div>
+    <div class="cfoot">
+      <span>Searches: Stats NZ HLFS · NEET series · 12 web sources</span><span class="spacer"></span><span>Request #418 · status: locating →</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="side">
+  <div class="panel">
+    <h3>Verdicts this week</h3>
+    <div class="trend">
+      <div class="bar" style="height:46px;background:var(--sup)"></div>
+      <div class="bar" style="height:30px;background:var(--inc)"></div>
+      <div class="bar" style="height:22px;background:var(--ref)"></div>
+      <div class="bar" style="height:12px;background:var(--nei)"></div>
+    </div>
+    <div class="bl"><span>Supported</span><span>31</span></div>
+    <div class="bl"><span>Acc. but incomplete</span><span>19</span></div>
+    <div class="bl"><span>Refuted</span><span>14</span></div>
+    <div class="bl"><span>Not enough evidence</span><span>8</span></div>
+  </div>
+  <div class="panel">
+    <h3>What changed (contested verdicts)</h3>
+    <div class="mini"><div class="mr" style="color:var(--inc)">Under review · 1</div><div class="mq">“Consultants vs teachers” — submitter claims a wider spending definition</div></div>
+    <div class="mini"><div class="mr" style="color:var(--sup)">Mutated · 2 this week</div><div class="mq">Verdict upgraded after RNZ published the full series table</div></div>
+  </div>
+  <div class="panel">
+    <h3>Coming back</h3>
+    <div class="mq" style="font-size:13px">“Gangs on the benefit” — first checked 14 Aug, re-asserted by two candidates this week. <span style="color:#1d5dbf">See every appearance →</span></div>
+  </div>
+</div>
+</div>
+<div class="footer">Mockup · illustrative content only — claims, figures and verdicts shown are examples, not published checks.</div>
+</div></body></html>

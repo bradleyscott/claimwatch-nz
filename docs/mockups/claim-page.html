@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Claim / verdict page mockup (illustrative)</title>
+<style>
+  :root{
+    --ink:#14202e; --paper:#faf9f7; --card:#fff; --line:#e3e0da; --mut:#5c6673;
+    --inc:#b54708; --inc-bg:#fdf3e7; --blue:#1d5dbf;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:28px;padding:14px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:20px;font-size:14px;color:#c7cdd4}
+  nav b{color:#fff}
+  .search{margin-left:auto;background:#233246;border:1px solid #3a4a5f;color:#9aa5b1;border-radius:8px;padding:7px 12px;font-size:13px;min-width:240px}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:16px 0 4px}
+  .vhero{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:10px}
+  .vband{display:flex;align-items:center;gap:12px;padding:14px 22px;font-weight:800;font-size:15px;letter-spacing:.02em;text-transform:uppercase;background:var(--inc-bg);color:var(--inc)}
+  .vband svg{flex:none}
+  .vband .conf{margin-left:auto;font-weight:600;letter-spacing:0;text-transform:none;font-size:13px}
+  .vbody{padding:22px}
+  .who{font-size:14px;color:var(--mut);margin-bottom:10px}
+  .who b{color:var(--ink)}
+  .quote{font-family:Georgia,serif;font-size:24px;line-height:1.3;letter-spacing:-.005em}
+  .mediabar{display:flex;align-items:center;gap:14px;background:#0e1a2a;border-radius:10px;margin-top:16px;padding:10px 14px;color:#dfe6ee}
+  .play{width:38px;height:38px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+  .mediabar .t{font-size:13.5px}
+  .mediabar .t b{color:#fff}
+  .track{flex:1;height:6px;border-radius:3px;background:#2a3b52;position:relative}
+  .track .pos{position:absolute;left:63%;top:-4px;width:2px;height:14px;background:#fff}
+  .answer{margin-top:20px;font-size:17px;line-height:1.5}
+  .answer b{color:var(--ink)}
+  .deployline{margin-top:14px;display:inline-block;font-size:12.5px;color:var(--mut);background:#f2f1ee;border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+  .meta{display:flex;gap:22px;margin-top:18px;font-size:12.5px;color:var(--mut)}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:30px 0 12px}
+  .ep{background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .ep .row{display:flex;gap:14px;align-items:flex-start;padding:14px 18px;border-top:1px solid var(--line)}
+  .ep .row:first-child{border-top:none}
+  .badge{flex:none;font-size:11px;font-weight:800;letter-spacing:.04em;border-radius:5px;padding:3px 8px;margin-top:1px}
+  .b-t1{background:#e3f0e5;color:#1a7f37}
+  .b-t2{background:#edf0f8;color:#4c5b8a}
+  .b-calc{background:#fdf3e7;color:#b54708}
+  .ep .rt{font-size:14px}
+  .ep .rt .sub{font-size:12.5px;color:var(--mut);margin-top:2px}
+  .calc{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#f6f5f2;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:6px;overflow-x:auto}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .gcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .gcard .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+  .gcard .val{font-size:22px;font-weight:800;margin-top:4px}
+  .contestbox{border:1px solid #e4c9a4;background:#fdf8f0;border-radius:12px;padding:16px 18px;margin-top:12px;font-size:14px}
+  .contestbox b{color:var(--inc)}
+  .pipe{font-size:12.5px;color:var(--mut);background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:12px 16px;margin-top:12px}
+  .fb{display:flex;gap:10px;align-items:center;margin-top:18px;font-size:13.5px;color:var(--mut)}
+  .fb .btn{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 14px}
+  .footer{padding:24px 0 44px;color:var(--mut);font-size:12px;text-align:center}
+</style></head>
+<body>
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch <span class="fern">NZ</span></div>
+  <nav><span>Live feed</span><span>People</span><span>Parties</span><span>Organisations</span><span>Topics</span><b>Methodology</b><span>About</span></nav>
+  <div class="search">🔍 Search a claim, person, or topic…</div>
+</div></header>
+
+<div class="wrap">
+<div class="crumbs">Live feed › Crime &amp; justice › Claims by Christopher Luxon</div>
+
+<div class="vhero">
+  <div class="vband">
+    <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9.5" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M6 11h10" stroke="currentColor" stroke-width="2.5"/></svg>
+    Accurate but incomplete <span class="conf">confidence 92% · verdict stable since 8 Sep</span>
+  </div>
+  <div class="vbody">
+    <div class="who"><b>Christopher Luxon</b> · National · Prime Minister — <b>stated 8 Sep 2026 in a post-Cabinet media briefing</b></div>
+    <div class="quote">“Crime is down 12 percent since this government came to office.”</div>
+    <div class="mediabar">
+      <span class="play"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 2l10 5-10 5z" fill="#fff"/></svg></span>
+      <span class="t"><b>Hear it — 1News At Six, 8 Sep 2026</b><br>48-second clip starting 14:22 · captions are YouTube auto-generated (Tier 2)</span>
+      <div class="track"><div class="pos"></div></div>
+    </div>
+    <div class="answer"><b>The number is right; the comparison chosen does most of the work.</b> Recorded offence counts are 12% below the 2023 level. But 2023 was a pandemic-distorted peak: measured against 2019, the count is roughly flat, and the NZ Crime &amp; Victimisation Survey — which captures offences whether or not they were reported — shows household victimisation essentially unchanged. A claim that is true as stated, but as deployed here the framing omits the baseline distortion and the reporting-rate effect, which are material to the conclusion a listener would draw.</div>
+    <span class="deployline">as deployed — supporting the party's law-and-order record</span>
+    <div class="meta"><span>Checked 8 Sep, 41 min after publication</span><span>· Pipeline v0.9.2</span><span>· 0 contests</span><span>· <b style="color:var(--ink)">ClaimReview</b></span></div>
+  </div>
+</div>
+
+<h2>Evidence pack — what this verdict rests on</h2>
+<div class="ep">
+  <div class="row">
+    <span class="badge b-t1">AUTHORITY T1</span>
+    <div class="rt"><b>Stats NZ — Recorded Criminal Offences (annual, Dec-2025 release)</b><div class="sub">Primary series. 2025: 281,400 offences · 2023: 319,700 (−11.9%) · 2019: 279,800 (+0.6% vs 2019). Version pinned; retrieved from stats.govt.nz table <i>rcot-a</i>.</div></div>
+  </div>
+  <div class="row">
+    <span class="badge b-t1">AUTHORITY T1</span>
+    <div class="rt"><b>Stats NZ — NZ Crime &amp; Victimisation Survey 2025</b><div class="sub">Cross-check on victimisation as distinct from reported offences: household victimisation 30.1% (2025) vs 30.4% (2019) — within survey margin.</div></div>
+  </div>
+  <div class="row">
+    <span class="badge b-calc">COMPUTED</span>
+    <div class="rt"><b>Sensitivity grid — the same numbers under different defensible framings</b><div class="calc">
+      vs 2023 baseline&nbsp;&nbsp;: −11.9%&nbsp;&nbsp;← the claim's framing<br>
+      vs 2019 baseline&nbsp;&nbsp;: +0.6%&nbsp;&nbsp;← pre-pandemic comparison<br>
+      per-capita, vs 2019&nbsp;: −3.4%<br>
+      NZCVS victimisation&nbsp;: unchanged (±0.3)
+    </div><div class="sub" style="margin-top:6px">The claim is true under its chosen framing; the grid shows the verdict changes with the baseline — the definition of "accurate but incomplete" under this methodology.</div></div>
+  </div>
+  <div class="row">
+    <span class="badge b-t2">SOURCE TIER 2</span>
+    <div class="rt"><b>The claim utterance itself</b><div class="sub">YouTube auto-generated captions (broadcaster upload, <i>kind:"asr"</i>). Quote fidelity: the words "twelve percent" appear at 14:26–14:28. Caption text is used to locate and quote the utterance, never as evidence for the number.</div></div>
+  </div>
+</div>
+
+<h2>Why this is "incomplete" rather than false</h2>
+<p style="font-size:14.5px;max-width:760px">Every number in the claim is real and correctly sourced. What makes the verdict <i>incomplete</i> is selective framing: a listener would reasonably conclude crime has fallen materially since the government took office, when the defensible pre-pandemic comparison shows little change. Under this project's methodology (aligned to AVeriTeC's "conflicting evidence / cherry-picking" class) a claim is rated incomplete when the omission — not the assertion — is what misleads. Confidence reflects agreement across the two official series and the audit pass.</p>
+
+<h2>Related</h2>
+<div class="grid">
+  <div class="gcard"><div class="lab">Same speaker, same topic</div><div class="val" style="font-size:15px;font-weight:600">6 claims · 2 refuted, 3 incomplete</div></div>
+  <div class="gcard"><div class="lab">This claim elsewhere</div><div class="val" style="font-size:15px;font-weight:600">Repeated 2× since 8 Sep <span style="color:var(--blue)">see appearances →</span></div></div>
+  <div class="gcard"><div class="lab">The argument it served</div><div class="val" style="font-size:15px;font-weight:600">"Tough on crime" chain — 1 of 4 claims load-bearing <span style="color:var(--blue)">view →</span></div></div>
+</div>
+
+<div class="contestbox"><b>Disagree with this verdict?</b> Contests are evidence-based and public. If you have a source the evidence pack should have used, contest it →. Contested verdicts go to review; when a contest succeeds the verdict is mutated and the change history stays public.</div>
+
+<div class="pipe"><b>Pipeline provenance:</b> pipeline v0.9.2 · triage prompt v14 · verdict prompt v9 · grid v6 · NLI audit passed (0.83) · confidence 92% = retrieval depth 5 + dual-series agreement + audit score. Full changelog →</div>
+
+<div class="fb">Was this page useful? <span class="btn">👍 Yes</span> <span class="btn">👎 Something's off</span> <span class="btn">✎ Feedback</span> <span style="margin-left:auto">Request this claim · 0 others asked</span></div>
+
+<div class="footer">Mockup · illustrative content only — claims, figures and verdicts shown are examples, not published checks.</div>
+</div></body></html>

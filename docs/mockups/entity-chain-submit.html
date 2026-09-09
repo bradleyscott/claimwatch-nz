@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Entity + argument chain + submission mockups (illustrative)</title>
+<style>
+  :root{
+    --ink:#14202e; --paper:#faf9f7; --card:#fff; --line:#e3e0da; --mut:#5c6673;
+    --sup:#1a7f37; --sup-bg:#eaf4ec; --ref:#b42318; --ref-bg:#fbeae8;
+    --inc:#b54708; --inc-bg:#fdf3e7; --nei:#545b66; --nei-bg:#eef0f2; --blue:#1d5dbf; --purple:#6b4fa1;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:28px;padding:14px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:20px;font-size:14px;color:#c7cdd4}
+  nav b{color:#fff}
+  .section{padding:26px 0;border-bottom:1px solid var(--line)}
+  .stag{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--purple)}
+  h1{font-size:22px;letter-spacing:-.01em;margin:4px 0 4px}
+  .sdesc{font-size:13.5px;color:var(--mut);max-width:760px;margin-bottom:18px}
+  .enthead{display:flex;gap:18px;align-items:flex-start}
+  .avatar{width:64px;height:64px;border-radius:50%;background:#dfe6ee;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:var(--ink)}
+  .entmeta{font-size:13px;color:var(--mut)}
+  .donut{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;margin:10px 0 6px;max-width:420px}
+  .donut i{display:block;height:100%}
+  .legend{font-size:12px;color:var(--mut);display:flex;gap:14px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .claimrow{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:13.5px}
+  .pill{flex:none;font-size:10.5px;font-weight:800;letter-spacing:.03em;border-radius:5px;padding:3px 8px;text-transform:uppercase}
+  .p-sup{background:var(--sup-bg);color:var(--sup)}
+  .p-ref{background:var(--ref-bg);color:var(--ref)}
+  .p-inc{background:var(--inc-bg);color:var(--inc)}
+  .p-nei{background:var(--nei-bg);color:var(--nei)}
+  .chain{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+  .node{border:2px solid var(--line);border-radius:12px;padding:12px 16px;max-width:560px;position:relative;background:var(--paper)}
+  .node .tag{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+  .node .q{font-family:Georgia,serif;font-size:15.5px;margin-top:2px}
+  .node.prop{border-color:var(--purple);background:#f6f2fb}
+  .node.load{border-color:var(--ref)}
+  .node.brk{border-color:var(--ref);background:var(--ref-bg)}
+  .arrow{width:2px;height:26px;background:var(--line);margin-left:40px;position:relative}
+  .arrow:after{content:"";position:absolute;bottom:-1px;left:-4px;border:5px solid transparent;border-top-color:var(--line)}
+  .elabel{position:absolute;left:56px;top:5px;font-size:11.5px;color:var(--mut);font-style:italic}
+  .brkbadge{position:absolute;right:-12px;top:-12px;background:var(--ref);color:#fff;font-size:10.5px;font-weight:800;border-radius:999px;padding:4px 10px}
+  .chaintxt{margin:14px 0 18px;font-size:15px;max-width:760px}
+  .wizard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:640px}
+  .steps{display:flex;gap:8px;margin-bottom:16px}
+  .step{height:5px;flex:1;border-radius:3px;background:var(--line)}
+  .step.done{background:var(--blue)}
+  .step.on{background:var(--blue);outline:2px solid #c8daf5}
+  .wizq{font-size:16px;font-weight:700;margin-bottom:6px}
+  .wizhint{font-size:12.5px;color:var(--mut);margin-bottom:14px}
+  .opt{display:block;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px 14px;margin-bottom:8px;font-size:14px;cursor:pointer}
+  .opt b{font-weight:700}
+  .opt .why{font-size:12px;color:var(--mut);margin-top:1px}
+  .input{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;background:var(--paper)}
+  .btnrow{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .btn{background:var(--ink);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600}
+  .ghost{color:var(--mut);font-size:13px}
+  .note{font-size:12.5px;color:var(--mut);background:#f6f5f2;border:1px dashed var(--line);border-radius:8px;padding:9px 12px;margin-top:14px}
+  .footer{padding:20px 0 40px;color:var(--mut);font-size:12px;text-align:center}
+</style></head>
+<body>
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch <span class="fern">NZ</span></div>
+  <nav><span>Live feed</span><b>People</b><span>Parties</span><span>Organisations</span><span>Topics</span><span>Methodology</span><span>About</span></nav>
+</div></header>
+
+<div class="wrap">
+
+<!-- ============ ENTITY PAGE ============ -->
+<div class="section">
+  <div class="stag">Mockup 3 · entity page (person)</div>
+  <div class="enthead">
+    <div class="avatar">SL</div>
+    <div>
+      <h1>Shane Lee <span style="font-weight:600;font-size:15px;color:var(--mut)">· ACT candidate, Tāmaki</span></h1>
+      <div class="entmeta">16 claims tracked · first claim 19 Aug 2026 · source lanes: 1News YouTube, Q+A, RNZ, press releases</div>
+      <div class="donut">
+        <i style="width:31%;background:var(--sup)"></i><i style="width:38%;background:var(--inc)"></i><i style="width:19%;background:var(--ref)"></i><i style="width:12%;background:var(--nei)"></i>
+      </div>
+      <div class="legend"><span><i style="background:var(--sup)"></i>Supported 5</span><span><i style="background:var(--inc)"></i>Acc. but incomplete 6</span><span><i style="background:var(--ref)"></i>Refuted 3</span><span><i style="background:var(--nei)"></i>Not enough evidence 2</span></div>
+    </div>
+  </div>
+  <div style="margin:18px 0 8px;font-size:13px;color:var(--mut)">Most recent</div>
+  <div class="claimrow"><span class="pill p-ref">Refuted</span><span style="flex:1">"House prices in Auckland have fallen every quarter this term."</span><span style="color:var(--mut);font-size:12px">2 Sep · Q+A</span></div>
+  <div class="claimrow"><span class="pill p-inc">Incomplete</span><span style="flex:1">"We're spending $40 million a year on emergency motels."</span><span style="color:var(--mut);font-size:12px">28 Aug · 1News</span></div>
+  <div class="claimrow"><span class="pill p-sup">Supported</span><span style="flex:1">"Auckland's population grew faster than its housing stock over the last decade."</span><span style="color:var(--mut);font-size:12px">21 Aug · press release</span></div>
+  <div style="font-size:13px;margin-top:6px"><span style="color:var(--blue)">Full claim history →</span> · <span style="color:var(--mut)">Correction record: 1 claim retracted after contest (mutated 24 Aug)</span></div>
+</div>
+
+<!-- ============ ARGUMENT CHAIN ============ -->
+<div class="section">
+  <div class="stag">Mockup 4 · argument chain (ADR-0017)</div>
+  <h1>The argument: "Tough on crime" — post-Cabinet briefing, 8 Sep</h1>
+  <div class="sdesc">Chains are assembled from stored claims and the speech where they appear — every edge cites its anchor text; no edge without an anchor, no node without a verdict. This is per-publication view (one speech's argument).</div>
+  <div class="chain">
+    <div class="node prop">
+      <div class="tag">Proposition (quoted from the speech)</div>
+      <div class="q">"This government has made New Zealanders safer, and our record proves it."</div>
+    </div>
+    <div class="arrow"><span class="elabel">stated — "our record proves it"</span></div>
+    <div class="node load">
+      <span class="brkbadge">⚠ BREAK</span>
+      <div class="tag">Load-bearing claim · <b style="color:var(--ref)">Accurate but incomplete</b></div>
+      <div class="q">"Crime is down 12 percent since this government came to office."</div>
+      <div style="font-size:12px;color:var(--mut);margin-top:4px">True under its chosen baseline; flat under pre-pandemic comparison. <span style="color:var(--blue)">Verdict page →</span></div>
+    </div>
+    <div class="arrow"><span class="elabel">stated — "and reoffending is falling with it"</span></div>
+    <div class="node load">
+      <span class="brkbadge">⚠ BREAK</span>
+      <div class="tag">Load-bearing claim · <b style="color:var(--ref)">Refuted</b></div>
+      <div class="q">"Reoffending rates are at their lowest level in a decade."</div>
+      <div style="font-size:12px;color:var(--mut);margin-top:4px">Corrected-prices-of-crime series shows no decade low; 10-year window cherry-picks. <span style="color:var(--blue)">Verdict page →</span></div>
+    </div>
+    <div class="arrow"><span class="elabel">unstated — inferred premise, not voiced in the speech</span></div>
+    <div class="node" style="border-style:dashed">
+      <div class="tag">Unstated premise · inferred</div>
+      <div class="q">Reported offence counts are a reliable proxy for overall victimisation.</div>
+      <div style="font-size:12px;color:var(--mut);margin-top:4px">Contestable assumption: NZCVS shows reporting rates materially below 50% for several offence classes. The labelling of this premise is the assembler's reading, published for scrutiny — not part of the speech.</div>
+    </div>
+  </div>
+  <div class="chaintxt"><b>What the structure shows:</b> of the four claims this argument rests on, two are load-bearing and <b>both carry break marks</b> — one incomplete under a different baseline, one refuted. The stated conclusion ("our record proves it") rests on comparisons the evidence does not support as framed. <span style="color:var(--mut)">No "argument verdict" is issued — the reasoning assessment is yours; the structure and verdicts are ours.</span></div>
+  <div style="font-size:12.5px;color:var(--mut)">Shareable card: <span style="color:var(--blue)">"2 of 2 load-bearing claims in this argument carry break marks"</span> · contest this chain →</div>
+</div>
+
+<!-- ============ GUIDED SUBMISSION ============ -->
+<div class="section" style="border-bottom:none">
+  <div class="stag">Mockup 5 · guided submission (step 2 of 4)</div>
+  <h1>Ask us to check a claim</h1>
+  <div class="sdesc">Adaptive wizard — the questions asked depend on what you've already given. Signed in via email magic link; your identity is never published.</div>
+  <div class="wizard">
+    <div class="steps"><span class="step done" title="1 · the claim"></span><span class="step on" title="2 · where"></span><span class="step" title="3 · when"></span><span class="step" title="4 · check"></span></div>
+    <div class="wizq">Where did you encounter this claim?</div>
+    <div class="wizhint">This tells us where to look for the original source. Pick the closest.</div>
+    <span class="opt"><b>On TV or radio</b><div class="why">We'll ask which programme and roughly when — we hold caption transcripts for major broadcasters</div></span>
+    <span class="opt"><b>On social media</b><div class="why">We'll ask for a link if you have one, or a screenshot</div></span>
+    <span class="opt"><b>On a website</b><div class="why">A link is ideal — we can usually take it from there</div></span>
+    <span class="opt"><b>In print — leaflet, flyer, newspaper</b><div class="why">A photo works — this is often the only record of these claims</div></span>
+    <span class="opt"><b>A press release or publication</b><div class="why">From a party, MP, or organisation — a link or PDF is ideal</div></span>
+    <span class="opt"><b>Not sure / heard second-hand</b><div class="why">That's fine — we'll still try to locate it</div></span>
+    <div class="btnrow"><span class="btn">Continue</span><span class="ghost">Why we ask: we check claims against the original published source — not anyone's word for what was said, including yours.</span></div>
+    <div class="note"><b>After you submit:</b> we first check if we've already verified this claim (most have been). If not, your request goes on the public record and you can follow its status: <i>requested → located → checked</i>. You'll get a permanent link.</div>
+  </div>
+</div>
+
+<div class="footer">Mockups · illustrative content only — claims, figures and verdicts shown are examples, not published checks.</div>
+</div></body></html>
