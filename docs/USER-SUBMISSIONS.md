@@ -49,14 +49,30 @@ A user-submitted claim without a verifiable source is exactly the trap ADR-0014 
 ### What submitters get back
 
 - **A permanent URL for their submission** — the request page shows status, matching claims found, and (on success) the verdict card(s)
-- **No identity required** — name/email optional; anonymous submissions are fine (the anti-abuse posture below handles the risk)
-- **Email notification on status change, optional** — requires an email address, so default is off
+- **An account is required to submit** — sign-in is a lightweight email magic link (no password store, no social SSO at launch). The account exists for three purposes: abuse resistance (one request per claim per account), follow-up questions during intake, and optional status notifications. **The submitter is never published** — submission records carry a submitter account ID internally, and the public request page renders no identity; identity never attaches to claim cards or verdict pages either. This mirrors the claims-not-persons boundary: the claim's public life is independent of who pointed us at it.
+- **No public linkage** — an account that submits is never displayed as "requested by"; the dedup counter ("N people asked about this claim") is computed, not attributed.
+
+### Guided intake — asking for what's missing
+
+The intake is an **adaptive multi-step form, not a free-text chat**. The form's required/optional fields change based on what the submitter has already provided:
+
+- Pasted a quote but no source → the next step asks *where* they encountered it (with quick-pick options: TV/radio, social media, a website URL field, print/leaflet, "not sure") and *roughly when* — the two fields that most improve the locating step's hit rate
+- Provided a URL but no claim → the next step asks what specifically in the source they want checked (with a "select the sentence" affordance when the URL is fetchable and the pipeline can render the text)
+- Submitting an offline item (leaflet, flyer) → photo upload prompt plus origin questions
+
+This is deterministic: each step's fields derive from the previous step's answers, so there is no AI in the loop *deciding what to ask* — the intake asks the questions the pipeline actually needs to locate the claim (who/where/when/what), and nothing else. Two reasons to prefer the structured wizard over a chat at launch:
+
+1. **It collects the same missing info with none of chat's failure modes** — free chat invites prompt-injection through the submission text, PII over-collection, and a moderation surface, while its real benefit (asking adaptive questions) the wizard delivers as conditional fields.
+2. **Every field is purposeful** — the wizard only asks what the locating step consumes; a chat would elicit free-form narrative that the pipeline can't anchor anyway (per the never-trust rule, only the located source matters).
+
+Post-launch, an LLM-assisted layer is a natural extension: generate one targeted clarifying question from the submission ("you said 'a minister said this in an interview' — do you remember which broadcaster?"), render it as a structured prompt with free-text allowed, and feed the answer back into the locating step. Keep it single-turn and structured — never a scrolling conversation.
 
 ### Volume safety and abuse
 
+- **Accounts gate submissions** (above): rate limiting is per-account, not per-IP; honeypot + signup friction (magic link) stops bulk creation
 - **Rate limits and dedup**: identical/paraphrase submissions collapse into one request with a counter (N people asked about this claim — a genuinely useful demand signal, displayed on the claim card: "18 verification requests")
 - The demand counter feeds **prioritisation**: pipeline triage weights check-worthiness *plus* public request volume (this is the legitimate, party-blind way reader interest enters the queue — the same signal PolitiFact's editors apply manually)
-- Honeypot + rate limiting per IP for spam; heavy abuse patterns deferred to post-launch
+- Submitters with a pattern of unverifiable/abusive submissions are throttled by account; heavy abuse patterns deferred to post-launch
 
 ### Never-trust boundary (restated in the interface)
 
@@ -69,9 +85,9 @@ Submitting a claim is not contesting a verdict. Contestation (disagreeing with a
 ## What we don't build at launch
 
 - **No WhatsApp tipline** — Full Fact's channel makes sense where claims circulate offline (leaflets, posters) and can't be auto-ingested; our lane structure covers NZ's online campaign surface, and a messaging tipline adds moderation load and PII handling. Revisit if evidence shows a leaflet/poster problem in 2026.
-- **No accounts** — submissions are URL-scoped, not identity-scoped; rate limiting is per-IP.
-- **No voting on which claims to check** — the request counter is the demand signal; a Digg-style voting surface would gamify selection and invite brigading.
+- **No accounts for *reading*** — anyone browses without signing in; accounts gate only *submission* (and contestation, which already requires the same lightweight sign-in).
+- **No free-text chat intake at launch** — the adaptive wizard collects the same missing info deterministically; LLM-assisted single-turn clarifying questions are a post-launch extension.
 
 ## Summary
 
-**One "Submit" button, two paths:** a source URL enters the ingestion queue as a proposed publication; a pasted claim first fuzzy-matches the existing corpus (most requests are answered instantly with an existing verdict), and otherwise becomes a public verification request whose status the submitter can follow: `requested → located → checked`, or honestly closed as `unverifiable` / `out of scope`. Submissions are pointers, never evidence; the never-trust rule is stated in the interface itself. The deduplicated request counter becomes a party-blind prioritisation signal — the automated analogue of the editorial triage the famous sites perform by hand.
+**One "Submit" button, two paths, account-gated with guided intake:** a source URL enters the ingestion queue as a proposed publication; a pasted claim first fuzzy-matches the existing corpus (most requests are answered instantly with an existing verdict), and otherwise becomes a public verification request whose status the submitter can follow: `requested → located → checked`, or honestly closed as `unverifiable` / `out of scope`. Submissions are pointers, never evidence; the never-trust rule is stated in the interface itself. Submitters authenticate (email magic link) but are never published — the claim's public life is independent of who pointed us at it. The intake is an adaptive form that asks only the questions the locating step consumes; the deduplicated request counter remains a party-blind prioritisation signal — the automated analogue of the editorial triage the famous sites perform by hand.
