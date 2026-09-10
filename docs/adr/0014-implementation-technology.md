@@ -59,7 +59,7 @@ pnpm workspaces; TypeScript everywhere; shared Zod schemas in `packages/store` a
 
 - **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR).
 - **Fetch/parse:** `fetch` (undici), `fast-xml-parser` for RSS/Atom, Playwright (TS) for the later party-lane slice, `cheerio` for HTML extraction (readability-style); PDF extraction deferred until an evidence source requires it.
-- **Search API:** Serper primary, Brave secondary (ADR-0011 unchanged).
+- **Search API:** per ADR-0011 — Brave primary (Goggles maps onto T1–T6 authority-restricted retrieval), Serper fallback/bulk. *(Correction: this line previously said "Serper primary (ADR-0011 unchanged)", which contradicted ADR-0011 §provider table. ADR-0011 is the provider-selection decision and governs; flagged for Bradley's re-confirmation in the design-suite review.)*
 - **Config/secrets:** env + `.env` (gitignored) — no Vault.
 - **Observability:** per ADR-0012 — Grafana Cloud; OTel instrumentation over the AI SDK's middleware emitting `gen_ai.*` spans.
 
