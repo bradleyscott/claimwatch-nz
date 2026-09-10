@@ -2,11 +2,11 @@
 
 *Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
 
-*(Consolidates the 2026-cycle ingestion scope decision with the ingestion architecture; the broadcast-scope boundary is ADR-0011.)*
+*(Consolidates the 2026-cycle ingestion scope decision with the ingestion architecture; the broadcast-scope boundary is ADR-0007.)*
 
 ## Context
 
-We are inside the regulated period (7 Aug 2026) with roughly eight weeks to a working system. Ingestion is where scope creep most naturally happens: Parliament TV transcription, social-platform monitoring, podcast capture are all buildable but none are essential (the broadcast question is resolved separately — ADR-0011). ADR-0013 provides the public-proposal pathway for new sources; COVERAGE.md holds live probe results for every source. The destination is the claim-anchored evidence store (ADR-0002), whose claimant-entity resolution needs **attributed, source-linked documents** from day one.
+We are inside the regulated period (7 Aug 2026) with roughly eight weeks to a working system. Ingestion is where scope creep most naturally happens: Parliament TV transcription, social-platform monitoring, podcast capture are all buildable but none are essential (the broadcast question is resolved separately — ADR-0007). ADR-0013 provides the public-proposal pathway for new sources; `COVERAGE.md` holds live probe results for every source. The destination is the claim-anchored evidence store (ADR-0005), whose claimant-entity resolution needs **attributed, source-linked documents** from day one.
 
 ## Decision
 
@@ -19,20 +19,20 @@ We are inside the regulated period (7 Aug 2026) with roughly eight weeks to a wo
           → claim detection (LLM triage) → evidence store → verification queue
 ```
 
-Ingestion produces **documents with provenance** — never bare text: source ID, canonical URL, retrieval timestamp, retrieval method, content hash. This provenance makes verdict pages auditable and anchors claimant attribution (ADR-0002).
+Ingestion produces **documents with provenance** — never bare text: source ID, canonical URL, retrieval timestamp, retrieval method, content hash. This provenance makes verdict pages auditable and anchors claimant attribution (ADR-0008).
 
 ### The six lanes (2026 scope)
 
 1. **Beehive.govt.nz** releases + speeches (official RSS) — the primary lane; ministers' releases pair policy proposition + claimed evidence in one self-published package.
-2. **Party press-release pages** (Playwright headless render; per-party parsers; no party offers RSS — COVERAGE §3). Verified domains: `www.nzfirst.nz`, `www.maoriparty.org.nz`; others located at build week.
+2. **Party press-release pages** (Playwright headless render; per-party parsers; no party offers RSS — `COVERAGE.md` §3). Verified domains: `www.nzfirst.nz`, `www.maoriparty.org.nz`; others located at build week.
 3. **Hansard** (official daily transcripts) — speaker attribution is structural; the cleanest claimant-entity source.
 4. **News RSS** — RNZ (~20 feeds), Stuff, NZ Herald (thin — see COVERAGE risks), Newsroom, The Post, The Press. Fetch-on-verify: headlines are cheap, full articles are not.
-5. **User submissions** — URL or pasted text as claim pointers. **Fetch-from-source rule**: never verify from the submission's rendering; server-side re-fetch (direct → archive.today → Wayback); submissions bump queue priority; rate-limited; HDCA process attached. A submission is a claim pointer, never evidence.
+5. **User submissions** — URL or pasted text as claim pointers (`USER-SUBMISSIONS.md`). **Fetch-from-source rule**: never verify from the submission's rendering; server-side re-fetch (direct → archive.today → Wayback); submissions bump queue priority; rate-limited; HDCA process attached. A submission is a claim pointer, never evidence.
 6. **Commentator watchlist** — prominent personalities commenting on politics; reach-based party-blind inclusion via public decision record; per-commentator access paths (outlet RSS, own-site scrape, platform RSS where legitimate, submissions otherwise); only factual claims *within* opinion are checked, never the opinion; register frozen during the regulated period.
 
 **Paywalled sources:** no circumvention (Copyright Act TPM provisions, ToS). Paywalled content is a claim source, never an evidence source; minimal fair-dealing quotation with attribution; "claim origin paywalled — verification limited to the quoted claim" labelling. Verification runs against official and primary sources, which are never paywalled.
 
-**Explicitly deferred:** Parliament TV/broadcast transcription (see ADR-0011), proactive social-platform crawling (cost, gating, moderation surface; submissions cover the highest-value social claims).
+**Explicitly deferred:** Parliament TV/broadcast transcription beyond publisher-published text (ADR-0007), proactive social-platform crawling (cost, gating, moderation surface; submissions cover the highest-value social claims).
 
 ### Format-aware extraction (not one generic parser)
 
@@ -50,7 +50,7 @@ Trust mechanisms: `extraction_method` provenance carried to the verdict page; **
 
 ### Reprocessing (every stage is re-runnable)
 
-The pipeline is idempotent at every stage boundary with inputs retained (raw documents, extraction outputs, claim records, verdicts, plus **pipeline version + model version** per artefact). Any claim set can be reprocessed at any scope against any pipeline version. Reprocessed verdicts **append, never overwrite** — new version with its provenance; a changed verdict triggers the mutation flow (public diff, audit log; ADR-0006) and the freeze hold. **Harness-gated**: mass re-verdicts only after an ADR-0005 regression pass. Raw-document retention is the enabling cost.
+The pipeline is idempotent at every stage boundary with inputs retained (raw documents, extraction outputs, claim records, verdicts, plus **pipeline version + model version** per artefact). Any claim set can be reprocessed at any scope against any pipeline version. Reprocessed verdicts **append, never overwrite** — new version with its provenance; a changed verdict triggers the mutation flow (public diff, audit log; ADR-0002) and the freeze hold. **Harness-gated**: mass re-verdicts only after an ADR-0010 regression pass. Raw-document retention is the enabling cost.
 
 ### Health checking (the silently-empty-feed failure mode)
 
@@ -70,7 +70,7 @@ From the evidence base (AVeriTeC shared task, FIRE, FEVER workshops): **question
 
 ### Attribution handoff
 
-Ingestion resolves where the claim came from and passes claimant-entity candidates to the store; Hansard's speaker markup is the strongest signal; attribution never guesses (ADR-0002). Entity linking is budgeted as its own component with its own failure accounting (the iCheck post-mortem lesson). **Ingestion never writes verdicts** — the separation structurally enforces the ADR-0002 firewall (ingestion knows claimant identity; verification must not use it).
+Ingestion resolves where the claim came from and passes claimant-entity candidates to the store; Hansard's speaker markup is the strongest signal; attribution never guesses (ADR-0005). Entity linking is budgeted as its own component with its own failure accounting (the iCheck post-mortem lesson). **Ingestion never writes verdicts** — the separation structurally enforces the ADR-0005 firewall (ingestion knows claimant identity; verification must not use it).
 
 ## Alternatives considered
 
@@ -91,8 +91,8 @@ AVeriTeC shared task (arXiv:2410.23850) — question generation, multi-hop retri
 ## Consequences
 
 - **Build order**: RSS lanes first (week 1), Hansard parser + headless party renderers (week 1–2), submissions form (week 2, ships with HDCA process), commentator watchlist last (week 3).
-- **The parser contract (per-format) and the failure-cause corpus are the reusable units**; new sources are new parser instances registered via config (ADR-0014 public pathway); new formats are new extractors.
+- **The parser contract (per-format) and the failure-cause corpus are the reusable units**; new sources are new parser instances registered via config (with the ADR-0013 public pathway for proposals); new formats are new extractors.
 - **Health monitoring ships with the first lane**; extraction failures join fetch failures as alertable defects; the public coverage page is its user-facing face.
 - **Playwright headless rendering is a bounded known cost** (~6 party sites + commentator sites, few times daily, NZ-routed egress; re-probe per COVERAGE cadence).
 - **Raw-document retention is the price of reprocessability** — modest storage, budgeted from day one.
-- **Coverage is a maintained property of the system**, not a one-time setup decision (COVERAGE.md cadence).
+- **Coverage is a maintained property of the system**, not a one-time setup decision (COVERAGE cadence).

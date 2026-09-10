@@ -4,7 +4,7 @@
 
 ## Context
 
-The project's core risk class: **statistics quoted accurately but painting a convenient, incomplete, or skewed picture** ("crime up 30% since 2017" — true number, selective framing). This class dominates campaign material, and standard open-web fact-checking handles it poorly because the claim sentence itself is not false. NZ has unusually good open statistical infrastructure (Stats NZ Aotearoa Data Explorer, Infoshare, Figure NZ, MoJ, LAWA).
+The project's core risk class: **statistics quoted accurately but painting a convenient, incomplete, or skewed picture** ("crime up 30% since 2017" — true number, selective framing). This class dominates campaign material, and standard open-web fact-checking handles it poorly because the claim sentence itself is not false (the taxonomy work behind this is in `MISINFO-TAXONOMY.md`). NZ has unusually good open statistical infrastructure (Stats NZ Aotearoa Data Explorer, Infoshare, Figure NZ, MoJ, LAWA).
 
 Two architectures were considered across the design phase:
 
@@ -19,20 +19,20 @@ The pack approach was rejected for a structural reason: **precomputation optimis
 
 ### The modes
 
-1. **Statistical claims — the stat engine** (the flagship): fingerprint extraction (indicator × population × geography × time window × baseline × unit) → evidence-store match / retrieval against the T1–T6 authority map → **sensitivity grid** (window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality/averaging) → verdict. Grid axes are pre-declared and published before campaign peak — identical for every claim about an indicator; the **computation** runs at claim time over accumulated + freshly retrieved evidence. The LLM selects which grid rows are material to the claim; it never authors the grid. Verdicts: "accurate" / "accurate but incomplete — material alternatives contradict the impression" / "unverifiable" — never "false" for a true-but-selective number (per ADR-0005's schema). Presentation: chart-first, alternatives table, "as deployed" line per the claim's discourse context (ADR-0010).
-2. **Citation-backed claims** — fetch the cited document, bounded claim-vs-source check. Whether the citation does direct argumentative work or decorative work (ADR-0010's context) sets how strictly the check binds.
-3. **False-context / provenance mode** — for decontextualised real content (the dominant verified-disinformation class in EU-2024 analysis, 59.3%): the stored discourse window (ADR-0010) plus retrieval of the original context is the instrument.
-4. **General open-web loop** — question decomposition, multi-hop conditional retrieval, hybrid store search, confidence-capped depth (per ADR-0002's evidence-base findings), NLI justification auditing before publication. Least reliable mode; capped, labelled, most visibly open to contest.
+1. **Statistical claims — the stat engine** (the flagship): fingerprint extraction (indicator × population × geography × time window × baseline × unit) → evidence-store match / retrieval against the T1–T6 authority map (`SOURCE-TAXONOMY.md` §2) → **sensitivity grid** (window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality/averaging) → verdict. Grid axes are pre-declared and published before campaign peak — identical for every claim about an indicator; the **computation** runs at claim time over accumulated + freshly retrieved evidence. The LLM selects which grid rows are material to the claim; it never authors the grid. Verdicts: "accurate" / "accurate but incomplete — material alternatives contradict the impression" / "unverifiable" — never "false" for a true-but-selective number (per ADR-0004's schema). Presentation: chart-first, alternatives table, "as deployed" line per the claim's discourse context (ADR-0008).
+2. **Citation-backed claims** — fetch the cited document, bounded claim-vs-source check. Whether the citation does direct argumentative work or decorative work (ADR-0008's context) sets how strictly the check binds.
+3. **False-context / provenance mode** — for decontextualised real content (the dominant verified-disinformation class in EU-2024 analysis, 59.3%): the stored discourse window (ADR-0008) plus retrieval of the original context is the instrument.
+4. **General open-web loop** — question decomposition, multi-hop conditional retrieval, hybrid store search, confidence-capped depth (per ADR-0006's evidence-base findings), NLI justification auditing before publication. Least reliable mode; capped, labelled, most visibly open to contest.
 
 ### The claim-anchored evidence store (replacing pre-computed packs)
 
-Every verified claim deposits: the claim record (text, fingerprint, speaker, date, source), the evidence retrieved (series, documents, URLs, **vintages**), the grid computation result, the verdict and audit trail. Later claims on similar territory match by fingerprint + embedding and **resume retrieval rather than restarting** — retrieval resumes, it doesn't restart. Indicator-level structure emerges from claim traffic; the store organises itself around what was actually disputed.
+Every verified claim deposits: the claim record (text, fingerprint, speaker, date, source), the evidence retrieved (series, documents, URLs, **vintages**), the grid computation result, the verdict and audit trail. Later claims on similar territory match by fingerprint + embedding and **resume retrieval rather than restarting**. Indicator-level structure emerges from claim traffic; the store organises itself around what was actually disputed.
 
 **Cold start is honest**: early claims pay full retrieval cost; the store warms as the campaign proceeds — visible in the published methodology rather than hidden by precomputation. **The store is the asset**: validated evidence chains organised by claim, growing with the campaign.
 
 ### Grid axes and the "reasonable alternatives" defence
 
-The grid axes remain pre-declared and published before campaign peak — identical for every claim about an indicator, shown on the verdict page. The pre-declaration prevents "you invented the standard to hurt us"; the discourse context (ADR-0010) selects which rows are *material* for the deployment, never what the standard is.
+The grid axes remain pre-declared and published before campaign peak — identical for every claim about an indicator, shown on the verdict page. The pre-declaration prevents "you invented the standard to hurt us"; the discourse context (ADR-0008) selects which rows are *material* for the deployment, never what the standard is.
 
 ### Claimant entities and relationships (store capabilities)
 
@@ -50,11 +50,11 @@ The grid axes remain pre-declared and published before campaign peak — identic
 | Authority map (T1–T6) | Kept — retrieval guidance configuring the loop |
 | Series vintages + revision policy | Kept — nightly batch re-verification detects revisions |
 | Community extension of evidence | Kept, strengthened — contest evidence extends the store by definition |
-| Batch economics | Kept — verification runs are batch-shaped (ADR-0006) |
+| Batch economics | Kept — verification runs are batch-shaped (ADR-0011) |
 
 ## Alternatives considered
 
-- **Pre-computed topic packs.** Rejected: optimises for an unverifiable prediction; pack construction is effort ahead of evidence of need; framings are not indicator-shaped.
+- **Pre-computed topic packs.** Rejected: optimises for an unverifiable prediction; effort ahead of evidence of need; framings are not indicator-shaped.
 - **Hybrid (pre-compute high-frequency packs, accumulate the rest).** Rejected for v1: the high-frequency indicators only become known from claim traffic — precomputing before observing duplicates the prediction problem.
 - **Pure open-web loop, no store.** Rejected: throws away compounding value; repeat claims would pay full retrieval cost every time; the store is the research/licensing asset.
 - **Uniform open-web pipeline for all claims.** Rejected: worse accuracy on the highest-value class; open-web retrieval is the known bottleneck.

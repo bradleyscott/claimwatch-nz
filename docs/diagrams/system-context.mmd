@@ -5,10 +5,10 @@ flowchart TB
         HANSARD["Hansard<br/>official transcripts"]
         NEWS["News RSS<br/>RNZ · NZ Herald · Stuff · Newsroom"]
         SUBMIT["User submissions<br/>URLs + text (claim pointers)"]
-        BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions<br/>(ADR-0014)"]
+        BCAST["Broadcast/podcast interviews<br/>publisher transcripts + captions<br/>(ADR-0007)"]
     end
 
-    subgraph AUTHORITIES["Verifier authorities — evidence sources"]
+    subgraph AUTHORITIES["Verifier authorities — evidence sources (never claim feeds)"]
         STATS["Stats NZ<br/>Aotearoa Data Explorer (SDMX/JSON)"]
         MOJ["MoJ · Police (policedata.nz)<br/>justice series"]
         ELECTORAL["Electoral Commission<br/>electoral process + party registration"]
@@ -16,16 +16,16 @@ flowchart TB
     end
 
     subgraph CW["ClaimWatch (open source)"]
-        INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0011)"]
+        INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0006)"]
         TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0008)"]
-        VERIFY["Verification engine<br/>multi-mode (ADR-0004)"]
-        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0010)"]
+        VERIFY["Verification engine<br/>multi-mode (ADR-0005)"]
+        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)"]
         SITE["Public site<br/>ClaimReview markup"]
-        CONTEST["Contestation intake<br/>+ evidence validation (ADR-0005)"]
+        CONTEST["Contestation intake<br/>+ evidence validation (ADR-0002)"]
     end
 
     PUBLIC["Public:<br/>read, contest, submit evidence"]
-    SEARCH["Search APIs<br/>Brave · Serper (ADR-0007)"]
+    SEARCH["Search APIs<br/>Brave · Serper (ADR-0011)"]
     AUDIT["Retrospective audit<br/>sampled daily, high-impact always"]
 
     BEEHIVE --> INGEST

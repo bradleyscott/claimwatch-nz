@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Decisions are recorded here, one file each, grouped by subject area. Statuses: Proposed → Accepted / Superseded. Renumbered 2026-09-08 for coherence — the ADR set is the stable record; history is preserved in git.
+One file per decision, grouped by subject area. Statuses: Proposed → Accepted / Superseded. Renumbered 2026-09-08 for coherence — this set is the stable record; history is preserved in git.
 
 ## Trust and publication model
 

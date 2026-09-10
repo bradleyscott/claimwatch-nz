@@ -1,12 +1,10 @@
 # Architecture
 
-*Status: proposed design, pre-implementation. Each major decision has an ADR in [`adr/`](adr/). Diagrams are inline Mermaid (rendered natively by GitHub); PNG exports live in [`diagrams/`](diagrams/).*
-
----
+*Proposed design, pre-implementation. Each major decision has an ADR in [`adr/`](adr/). Diagrams are inline Mermaid (rendered natively by GitHub); PNG exports in [`diagrams/`](diagrams/).*
 
 ## 1. System context
 
-ClaimWatch NZ sits between NZ's open political-data infrastructure and the public. The system has **two distinct kinds of external relationship**: **claim sources** — publications that may contain claims needing verification (they flow *into* the pipeline) — and **verifier authorities** — official data and record sources whose published series, statistics, and records are the *evidence* claims are checked against (the verification engine consults them; their content is never treated as claims to be checked). Keeping the two roles distinct is a design principle, not an accident of the diagrams: a claim source is something we are prepared to disagree with; a verifier authority is something we have independently assessed as trustworthy for its domain (the T1–T6 map in [`docs/SOURCE-TAXONOMY.md`](SOURCE-TAXONOMY.md)).
+ClaimWatch sits between NZ's open political-data infrastructure and the public. Two kinds of external relationship, deliberately kept distinct: **claim sources** — publications whose claims flow *into* the pipeline and get checked — and **verifier authorities** — official data/record sources consulted as *evidence*, never treated as claims to check. A claim source is something we are prepared to disagree with; a verifier authority is something independently assessed as trustworthy for its domain (the T1–T6 map in `SOURCE-TAXONOMY.md` §2.1). A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is structural: claim-source content enters the evidence store only through claim extraction; authority content enters only as referenced evidence items. Hansard and Beehive overlap deliberately — the role is per-artefact by document type (a minister's Hansard statement is a claim source; the Hansard record of *who said what when* is also attribution evidence). The ADR-0013 proposal pathway governs what counts as an authority and what gets ingested.
 
 ```mermaid
 flowchart TB
@@ -59,9 +57,7 @@ flowchart TB
     AUDIT --> STORE
 ```
 
-**Reasoning:** claim sources and verifier authorities are deliberately kept as separate subgraphs with separate flows. Claim sources flow through ingestion into claim detection; verifier authorities are **consulted by the verification engine as evidence** — a one-directional evidence lookup, never a claim feed. A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is enforceable structurally: claim-source content enters the evidence store only through claim extraction; authority content enters the evidence store only as referenced evidence items. Sources are deliberately limited to public, structured, official data for v1 (ADR-0006); social platforms are excluded. The verification engine reads official series directly rather than relying on what a release cited (ADR-0005) — the citing politician chooses the evidence; we reconstruct the field.
-
-Note the one deliberate overlap: Hansard and Beehive releases appear in the claim-source graph **and** their underlying data/records can serve as evidence. The role is determined per-artefact by document type (a minister's statement in Hansard is a claim source; the Hansard record *of who said what and when* is also attribution evidence; a MoJ statistics table is pure evidence). The ADR-0013 authority-proposal pathway governs what counts as an authority; the claim-source pathway (also ADR-0013) governs what gets ingested.
+Verifier authorities are deliberately limited to public, structured, official data for v1 (ADR-0006); social platforms are excluded from claim sources too. The verification engine reads official series directly rather than relying on what a release cited (ADR-0005) — the citing politician chooses the evidence; we reconstruct the field.
 
 ## 2. Pipeline dataflow
 
@@ -82,7 +78,7 @@ flowchart LR
     J --> K["Verdict store<br/>versioned, labelled open-to-contest"]
 ```
 
-**Reasoning:** three verification modes by claim class (ADR-0005). Statistical claims resolve against the claim-anchored evidence store (fast, high accuracy, compounding — see ADR-0005); citation-backed claims get a bounded claim-vs-source comparison; everything else gets the general open-web loop with question decomposition and confidence-capped retrieval depth (per ADR-0006's evidence-base findings) — we know from AVeriTeC that this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest." Every claim carries its publication/segment references and discourse window (ADR-0008), available to the verifier on demand up to full-document depth.
+Three verification modes by claim class (ADR-0005). Statistical claims resolve against the claim-anchored evidence store; citation-backed claims get a bounded claim-vs-source comparison; everything else gets the open-web loop with confidence-capped retrieval depth — AVeriTeC shows this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
 
 ## 3. Verdict lifecycle (the mutation model)
 
@@ -96,13 +92,13 @@ stateDiagram-v2
     VALIDATING --> MUTATED: evidence accepted<br/>verdict mutates automatically<br/>v2 published with diff
     MUTATED --> AUDIT: sampled retrospective audit<br/>(all high-impact reviewed)
     AUDIT --> PUBLISHED: audit confirms (or reverts<br/>with reason, both logged)
-    PUBLISHED --> FROZEN: mutation freeze window<br/>(5–7 Nov 2026)
+    PUBLISHED --> FROZEN: mutation freeze window<br/>(5 Nov – after results, 27 Nov)
     FROZEN --> PUBLISHED: freeze lifts (after 27 Nov)
 ```
 
-**Reasoning:** every transition is logged; nothing is ever silently edited (ADR-0001, ADR-0002). Mutation is fully automated — a validated evidence pack triggers the change, and a sampled retrospective audit (all high-impact mutations reviewed) checks validator quality without gating it (ADR-0002). The freeze window is the legal design response to Electoral Act s 199A (see legal doc).
+Every transition is logged; nothing is ever silently edited (ADR-0001, ADR-0002). A validated evidence pack triggers mutation automatically; a sampled retrospective audit checks validator quality without gating it (ADR-0002). The freeze is the design response to Electoral Act s 199A (`LEGAL-COMPLIANCE.md` §1).
 
-## 4. The statistical-claim engine (the primary mode for statistical claims)
+## 4. The statistical-claim engine
 
 ```mermaid
 flowchart TB
@@ -121,7 +117,7 @@ flowchart TB
     FIELD --> PUBLISH["Published verdict page:<br/>chart-first, ClaimReview markup,<br/>'as deployed' line (ADR-0008)"]
 ```
 
-**Reasoning:** the claim itself is often true — the verdict is about the *representativeness of the framing*, and (per ADR-0008) the framing is assessed against the claim's discourse context: the policy proposal it supports and its argument direction determine which grid rows are material to the deployment, while the grid itself stays pre-declared and identical for every claimant (the defence against "you invented the standard to hurt us"). The claim-anchored evidence store turns live verification into fingerprint-match + arithmetic against official data — series accumulate from real claims, so repeat and adjacent claims resolve from stored evidence (ADR-0005). See ADR-0005 and `docs/EVALUATION.md` for how this is graded.
+The claim is often true — the verdict is about the *representativeness of the framing*, assessed against the claim's discourse context: the proposal it supports and its argument direction determine which grid rows are material to the deployment, while the grid itself stays pre-declared and identical for every claimant (the defence against "you invented the standard to hurt us"; ADR-0005). Series accumulate from real claims, so repeat and adjacent claims resolve from stored evidence. Grading: `EVALUATION.md`.
 
 ## 5. Contestation → validation → mutation
 
@@ -150,11 +146,11 @@ sequenceDiagram
     end
 ```
 
-**Reasoning:** the validation step is the anti-brigading mechanism in v1 (ADR-0002) — noise can be submitted but must survive provenance checks to matter, so volume attacks are neutralised by quality gates rather than by vote arithmetic. Every rejection is public and reasoned, which keeps the process auditable and keeps bad-faith actors visible.
+The validation step is the anti-brigading mechanism in v1 (ADR-0002): submitted noise must survive provenance checks to matter, so volume attacks die in quality gates rather than vote arithmetic. Every rejection is public and reasoned, keeping bad-faith patterns visible.
 
 ## 6. What we are explicitly NOT building for 2026
 
-- Parliament TV / broadcast transcription — broadcast claims enter via publisher transcripts/captions only; **self-generated transcription is out of scope** (ADR-0007)
+- Parliament TV / broadcast transcription — publisher transcripts/captions only; self-generated transcription out of scope (ADR-0007)
 - Social-platform firehose ingestion
 - Bridging-weighted community rating (post-election, with data to justify it — ADR-0002)
 - Māori-language claim processing (acknowledged gap; roadmap item with iwi/kaupapa partners)
@@ -163,11 +159,11 @@ sequenceDiagram
 
 ## 7. Hosting and operations
 
-Self-hosted on existing infrastructure (Proxmox cluster) behind Cloudflare; zero cloud vendor lock-in for the site and data. Paid services: LLM API + search API only. The verdict store, audit log, and labelled datasets are the durable assets and are backed up outside the election window lifecycle. Pipeline observability is Grafana-only (ADR-0012).
+Self-hosted on the existing Proxmox cluster behind Cloudflare; zero cloud vendor lock-in for site and data. Paid services: LLM API + search API only. The verdict store, audit log, and labelled datasets are the durable assets, backed up outside the election-window lifecycle. Pipeline observability is Grafana-only (ADR-0012).
 
 ## 8. Implementation stack
 
-TypeScript (Vercel AI SDK, no orchestration framework), Postgres as the single data plane (pgvector + FTS + pg_cron), Drizzle schema/migrations — per ADR-0014. The validation slice (ingest Beehive/RNZ/Stuff → triage → verify → store → AVeriTeC export → cost telemetry) is the first build target.
+TypeScript (Vercel AI SDK, no orchestration framework), Postgres as the single data plane (pgvector + FTS + pg_cron), Drizzle schema/migrations — per ADR-0014. The validation slice (`VALIDATION-SLICE.md`) is the first build target.
 
 ## 9. Diagram index
 

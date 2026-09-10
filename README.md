@@ -1,55 +1,56 @@
 # ClaimWatch NZ (working name)
 
-An open-source system for checking factual claims made during New Zealand political debate — built so that every step of the checking process can be inspected, contested, and corrected by the public.
+An open-source system for checking factual claims made during New Zealand political debate. Every step of the checking process is inspectable, contestable, and correctable by the public.
 
-**Status: documentation and design phase.** No pipeline code yet. We are working through approach decisions publicly, via Architecture Decision Records, before building. See [`docs/`](docs/).
+**Status: documentation and design phase.** No pipeline code yet; approach decisions are being made publicly via Architecture Decision Records in [`docs/adr/`](docs/adr/).
 
-## Why
+## What it does
 
-Ahead of the 2026 NZ general election (7 November 2026), we are building a public resource that:
+Ahead of the 2026 NZ general election (7 November 2026):
 
-1. **Monitors** official sources — Beehive ministerial releases, party press releases, Hansard, and major news RSS feeds.
-2. **Detects and types** checkable factual claims, with particular focus on statistical claims used to support policy propositions.
-3. **Verifies** claims against primary and official evidence, with special machinery for the most common campaign pattern: *a statistic that is quoted accurately but paints a selective or incomplete picture*.
-4. **Publishes** verdicts that are explicitly **automated assessments, open to contest** — the public can dispute a verdict with evidence; that evidence is itself validated by the pipeline; and a validated challenge **mutates** the verdict with a visible, auditable diff.
-5. **Measures itself** against an independently labelled set of NZ political claims, and publishes the accuracy numbers.
+1. **Monitors** official sources — Beehive releases, party releases, Hansard, news RSS, broadcast captions (publisher-published text only), and institutional claim sources.
+2. **Detects and types** checkable factual claims, with a focus on statistics used to support policy propositions.
+3. **Verifies** claims against primary and official evidence. The flagship mode targets the most common campaign pattern: a statistic quoted accurately but painting a selective picture.
+4. **Publishes** verdicts as automated assessments, open to contest — validated contest evidence mutates the verdict with a public diff and append-only audit log.
+5. **Measures itself** against a labelled set of NZ political claims and publishes the numbers.
 
-## Core design principles
+## Design principles
 
-- **Automation triages and drafts; evidence decides.** No automated verdict is ever published as an uncontestable fact. Every verdict page shows its full evidence pack.
-- **Claims, not persons.** Verdict language addresses claims ("this figure is selective"), never character ("X lied"). This is both an epistemic and a legal (defamation) decision.
-- **Mutation, not retraction.** Verdicts change only through validated evidence, always with a public diff and append-only audit log.
-- **Measured, not asserted.** The system publishes its own accuracy against a labelled ground-truth set, and the community layer is graded by the same harness.
-- **Everything is open.** Code, prompts, labelled datasets, evidence rubrics, decision records, and methodology are public and subject to scrutiny.
+- **Automation triages and drafts; evidence decides.** No verdict is published as an uncontestable fact; every verdict page carries its full evidence pack.
+- **Claims, not persons.** Verdicts address claims ("this figure is selective"), never character ("X lied") — an epistemic and legal (defamation) decision.
+- **Mutation, not retraction.** Verdicts change only through validated evidence, with a public diff and append-only audit log.
+- **Measured, not asserted.** The system publishes its own accuracy against a labelled ground-truth set; the community layer is graded by the same harness.
+- **Everything is open.** Code, prompts, labelled datasets, evidence rubrics, decision records, methodology.
 
 ## Reading order
 
-| Doc | What it covers |
+| Doc | Covers |
 |---|---|
-| [`docs/RESEARCH-REVIEW.md`](docs/RESEARCH-REVIEW.md) | Survey of the state of the art: automated fact-checking research, existing systems (open and proprietary), community-correction systems, and NZ-specific data infrastructure. |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and reasoning per component. |
-| [`docs/EVALUATION.md`](docs/EVALUATION.md) | How we measure pipeline and community-layer accuracy against labelled ground truth. |
-| [`docs/COVERAGE.md`](docs/COVERAGE.md) | Verified access map: every cited source probed for API/feed availability, bot protection, and degradation, with mitigations. |
-| [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Source taxonomy: the claim-source coverage matrix (anti-bias) and the evidence-authority map (trusted sources per policy domain, with precedence rules). |
-| [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Taxonomies of misleading information (Wardle/First Draft types, information disorder, DISARM/FIMI, empirical EU-2024 distributions) mapped to verification approaches — the research input that reshaped the verification layer. |
-| [`docs/WEBSITE-UX-RESEARCH.md`](docs/WEBSITE-UX-RESEARCH.md) | What PolitiFact, Full Fact, Snopes, and FactCheck.org let users do, and how this project's public site should present verdicts, evidence packs, argument chains, and entity track records. |
-| [`docs/DISCOVERY-MECHANISM.md`](docs/DISCOVERY-MECHANISM.md) | How users find information on the site: ClaimReview-marked SSR verdict pages for Google/Fact Check Explorer, faceted browse off the structured store, hybrid text+semantic search with paste-a-quote jump, and the recency feed + newsletter habit loop. |
-| [`docs/USER-SUBMISSIONS.md`](docs/USER-SUBMISSIONS.md) | How users submit claims/articles/sources for verification: source-URL intake vs claim intake with fuzzy match against the existing corpus, public verification-request status tracking, the locating step and never-trust boundary, and deduped demand-count prioritisation. |
-| [`docs/VALIDATION-SLICE.md`](docs/VALIDATION-SLICE.md) | The refined first build slice: five lanes sampled across the risk surface (official prose, broadcast Tier-2 captions, institution claims, curated false-context), per-stratum accuracy measurement against human labels, and a publicisable site MVP (claim cards with "hear it/watch it", ClaimReview, feed, entity pages, methodology + live accuracy). |
-| [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, and how the design addresses each. |
-| [`docs/adr/`](docs/adr/) | Architecture Decision Records — every significant approach decision, its alternatives, and the reasoning. |
+| [`docs/RESEARCH-REVIEW.md`](docs/RESEARCH-REVIEW.md) | State of the art: automated fact-checking research, existing systems, community-correction evidence, NZ data infrastructure. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and per-component reasoning. |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | The two-layer evaluation harness (AVeriTeC benchmark + NZ-labelled set). |
+| [`docs/COVERAGE.md`](docs/COVERAGE.md) | Live-probed access map for every cited source: feeds, bot protection, degradation, mitigations. |
+| [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Claim-source coverage matrix (anti-bias) and the evidence-authority map (T1–T6 tiers, per-domain, precedence rules). |
+| [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Misleading-information taxonomies (Wardle, DISARM/FIMI, EU-2024 distributions) mapped to verification modes. |
+| [`docs/WEBSITE-UX-RESEARCH.md`](docs/WEBSITE-UX-RESEARCH.md) | What PolitiFact/Full Fact/Snopes/FactCheck.org do, and our page set + differentiators. |
+| [`docs/DISCOVERY-MECHANISM.md`](docs/DISCOVERY-MECHANISM.md) | Findability: ClaimReview-marked SSR pages, faceted browse, hybrid search, feed + newsletter. |
+| [`docs/USER-SUBMISSIONS.md`](docs/USER-SUBMISSIONS.md) | Intake: source-URL vs claim submission, fuzzy match, public verification requests, never-trust rule. |
+| [`docs/VALIDATION-SLICE.md`](docs/VALIDATION-SLICE.md) | The first build slice: five risk-representative lanes, per-stratum accuracy measurement, site MVP. |
+| [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, with design responses. |
+| [`docs/DECISION-LOG.md`](docs/DECISION-LOG.md) | Working notes behind the ADRs; the ADRs are the stable record. |
+| [`docs/adr/`](docs/adr/) | Every significant approach decision, its alternatives, and reasoning. |
 
 ## Timeline context
 
 - Regulated advertising period: **7 Aug – 6 Nov 2026** (we are inside it)
 - Election day: **7 November 2026**
 - Official results declared: **27 November 2026**
-- Design freeze on verdict mutations: **5 November 2026** (see legal doc)
+- Verdict mutation freeze: **5 Nov – after results** (see `docs/LEGAL-COMPLIANCE.md` §1)
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). This project is being built in the open; disagreement with any ADR is itself a useful contribution — open an issue or a competing ADR.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Disagreement with any ADR is a useful contribution — open an issue or a competing ADR.
 
 ## License
 
-Code: MIT (see [`LICENSE`](LICENSE)). Documentation and datasets: CC BY 4.0.
+Code: MIT ([`LICENSE`](LICENSE)). Documentation and datasets: CC BY 4.0.
