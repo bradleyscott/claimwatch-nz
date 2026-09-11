@@ -8,7 +8,7 @@ The store is the durable asset and single data plane: Postgres (pgvector + FTS),
 
 The slice exercises the store end-to-end on the five lanes and four modes plus harness label storage. The slice's deliverables (per-stratum accuracy, cost per claim) are only meaningful if the store faithfully records what the pipeline did: fallbacks, vintages, versions.
 
-**In slice:** `publication`/`segment` (ADR-0008 hierarchy), `claim`, `evidence_item` (versioned, vintage-dated), `evidence_pack` (append-only), `verdict_version` + `verdict_transition_log`, `fallback_log`, `verdict_provenance`, `labels` (blind-rule isolated), job-state tables + `cron.job_run_details`.
+**In slice:** `publication`/`segment` (ADR-0008 hierarchy), `claim`, `evidence_item` (versioned, vintage-dated), `evidence_pack` (append-only), `verdict_version` + `verdict_transition_log`, `fallback_log`, `verdict_provenance`, `labels` (blind-rule isolated), Graphile Worker job tables (§2.3).
 
 **Out of slice (boundaries, not silent omissions):** `argument_chain` records (ADR-0009 post-slice; chain assembly reads this store but gains no schema here) · user submissions and verification requests · contest/mutation tooling beyond what the schema carries · reliability profiles and the public claim graph.
 
@@ -63,7 +63,6 @@ The store is the reconcilable historical truth for the funnel; a daily job compa
 |---|---|
 | Lane ingestion cadence | crontab, per lane |
 | Nightly evidence re-probe (link liveness) | crontab, nightly |
-| Nightly re-verification (post-slice; detects series revisions vs pinned vintages) | crontab, nightly |
 | Daily funnel reconciliation | crontab, daily |
 | L3 scoring-run triggers | crontab, weekly + pre-release |
 | Ad-hoc jobs (reprocess this document, backfill) | `add_job` at runtime |
@@ -82,7 +81,7 @@ Properties: schedule state survives restarts (rows, not processes); a dead worke
 ### 2.5 Versioning and diff
 
 - Every published verdict is a `verdict_version` row; versions monotonic per claim. The slice writes v1 only, but the schema carries v(n)→v(n+1): a validated evidence pack (post-slice) triggers a new version with a **structured field-level diff** — the "public diff" ADR-0002 requires is generated from this column, not recomputed.
-- Evidence items versioned per fetch; a verdict pins the pack ID and therefore the exact item versions it rested on. Re-verification compares fresh vintages against pinned ones.
+- Evidence items versioned per fetch; a verdict pins the pack ID and therefore the exact item versions it rested on. A revised series fetched later creates a new version — the pinned vintage shows exactly what the verdict used; users contest with the newer figures.
 - Label sets versioned the same way; labels revised only through the contest-and-mutation process, history preserved.
 
 ### 2.6 Evidence durability
@@ -139,7 +138,7 @@ Every risk maps to a layer per TEST-STRATEGY, plus two operational drills (resto
 |---|---|---|
 | STO-R1 | Assert UPDATE/DELETE raise on all four append-only tables (real Postgres in CI); grants deny UPDATE to pipeline/site; hash-before/after immutability check | L1 |
 | STO-R2 | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | L1 |
-| STO-R3 | Archive snapshot asserted per cited URL at labelling; nightly re-probe; alert on null snapshots | L3 + nightly job |
+| STO-R3 | Archive snapshot asserted per cited URL at labelling; link-liveness re-probe (liveness only — content revisions are the contest path, not a re-verification trigger); alert on null snapshots | L3 + nightly job |
 | STO-R4 | Vintage stored, distinct from retrieved_at, propagated to "as deployed"; no null vintages on series rows | L1 |
 | STO-R5 | Bulk-load-then-query on scratch Postgres — indexes return fixture neighbours post-migration; L2 repeat pair dedups every PR | L1 + L2 |
 | STO-R6 | drizzle-kit migrations in CI before merge; suite runs on the migrated schema; rollback tested | L1 (CI) |
@@ -183,8 +182,6 @@ Store portion done when: L1 store tests pass on the migrated scratch schema · b
 | 5 | HNSW rebuild policy after bulk backfills | Pick once backfill volume is known |
 | 6 | Retention horizon for the transition log | Rejections are public per ADR-0002 — implied permanent; confirm no pruning job ever touches it |
 | 7 | `claimant_entity` seeds in the slice schema or post-slice | Slice entity pages need minimal columns; full schema now? |
-| 8 | Freeze-window configuration source and change authority | Freeze dates as configuration; change-control story undecided |
-| 9 | Nightly re-verification in-slice or post-slice | Recommend post-slice — the slice measures; re-verification adds cost with little measurement value |
-| 10 | Entity seed review workflow (Wikipedia/Electoral Commission cross-links) — owner and timing | Human review required before entity pages render |
-| 11 | Provenance block: raw cost figures vs OTel span refs | Store-lite (refs) vs store-full (figures); Grafana retention vs self-containment |
-| 12 | Evidence rejections published via the raw log or a curated public view | Site-design decision the store shouldn't pre-empt |
+| 8 | Entity seed review workflow (Wikipedia/Electoral Commission cross-links) — owner and timing | Human review required before entity pages render |
+| 9 | Provenance block: raw cost figures vs OTel span refs | Store-lite (refs) vs store-full (figures); Grafana retention vs self-containment |
+| 10 | Evidence rejections published via the raw log or a curated public view | Site-design decision the store shouldn't pre-empt |

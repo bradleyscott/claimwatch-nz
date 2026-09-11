@@ -133,7 +133,7 @@ One platform (Grafana Cloud), instrumented once with OpenTelemetry (ADR-0012). A
 | Errors | exceptions as structured log events, grouped by fingerprint | stack trace + tags (lane/source/stage/pipeline-version); **no claim text in payloads** | log-based grouping accepted (ADR-0012) |
 | Alerts | Grafana alert rules (versioned config, reviewable like code) | warnings batch to Discord; page-level conditions notify directly | alert fatigue is a design constraint |
 
-No proprietary SDKs — any component movable to self-hosted (Grafana OSS on Proxmox) as a config change if free-tier limits bite.
+No proprietary SDKs — any component movable to self-hosted Grafana OSS (any Docker host) as a config change if free-tier limits bite.
 
 ### 5.2 The funnel (store is truth, events are live)
 
@@ -165,7 +165,7 @@ Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, cost, latency, pa
 
 ### 5.4 Scheduled jobs
 
-Batch jobs (nightly re-verification, L3 runs, health re-probes) fail by *silence* — a job that never ran emits nothing to count. So: heartbeat + duration/status metrics, long-running reprocesses emit progress, and no-data/dead-man's-switch alerts fire on the absence of a heartbeat, not on an error.
+Batch jobs (L3 runs, health re-probes, reconciliation) fail by *silence* — a job that never ran emits nothing to count. So: heartbeat + duration/status metrics, long-running reprocesses emit progress, and no-data/dead-man's-switch alerts fire on the absence of a heartbeat, not on an error.
 
 ### 5.5 Dashboards
 
@@ -235,17 +235,17 @@ HARNESS.md owns the full mechanism. Cross-cutting commitments: the boundary is t
 
 ## 9. Environments & deployment
 
-Self-hosted on the Proxmox cluster behind Cloudflare (ARCHITECTURE §7); paid services are LLM + search APIs and Grafana Cloud only.
+Hosting-agnostic by construction: the deployment unit is **Docker Compose** — `site`, `pipeline-worker`, `harness-worker`, Postgres (pgvector), Graphile Worker — so any Docker host works: a homelab VM behind Cloudflare (our default), a single VPS, or a cloud instance. Paid services are LLM + search APIs and Grafana Cloud only (ADR-0012); contributors choose the architecture that suits their context, and the compose file is the only hosting commitment the repo makes.
 
 | Environment | Where | Postgres | LLM/search | Runs |
 |---|---|---|---|---|
-| Dev | workstation | local (docker) | mocked or real per-test | L1 |
+| Dev | workstation | `docker compose` service | mocked or real per-test | L1 |
 | CI | GitHub Actions | scratch (pinned version + extensions) | mocked | L1 + L2 + L4a per PR |
-| Slice | Proxmox VM | homelab Postgres | real APIs, batch-routed | live ingestion, site, L3, L4b |
+| Slice | any Docker host (ours: homelab VM behind Cloudflare) | compose service | real APIs, batch-routed | live ingestion, site, L3, L4b |
 
 **Scoring-run triggering (D3):** L2 fires per PR in CI. L3 runs weekly + pre-release, batch-routed (`latency_class: batch`), scheduled as a Graphile Worker crontab entry → harness worker. A release tag's CI requires a green L3 in-window before deploy. Run outputs land in versioned files the methodology page renders.
 
-Deployment is deliberately boring: pnpm build → site + pipeline-worker containers on the Proxmox VM.
+Deployment is deliberately boring: `docker compose up` from a versioned image tag; the compose file doubles as the deployment runbook.
 
 **Test risks:** CI/slice parity drift → pinned CI Postgres; L4b smoke after each deploy · weekly L3 silently stops → dead-man's-switch on the job heartbeat · release ships without a fresh run → L4 asserts the table's run timestamp is in the release's freshness window · dev misconfig hits the slice DB → per-environment config; L1 asserts resolved environment matches the ambient flag.
 
@@ -253,8 +253,8 @@ Deployment is deliberately boring: pnpm build → site + pipeline-worker contain
 
 Durable assets (ARCHITECTURE §7): verdict store, audit log, labelled datasets.
 
-- **IA caching**: evidence URLs cited in verdicts and labels cached at verification/labelling time — evidence must survive link rot for contestation and re-verification to be possible.
-- **Series vintages**: stored with vintage dates; nightly re-verification detects revisions.
+- **IA caching**: evidence URLs cited in verdicts and labels cached at verification/labelling time — evidence must survive link rot for contestation.
+- **Series vintages**: stored with vintage dates — provenance, not a live guarantee. We capture source, time, and the stats a verdict used; we do **not** re-verify third-party datasets on an ongoing basis. If an authority revises a series, the recorded vintage still states exactly what the verdict relied on, and users contest the verdict with the newer figures.
 - **Raw-document retention** (ADR-0006): the enabling cost for reprocessing.
 - **Backups**: nightly Postgres dumps, off-box (second node or object storage); restore-tested. The schedule runs **outside the election lifecycle** — backups are ordinary ops hygiene, so freeze-window crunch never competes with them.
 
@@ -318,12 +318,12 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | Vintage pinning mechanics: replay stored series at recorded vintage, or pin a snapshot set at run time? | Affects harness design, store query surface, EVALUATION §7 re-verification. Leans replay-from-store |
+| 1 | Vintage pinning mechanics: replay stored series at the recorded vintage, or pin a snapshot set at run time? | Affects harness design and store query surface. No re-verification job — vintages are recorded provenance (§10). Leans replay-from-store |
 | 2 | Config surface: one typed module in `packages/llm`, or per-package files with a shared loader? | ADR-0014 fixes the stack, not the layout |
 | 3 | Secret-scanning tooling: GitHub built-in vs gitleaks in CI | Either satisfies the gate |
 | 4 | Alert routing + paging thresholds beyond ADR-0012's defaults at slice scale | Slice-specific thresholds untested |
 | 5 | Scoring-run trigger ownership: Graphile Worker crontab + manual pre-release trigger, or a release-pipeline step? | D3 fixes cadence, not mechanism |
-| 6 | Backup off-box target: second Proxmox node vs object storage; retention policy | §10 assumes off-box copies exist |
+| 6 | Backup off-box target: second Docker host vs object storage; retention policy | §10 assumes off-box copies exist |
 | 7 | Label-schema version publication: does it ride in the run tuple and the published dataset? | Follows from TEST-STRATEGY §1 |
 | 8 | Does the false-context curated set run through the normal config surface or a pinned offline manifest? | Not a live lane; leans offline manifest |
 | 9 | Site analytics (Plausible/Matomo) — out of ADR-0012's scope; when is the decision made? | Site MVP ships without it per VALIDATION-SLICE |

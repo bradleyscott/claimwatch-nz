@@ -122,7 +122,7 @@ Every justification sentence must be entailed by its cited evidence before publi
 
 - Series fetched per SOURCE-TAXONOMY Part 2 with declared primary authority, alternates, denominator family.
 - **Precedence**: T1 > T2 > … > T6 — but the conflict is often the finding: verdicts cite the claim's own tier first, then the higher authority; the verdict is about the gap. Advocacy data never enters as evidence.
-- Vintage discipline: every row carries `vintage_date`; verdicts note "as measured at publication"; nightly re-verification (post-slice) detects revisions.
+- Vintage discipline: every row carries `vintage_date`; verdicts note "as measured at publication" — recorded provenance, not an ongoing re-verification commitment (CROSS-CUTTING §10).
 - Claims citing sources outside the map → open-web loop + explicit no-pre-vetted-authority note.
 
 ## 4. Test risks
