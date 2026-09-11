@@ -115,6 +115,15 @@ export class MockVerificationLlm implements VerificationLlm {
     });
   }
 
+  static forProvenance(claimText: string, verdict: string): VerificationLlm {
+    return new MockVerificationLlm((_role, input) => {
+      const req = input as { claimText?: string };
+      if (req.claimText !== claimText)
+        return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
+      return { ok: true, value: { verdict, originalContext: "Cyclone Gabrielle, February 2023" } };
+    });
+  }
+
   static forOpenWeb(rounds: number, confidence: number): VerificationLlm {
     return new MockVerificationLlm((_role, input) => {
       const req = input as { round?: number; depthCap?: number };
