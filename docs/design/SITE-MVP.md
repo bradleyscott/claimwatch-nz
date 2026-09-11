@@ -10,9 +10,9 @@ The "sufficient to publicise and get feedback" surface from VALIDATION-SLICE: th
 
 | # | Component | Summary |
 |---|---|---|
-| 1 | Claim cards + verdict pages | SSR Next.js: verdict + confidence up top, verbatim quote + attribution, one-sentence plain verdict, "as deployed" tag, hear-it/watch-it deep links |
+| 1 | Claim cards + verdict pages | SSR Next.js: verdict + confidence up top, verbatim quote + attribution, one-sentence plain verdict, "as deployed" tag, hear-it/watch-it deep links. **The MVP's proof — build first, everything else serves navigation to these** (Bradley, Sept 2026) |
 | 2 | ClaimReview JSON-LD | schema.org `ClaimReview` on every verdict page — the Google Fact Check Explorer channel |
-| 3 | Feed + topic facets | recency-ranked homepage; facet filters from the structured store |
+| 3 | Feed + topic facets | recency-ranked homepage. *Priority note (Bradley, Sept 2026): the feed only needs enough functionality to navigate to verdict pages — a minimal recency link list; facet/entity machinery is trimmed if it competes with the verdict pages* |
 | 4 | Entity pages | person / party / institution pages with verdict distributions |
 | 5 | Methodology page | four-verdict schema + AVeriTeC mapping + pipeline description + the **accuracy table generated from the harness output file** |
 | 6 | Feedback widget | thumbs + free text + optional email; feedback *about the site*, not claim intake |
@@ -179,7 +179,7 @@ Deliberately not covered (consistent with TEST-STRATEGY §5): load/performance t
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | ClaimReview `reviewRating.ratingValue` mapping — schema.org expects a number; our verdicts deliberately have no degrees. Which ordering, or none? | Blocks SIT-R1's schema test; resolve before the first verdict page ships |
+| 1 | ~~ClaimReview `reviewRating.ratingValue` mapping~~ **Resolved (Sept 2026, implemented):** supported=4 · not_enough_evidence=2 · conflicting_cherry_picking=3 · refuted=1, with bestRating=4/worstRating=1; `alternateName` carries the plain-English rendering ("Accurate but incomplete"). Landed in `packages/harness/src/claimreview-api.ts` (`VERDICT_CLASS_TO_RATING`) with L4a tests; validated markup per the corpus | Blocks SIT-R1's schema test; resolve before the first verdict page ships |
 | 2 | Revalidation transport — webhook (shared secret + URL) vs polling an `updated_at` watermark | Webhook lower-latency; polling simpler; behaviour tests identical |
 | 3 | Feedback retention + privacy statement — where the copy lives, how long the table is kept, email usage | Legal/UX call |
 | 4 | Institution entity pages in the MVP — slice has one institution source | Affects the route inventory |

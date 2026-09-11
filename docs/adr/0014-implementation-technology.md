@@ -57,7 +57,8 @@ pnpm workspaces; TypeScript everywhere; shared Zod schemas in `packages/store` a
 
 ### Remaining stack (as recommended, confirmed)
 
-- **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR). Guardrails spec: `docs/design/TOOLCHAIN.md`.
+- **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR). Guardrails spec: `docs/design/TOOLCHAIN.md`. *Amended Sept 2026 (Bradley): latest compatible versions in production use — Node 24 LTS, TypeScript 7.x (fallback 5.9.x if a dependency chokes), pnpm workspace (bun as local installer where the npm client's network stack fails).*
+- **UI:** shadcn/ui (copy-in Radix primitives) + Tailwind, on Next.js App Router (Bradley, Sept 2026). Re-skinned to the `docs/mockups/` register — the default shadcn aesthetic is wrong for a civic fact-checker; the verdict mark is a custom component built on the primitives. SITE-MVP's register/hierarchy rules are enforced by tests above the component layer; Radix + axe tests satisfy SIT-R9.
 - **Fetch/parse:** `fetch` (undici), `fast-xml-parser` for RSS/Atom, Playwright (TS) for the later party-lane slice, `cheerio` for HTML extraction (readability-style); PDF extraction deferred until an evidence source requires it.
 - **Search API:** per ADR-0011 — Brave primary (Goggles maps onto T1–T6 authority-restricted retrieval), Serper fallback/bulk.
 - **Config/secrets:** env + `.env` (gitignored) — no Vault.
