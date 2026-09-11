@@ -2,7 +2,7 @@
 
 *Proposed. ADRs: 0005, 0006, 0011, 0012, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, the component designs in `docs/design/`.*
 
-Concerns that span every component: config, prompts, secrets, observability, error handling, schema policy, the blind-rule boundary, environments, backups, cost. This doc does not re-derive component behaviour — it defines the shared mechanisms and the test posture for each. Stack per ADR-0014: TypeScript (Vercel AI SDK), Postgres (pgvector + FTS + pg_cron), Drizzle, pnpm monorepo. Test layers L1–L4 per `TEST-STRATEGY.md` §2.
+Concerns that span every component: config, prompts, secrets, observability, error handling, schema policy, the blind-rule boundary, environments, backups, cost. This doc does not re-derive component behaviour — it defines the shared mechanisms and the test posture for each. Stack per ADR-0014: TypeScript (Vercel AI SDK), Postgres (pgvector + FTS), Drizzle, pnpm monorepo, Graphile Worker for job scheduling/queueing (STORE §2.3). Test layers L1–L4 per `TEST-STRATEGY.md` §2.
 
 ## 1. Component map
 
@@ -25,7 +25,7 @@ flowchart TB
     subgraph STORE["Postgres — packages/store (ADR-0014)"]
         CLAIMS["claims · evidence · verdicts<br/>audit log · job state"]
         IDX["pgvector (HNSW) + FTS"]
-        CRON["pg_cron scheduling"]
+        CRON["Graphile Worker<br/>(jobs, crontab, backfill)"]
     end
 
     SITE["apps/site — Next.js SSR<br/>verdict pages · ClaimReview JSON-LD ·<br/>feed/facets · methodology page"]
@@ -175,7 +175,7 @@ Batch jobs (nightly re-verification, L3 runs, health re-probes) fail by *silence
 | Extraction health | Tier-2 fallback rate, extraction-empty rate, fetch success |
 | Cost | per role × model; per claim per stratum; 80%-of-plan alert |
 | Verification tripwires | verdict-class shift, NLI failure rate, triage drop-rate, repeat ratio, unattributed rate |
-| Job health | pg_cron run history, heartbeat/silence |
+| Job health | `graphile_worker.jobs` run history, heartbeat/silence |
 
 **Not here:** site/user analytics (separate privacy decision, ADR-0012), model-quality metrics (funnel shifts are tripwires; the harness measures accuracy), prompt-editing UI (§3).
 
@@ -190,7 +190,7 @@ Per ADR-0006 the pipeline is idempotent at every stage boundary, raw inputs reta
 | Document content hash | ingestion | Identical re-fetch → no new row; provenance updated. Ingest re-runs produce no duplicates. |
 | Claim fingerprint + embedding | triage/store | The dedupe-by-claim contract: repeats gain a source-occurrence, never a new queue entry. The cross-component idempotency key — re-running any stage re-resolves to the same claim record. |
 | Append-only verdicts | verification/store | Reprocessed verdicts append a version with provenance; never overwrite. |
-| Job idempotency keys | scheduler | pg_cron-triggered jobs carry a run key; workers take advisory locks — no double-verification. |
+| Job idempotency keys | scheduler | Graphile Worker job keys — the same job re-enqueued with the same key updates rather than duplicates; `SKIP LOCKED` claiming — no double-verification. |
 | Fetch retry ladder | all lanes | retry → headless fallback → degraded → maintainer alert → public coverage page. |
 | Health checks | lanes | liveness (200-but-zero-items is a distinct alarm), drift detection, volume bands; extraction failures alertable like fetch failures. |
 
@@ -243,7 +243,7 @@ Self-hosted on the Proxmox cluster behind Cloudflare (ARCHITECTURE §7); paid se
 | CI | GitHub Actions | scratch (pinned version + extensions) | mocked | L1 + L2 + L4a per PR |
 | Slice | Proxmox VM | homelab Postgres | real APIs, batch-routed | live ingestion, site, L3, L4b |
 
-**Scoring-run triggering (D3):** L2 fires per PR in CI. L3 runs weekly + pre-release, batch-routed (`latency_class: batch`), scheduled via pg_cron trigger → harness worker. A release tag's CI requires a green L3 in-window before deploy. Run outputs land in versioned files the methodology page renders.
+**Scoring-run triggering (D3):** L2 fires per PR in CI. L3 runs weekly + pre-release, batch-routed (`latency_class: batch`), scheduled as a Graphile Worker crontab entry → harness worker. A release tag's CI requires a green L3 in-window before deploy. Run outputs land in versioned files the methodology page renders.
 
 Deployment is deliberately boring: pnpm build → site + pipeline-worker containers on the Proxmox VM.
 
@@ -306,7 +306,7 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | INGESTION.md | ING-R1…R14 | L2 (R1, R7, R11); L4a (R4) | CI every push; golden diffs per PR |
 | TRIAGE.md | TRI-R1…R13 | L2 (R7, R10, R13); L3 (R1–R3, R5, R9, R10) | CI; golden diffs; drop-recall + per-type accuracy in L3 |
 | VERIFICATION.md | VER-R1…R15 | L2 (R7, R10, R13); L3 (R2–R5, R8, R10–R12, R15); L4a (R6, R9) | CI; golden diffs; per-stratum L3 gate |
-| STORE.md | STO-R1…R19 | L2 (R5, R11, R12, R16); L3+pg_cron (R3, R19); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
+| STORE.md | STO-R1…R19 | L2 (R5, R11, R12, R16); L3 + Graphile Worker (R3, R19); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
 | SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
 | HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
 | CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
@@ -321,7 +321,7 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | 2 | Config surface: one typed module in `packages/llm`, or per-package files with a shared loader? | ADR-0014 fixes the stack, not the layout |
 | 3 | Secret-scanning tooling: GitHub built-in vs gitleaks in CI | Either satisfies the gate |
 | 4 | Alert routing + paging thresholds beyond ADR-0012's defaults at slice scale | Slice-specific thresholds untested |
-| 5 | Scoring-run trigger ownership: pg_cron schedule + manual pre-release trigger, or a release-pipeline step? | D3 fixes cadence, not mechanism |
+| 5 | Scoring-run trigger ownership: Graphile Worker crontab + manual pre-release trigger, or a release-pipeline step? | D3 fixes cadence, not mechanism |
 | 6 | Backup off-box target: second Proxmox node vs object storage; retention policy | §10 assumes off-box copies exist |
 | 7 | Label-schema version publication: does it ride in the run tuple and the published dataset? | Follows from TEST-STRATEGY §1 |
 | 8 | Does the false-context curated set run through the normal config surface or a pinned offline manifest? | Not a live lane; leans offline manifest |

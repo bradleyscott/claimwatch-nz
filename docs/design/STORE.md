@@ -4,7 +4,7 @@
 
 ## 1. Purpose and slice scope
 
-The store is the durable asset and single data plane: Postgres (pgvector + FTS + pg_cron), Drizzle schema in `packages/store`, shared by pipeline (write), site (read), harness (export) per ADR-0014. Everything the system claims about a claim — record, evidence, verdict, provenance — lives here, append-only and versioned, because **audit-log integrity is the trust mechanism** for a system with no editorial masthead (ADR-0001).
+The store is the durable asset and single data plane: Postgres (pgvector + FTS), Drizzle schema in `packages/store`, shared by pipeline (write), site (read), harness (export) per ADR-0014 — with Graphile Worker as the job queue/scheduler on the same database (§2.3). Everything the system claims about a claim — record, evidence, verdict, provenance — lives here, append-only and versioned, because **audit-log integrity is the trust mechanism** for a system with no editorial masthead (ADR-0001).
 
 The slice exercises the store end-to-end on the five lanes and four modes plus harness label storage. The slice's deliverables (per-stratum accuracy, cost per claim) are only meaningful if the store faithfully records what the pipeline did: fallbacks, vintages, versions.
 
@@ -55,17 +55,22 @@ Retrieval is native: HNSW on `claim.embedding`, `tsvector` FTS — hybrid dense+
 
 The store is the reconcilable historical truth for the funnel; a daily job compares SQL-view counts to event telemetry and alerts on drift — dashboards disagreeing with the store indicate instrumentation bugs, which is itself monitored.
 
-### 2.3 pg_cron job surface
+### 2.3 Job scheduling: Graphile Worker
 
-Lane ingestion cadence · nightly evidence re-probe (link liveness) · nightly re-verification (post-slice; detects series revisions vs pinned vintages) · daily funnel reconciliation · L3 scoring-run triggers.
+**Graphile Worker is the scheduler and the executor bridge** — a Postgres-backed Node job queue: jobs are rows, workers are long-lived Node processes using `LISTEN/NOTIFY` (jobs start in milliseconds) with `SKIP LOCKED` claiming. It schedules *and* runs; no SQL-only middle layer.
 
-**pg_cron is trigger + ledger, never executor.** It can run SQL only — so the bridge to Node is a job-queue table, not `pg_cron` shelling out:
+| Job | Schedule |
+|---|---|
+| Lane ingestion cadence | crontab, per lane |
+| Nightly evidence re-probe (link liveness) | crontab, nightly |
+| Nightly re-verification (post-slice; detects series revisions vs pinned vintages) | crontab, nightly |
+| Daily funnel reconciliation | crontab, daily |
+| L3 scoring-run triggers | crontab, weekly + pre-release |
+| Ad-hoc jobs (reprocess this document, backfill) | `add_job` at runtime |
 
-1. **Schedule**: `pg_cron` runs a plain SQL statement on its cadence — typically `INSERT INTO job_queue (kind, payload, run_key) VALUES (…)` (or `UPDATE … SET due_at = now()` for recurring jobs).
-2. **Handoff**: a long-lived **worker container** (`pipeline worker`, one per VM; harness worker for L3) polls the queue on a short interval, claims the next due job with `SELECT … FOR UPDATE SKIP LOCKED`, takes an advisory lock keyed on the job id, and executes the Node work (lane fetch, LLM loop, scoring run).
-3. **Ledger**: the worker writes status + duration + error back to `job_queue`/`job_run` rows. Combined with `cron.job_run_details` (the SQL schedule's own history) this feeds ADR-0012 job-health metrics and silence-detection.
+Why this is not the "extra service" ADR-0014 rejected: the BullMQ/Redis rejection was about *Redis* — a second stateful service to run. Graphile Worker stores everything in the existing Postgres; no new infra, one more npm dependency. It also replaces what we'd have hand-rolled: built-in crontab with **backfill** (missed jobs — worker down at fire time — re-created on restart, `fill=2d` style), exponential-backoff retries (`max_attempts`), serial execution via named queues, and distributed-crontab safety (identical crontabs on multiple workers are ACID-safe; the `known_crontabs` lock table makes double-scheduling structurally impossible).
 
-Properties: schedule state survives restarts (it's rows, not a process); a dead worker leaves the job claimed-but-unfinished, visible in the queue and alertable; adding a job kind is an INSERT, not a deploy; `SKIP LOCKED` + advisory locks make double-verification structurally impossible (CRO-R11).
+Properties: schedule state survives restarts (rows, not processes); a dead worker leaves the job visibly unfinished and backfillable; adding a job kind is code, not a deploy; `SKIP LOCKED` + job-key uniqueness make double-verification structurally impossible (CRO-R11). Job health (status, duration, retries, `run_at` history) lives in `graphile_worker.jobs` — feeding ADR-0012 job-health metrics and silence-detection.
 
 ### 2.4 Append-only enforcement (database, not convention)
 
@@ -97,7 +102,7 @@ One schema design, two access boundaries: labels are generated from the **same D
 | Verification engine | claim + context pack, fingerprint matches, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
 | Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role. ClaimReview from store fields; methodology table from harness files, never hand-edited. |
 | Harness | verdicts + evidence paths (read-only) | labels, label-set versions, scoring-run outputs | Blind rule: writes labels; pipeline cannot read them. |
-| pg_cron | job state | queue inserts + `job_run` updates via SQL | Trigger + ledger, not executor. Node work runs in worker containers, claimed via the job-queue table (§2.3). |
+| Graphile Worker | claims, evidence, verdicts (via task handlers) | jobs, job runs, retries | Postgres-backed scheduler + executor (§2.3). Node work runs in worker containers; no separate queue service. |
 | Grafana | funnel views, reconciliation counts, job health | nothing | Store is the reconcilable truth; drift alerts. |
 
 **Freeze enforcement (schema contract):** the store rejects a transition into MUTATED (and any new verdict version on a PUBLISHED claim) while the freeze window is active — dates are configuration in the state machine, not a manual process. Contested verdicts during freeze render "contested — under review".
@@ -124,7 +129,7 @@ One schema design, two access boundaries: labels are generated from the **same D
 | STO-R16 | Context fields defaulted instead of absent | "As deployed" fabricated from non-context; ablation measurement meaningless | No-proposal fixtures yielding non-null `attached_proposal` |
 | STO-R17 | Reconciliation drift persists silently | Site coverage numbers diverge from reality | Reconciliation heartbeat missing; no-data alert |
 | STO-R18 | Label revisions without history | Contested-label value destroyed; old runs unreproducible | In-place UPDATE succeeding where insert-with-history was required |
-| STO-R19 | Worker dies mid-job — queue entry claimed but never completed | Lane silently stops until its next cadence; L3 run missing with no alert | Job stuck in `running` past its max duration; no completion row |
+| STO-R19 | Worker dies mid-job — job claimed but never completed | Lane silently stops until its next cadence; L3 run missing with no alert | Job stuck `running` past max duration; no completion row; crontab fire missed and unbackfilled |
 
 ## 5. Test strategy
 
@@ -134,7 +139,7 @@ Every risk maps to a layer per TEST-STRATEGY, plus two operational drills (resto
 |---|---|---|
 | STO-R1 | Assert UPDATE/DELETE raise on all four append-only tables (real Postgres in CI); grants deny UPDATE to pipeline/site; hash-before/after immutability check | L1 |
 | STO-R2 | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | L1 |
-| STO-R3 | Archive snapshot asserted per cited URL at labelling; nightly re-probe; alert on null snapshots | L3 + pg_cron |
+| STO-R3 | Archive snapshot asserted per cited URL at labelling; nightly re-probe; alert on null snapshots | L3 + nightly job |
 | STO-R4 | Vintage stored, distinct from retrieved_at, propagated to "as deployed"; no null vintages on series rows | L1 |
 | STO-R5 | Bulk-load-then-query on scratch Postgres — indexes return fixture neighbours post-migration; L2 repeat pair dedups every PR | L1 + L2 |
 | STO-R6 | drizzle-kit migrations in CI before merge; suite runs on the migrated schema; rollback tested | L1 (CI) |
@@ -150,7 +155,7 @@ Every risk maps to a layer per TEST-STRATEGY, plus two operational drills (resto
 | STO-R16 | No-proposal fixtures keep context fields null; write path rejects defaulted values | L1 + L2 |
 | STO-R17 | Reconciliation job detects injected drift; silence alert on missing heartbeat | L1 |
 | STO-R18 | Revising a label requires a new versioned row; two runs pinning different label-set versions reproduce their outputs | L1 |
-| STO-R19 | Worker claims job with lease + writes completion row; queue sweep (part of the nightly SQL job) requeues or flags jobs past max duration; no-data alert on missing completions | L1 + pg_cron |
+| STO-R19 | Graphile Worker's own retry/backoff + job-key uniqueness; job stuck `running` past max duration → no-data alert on missing completion; backfill recovers missed crontab fires | L1 + Graphile Worker |
 
 ### 5.1 Blind-rule access test (the load-bearing one)
 
@@ -183,4 +188,3 @@ Store portion done when: L1 store tests pass on the migrated scratch schema · b
 | 10 | Entity seed review workflow (Wikipedia/Electoral Commission cross-links) — owner and timing | Human review required before entity pages render |
 | 11 | Provenance block: raw cost figures vs OTel span refs | Store-lite (refs) vs store-full (figures); Grafana retention vs self-containment |
 | 12 | Evidence rejections published via the raw log or a curated public view | Site-design decision the store shouldn't pre-empt |
-| 13 | Worker queue-visibility gap: `cron.job_run_details` records the SQL schedule only; the queue table carries Node-side status. One combined view, or reconcile the two in the job-health metric? | Affects the ADR-0012 job-health dashboard; trivial either way — decide at dashboard build |

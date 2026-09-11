@@ -31,7 +31,7 @@ Per ADR-0006, lanes share stages but run as separate workers:
              → dedupe → [document record with provenance] → triage queue
 ```
 
-- **Scheduling**: pg_cron per lane (ADR-0014); run history (`cron.job_run_details`) feeds ADR-0012 job-health metrics.
+- **Scheduling**: Graphile Worker per lane (STORE §2.3); job history (`graphile_worker.jobs`) feeds ADR-0012 job-health metrics.
 - **Idempotency**: every stage re-runnable; raw documents retained with `pipeline_version`; reprocessing appends, never overwrites.
 - **Extraction ladder** per document (ADR-0006):
 
@@ -148,7 +148,7 @@ Document record + extraction provenance + attribution candidates + dedupe inputs
 | ING-R9 | Paywalled content mishandled — truncated text treated as complete | Mis-verification; ToS breach | Fixture: paid-tier item → quoted-claim-only flag |
 | ING-R10 | False-context set treated as production lane | Slice overclaims a least-mature mode; credibility damage | No lane-health registration; `is_curated_fixture` gate |
 | ING-R11 | Caption revision drift — stored cue no longer matches live track | "Hear it" plays audio that doesn't match the stored quote | Track-hash comparison; affected-claim flag |
-| ING-R12 | Health checks themselves fail silently | Monitoring is theatre | pg_cron silence-detection; heartbeat metric |
+| ING-R12 | Health checks themselves fail silently | Monitoring is theatre | Job-health silence-detection (Graphile Worker); heartbeat metric |
 | ING-R13 | Provenance fields missing at store-write | Firewall and reprocessing guarantees break silently | L1 schema validation; NOT NULL constraints |
 | ING-R14 | Tier-2 fallback explosion — markup change flips a whole lane to LLM extraction | Silent cost blowout; the designated drift signal missed | Per-lane fallback-rate anomaly band |
 
@@ -168,14 +168,14 @@ Every risk maps to a layer per TEST-STRATEGY (L1 every push; L2 every PR; L3 wee
 | ING-R9 | Paid-tier fixture: truncated item → quoted-claim-only; no full-text fetch attempted | L1 |
 | ING-R10 | Fixture records carry `is_curated_fixture`; never registered with lane health or scheduler | L1 |
 | ING-R11 | Changed track hash → affected-claim flagging; re-pull re-resolves the cue span | L1 + L2 |
-| ING-R12 | pg_cron run-history fixture with missing run → silence alert | L1 |
+| ING-R12 | Graphile Worker job-history fixture with missing run → silence alert | L1 |
 | ING-R13 | Zod validation on every emitted record; Drizzle constraints in CI migrations | L1 |
 | ING-R14 | Synthetic fallback rates outside bands → alert state | L1 |
 | Behavioural | Golden set: one pinned item per lane; extraction changes show as snapshot diffs | L2 |
 | Accuracy | Per-stratum extraction quality is a measured L3 output, not an assumption | L3 |
 | Site | Hear-it links, ClaimReview on caption-derived pages, methodology table | L4 |
 
-**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant); stale/broken feeds (200-zero-items, frozen, malformed XML); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-fingerprint, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic pg_cron history + metric series.
+**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant); stale/broken feeds (200-zero-items, frozen, malformed XML); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-fingerprint, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
 
 ## 6. Open questions
 
