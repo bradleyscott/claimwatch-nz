@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "description": "Curated false-context sample set (R5) — real NZ miscaptioned items with documented provenance. NOT a live lane: no scheduler, no fetcher, no lane-health registration (ING-R10). Delivered as versioned fixtures seeded with the same document-record shape as live lanes.",
+  "licence_status": "provenance-notes-pending-per-item-review",
+  "items": [
+    {
+      "fixture_id": "fc-001",
+      "item_url": "https://example-fc.org/nz-flood-clip",
+      "media_url": "https://example-fc.org/media/flood-2023.mp4",
+      "claimed_context": "Auckland floods during the 2026 storm response",
+      "verified_context": "Footage is from Cyclone Gabrielle, February 2023 — not the 2026 event.",
+      "claim_text": "Watch the devastating flooding in Auckland this week.",
+      "provenance_notes": "Original footage identified via reverse image search; first published 2023-02-14 on the original uploader's channel.",
+      "source_urls": ["https://example-fc.org/original-2023-post"]
+    },
+    {
+      "fixture_id": "fc-002",
+      "item_url": "https://example-fc.org/hospital-screenshot",
+      "media_url": "https://example-fc.org/media/hospital-sign.jpg",
+      "claimed_context": "Auckland hospital during 2026 nurse strike",
+      "verified_context": "Photo taken in 2021 during a different industrial dispute; the sign text predates the 2026 strike.",
+      "claim_text": "Empty hospital during this week's nurse strike.",
+      "provenance_notes": "Original photo located in a 2021 news article archive.",
+      "source_urls": ["https://example-fc.org/2021-archive"]
+    }
+  ]
+}

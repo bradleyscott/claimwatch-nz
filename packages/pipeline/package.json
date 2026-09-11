@@ -1,0 +1,22 @@
+{
+  "name": "@cw/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./lanes/*": "./src/lanes/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cw/store": "workspace:*",
+    "cheerio": "^1.0.0",
+    "fast-xml-parser": "^5.2.0",
+    "zod": "4.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}
