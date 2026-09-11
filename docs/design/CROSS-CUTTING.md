@@ -123,17 +123,63 @@ Env + `.env` (gitignored), no Vault (ADR-0014). Key surface: the ADR-0011 provid
 
 One platform (Grafana Cloud), instrumented once with OpenTelemetry (ADR-0012). A lane without funnel events, gen_ai spans, and structured logs is not done.
 
-| Dashboard | Panels | Source |
-|---|---|---|
-| Ingestion → publication funnel | counts per stage × lane × source | OTel events (live) + store-SQL view (truth), reconciled daily |
-| Extraction health | Tier-2 fallback rate per lane (the drift instrument), extraction-empty rate, fetch success | funnel events |
-| Cost telemetry | cost per role × model; **cost per claim per stratum**; 80%-of-plan alert | `gen_ai.*` spans |
-| Verification tripwires | verdict-class distribution shift, NLI failure rate, triage drop-rate shift, repeat ratio, unattributed rate | spans + store-SQL |
-| Job health | pg_cron run history, heartbeat/silence dead-man's-switch | Postgres + synthetic monitoring |
+### 5.1 Telemetry spine
 
-Cost-per-claim-per-stratum is a harness-time computation: spans tagged with stratum labels; dashboard aggregates spend ÷ claims — feeding the VALIDATION-SLICE table alongside accuracy.
+| Signal | Pipeline | Backing store | Notes |
+|---|---|---|---|
+| Traces + `gen_ai.*` spans | OTel SDK → collector → Tempo | nested verification-loop traces (question decomposition → retrieval rounds → grid computation → verdict → NLI audit) as one trace | one trace per verdict attempt |
+| Metrics | Prometheus-style via OTel | per-source rates queryable as "this week vs same week last month" | long retention, low cardinality |
+| Logs | structured JSON → Loki | provenance fields (pipeline version, model version, extraction tier, claim/source IDs) as first-class labels | 50 GB/month free tier |
+| Errors | exceptions as structured log events, grouped by fingerprint | stack trace + tags (lane/source/stage/pipeline-version); **no claim text in payloads** | log-based grouping accepted (ADR-0012) |
+| Alerts | Grafana alert rules (versioned config, reviewable like code) | warnings batch to Discord; page-level conditions notify directly | alert fatigue is a design constraint |
 
-**Test risks:** a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift · cost telemetry lies (stale pricing, missing fields) → L1 middleware tests with fixture pricing; L3 cost cross-checked against provider billing · dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change.
+No proprietary SDKs — any component movable to self-hosted (Grafana OSS on Proxmox) as a config change if free-tier limits bite.
+
+### 5.2 The funnel (store is truth, events are live)
+
+Every stage boundary is a measurable rate, counted per lane × source × stage:
+
+```
+fetched → extracted (tier 1/2/3) → attributed (person/party/unattributed)
+        → deduped (new claim / repeat occurrence) → triaged (checkable / dropped)
+        → queued → verified (per verdict class) → published (versioned)
+```
+
+| Metric | Catches |
+|---|---|
+| fetch success rate per source | dead feeds, bot walls appearing |
+| **Tier-2 fallback rate** per source | markup drift (the ladder's monitoring instrument) |
+| extraction-empty-from-known-nonempty rate | generic-parser failure class |
+| **unattributed rate** per lane | entity-resolution degradation |
+| repeat-occurrence ratio | dedupe health; claim-traffic signal |
+| triage drop-rate shift | claim-detection drift |
+| verdict-class distribution shift | verification drift, visible before the harness catches it |
+| **NLI audit failure rate** | justification hallucination; above noise pages a human |
+| contest + mutation rate | public-trust engagement; audit-sample denominator |
+
+Two sources, deliberately: OTel events give the live view for operational alerting; a store-SQL view gives reconcilable historical truth. A daily reconciliation job alerts on drift — dashboards disagreeing with the store means instrumentation bugs, which is itself monitored.
+
+### 5.3 Cost + LLM telemetry
+
+Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, cost, latency, parent-span linkage. One span stream powers three views: the nested verification trace (Tempo), cost per role × model (ADR-0011 dashboard), and **cost per claim per stratum** (spans tagged with stratum labels at harness time; dashboard aggregates spend ÷ claims — feeding the VALIDATION-SLICE table alongside accuracy).
+
+### 5.4 Scheduled jobs
+
+Batch jobs (nightly re-verification, L3 runs, health re-probes) fail by *silence* — a job that never ran emits nothing to count. So: heartbeat + duration/status metrics, long-running reprocesses emit progress, and no-data/dead-man's-switch alerts fire on the absence of a heartbeat, not on an error.
+
+### 5.5 Dashboards
+
+| Dashboard | Panels |
+|---|---|
+| Funnel | counts per stage × lane × source; event-vs-store reconciliation status |
+| Extraction health | Tier-2 fallback rate, extraction-empty rate, fetch success |
+| Cost | per role × model; per claim per stratum; 80%-of-plan alert |
+| Verification tripwires | verdict-class shift, NLI failure rate, triage drop-rate, repeat ratio, unattributed rate |
+| Job health | pg_cron run history, heartbeat/silence |
+
+**Not here:** site/user analytics (separate privacy decision, ADR-0012), model-quality metrics (funnel shifts are tripwires; the harness measures accuracy), prompt-editing UI (§3).
+
+**Test risks:** a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift · cost telemetry lies (stale pricing, missing fields) → L1 middleware tests with fixture pricing; L3 cost cross-checked against provider billing · dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change · alerts fire on silence, not just error → no-data conditions asserted in fixture runs.
 
 ## 6. Error handling, retries & idempotency
 
@@ -229,7 +275,6 @@ Tiered routing (cheap bulk roles, premium verdict roles), batch APIs for ~80–9
 **Test risks:** runaway loop burns budget → L1 depth-bounds tests; pre-run cost projection; anomaly alert as backstop · telemetry undercounts (batch jobs, cache hits, aggregator fees) → L3 cost cross-checked against provider billing each run · L2 cost creeps up as prompts grow → L2 cost trended per run; prompt-size regressions show as L2 cost deltas.
 
 ## 12. Cross-cutting risk register
-
 | ID | Risk | Consequence if untested | Detection signal |
 |---|---|---|---|
 | CRO-R1 | Config tuple diverges across dev/CI/slice | Scoring runs unreproducible | L2 snapshot diff; L1 config-resolution test |
@@ -250,6 +295,7 @@ Tiered routing (cheap bulk roles, premium verdict roles), batch APIs for ~80–9
 | CRO-R16 | Scoring run silently skipped or stale | Published accuracy goes stale unnoticed | Dead-man's-switch; L4 release-gate timestamp assertion |
 | CRO-R17 | Backups unrestorable; IA caching failing; vintages missing | Evidence rot — contestation impossible post-hoc | Restore tests; cache alert; vintage constraint |
 | CRO-R18 | Runaway loop burns budget | Campaign budget blown mid-cycle | L1 depth-bounds tests; cost projection; anomaly alert |
+| CRO-R19 | Alerts only fire on errors, never on silence — a dead cron job emits nothing to alert on | Jobs fail invisibly for days (the exact ADR-0012 failure class) | L1 asserts no-data conditions on heartbeat metrics; silence alerts verified pre-launch |
 
 ## 13. Consolidated test-risk register (all components)
 
@@ -263,9 +309,9 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | STORE.md | STO-R1…R18 | L2 (R5, R11, R12, R16); L3+pg_cron (R3); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
 | SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
 | HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
-| CROSS-CUTTING.md | CRO-R1…R18 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
+| CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
 
-**Totals: 104 risks across 7 docs** (ING 14, TRI 13, VER 15, STO 18, SIT 14, HAR 12, CRO 18). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost).
+**Totals: 105 risks across 7 docs** (ING 14, TRI 13, VER 15, STO 18, SIT 14, HAR 12, CRO 19). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost).
 
 ## 14. Open questions
 
