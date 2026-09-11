@@ -1,0 +1,36 @@
+{
+  "description": "Quote-fidelity corpus (VER-R5): claim wording vs stored caption text — fidelity to the RECORD we hold, never to audio. Known ASR hazard classes with expected treatments. Caption text is a claim pointer, never evidence for a quoted number (ADR-0007): numerical claims route to the stat-grid regardless of caption wording.",
+  "artefacts": [
+    {
+      "id": "qf-homophone",
+      "claimText": "Unemployment is at a record low of 3.2 percent.",
+      "captionText": "FINANCE MINISTER: Unemployment is at a record low of three too percent.",
+      "artefactClass": "homophone",
+      "expected": {"verdict": "not_enough_evidence", "note": "ASR artefact: 'three two' transcribed as 'three too'; wording-critical claim — verification limited to the quoted claim, caption_quality_flag set"}
+    },
+    {
+      "id": "qf-punctuation",
+      "claimText": "The Minister said, We will not raise taxes.",
+      "captionText": "FINANCE MINISTER: we will not raise taxes",
+      "expected": {"verdict": "supported", "note": "punctuation and case differences are not fidelity failures; the quote matches the stored caption verbatim modulo case/punctuation"}
+    },
+    {
+      "id": "qf-number-format",
+      "claimText": "We've invested 200 million dollars in youth employment.",
+      "captionText": "FINANCE MINISTER: We've invested $200 million in youth employment",
+      "expected": {"verdict": "not_enough_evidence", "note": "number formatting matches but the claim is numerical — routes to stat-grid mode; caption wording never evidences a number (ADR-0007 non-negotiable)"}
+    },
+    {
+      "id": "qf-tereo",
+      "claimText": "Te Tiriti obligations were discussed.",
+      "captionText": "KAI: te titiri obligations were discussed",
+      "expected": {"verdict": "not_enough_evidence", "note": "te reo passage mis-transcribed ('titiri'); known ASR hazard — flagged, verification limited to the quoted claim"}
+    },
+    {
+      "id": "qf-unanchorable",
+      "claimText": "The Minister made an extraordinary claim about immigration.",
+      "captionText": "KAI: The Minister made extraordinary claims about immigration",
+      "expected": {"anchorMissing": true, "reason": "claim cannot be anchored to a cue span — publishes as an open question, never a verdict with a dead-end quote (VERIFICATION §2.4 step 4)"}
+    }
+  ]
+}

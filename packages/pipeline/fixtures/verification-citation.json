@@ -1,0 +1,46 @@
+{
+  "description": "Citation-check corpus (VER-R4): bounded claim-vs-source comparison — does the cited document say what the claim says it says (numbers, period, population, direction)? An extraction-precision task, not open-web reasoning. The cited document is the OBJECT of the check, never evidence.",
+  "cases": [
+    {
+      "id": "cite-exact",
+      "claim": "According to the Treasury's BEFU, growth will be 2.1 percent next year.",
+      "citedDocument": {
+        "source": "Treasury BEFU 2026",
+        "authorityTier": 1,
+        "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
+      },
+      "expected": {"verdict": "supported", "bindingStrictness": "direct"}
+    },
+    {
+      "id": "cite-number-mismatch",
+      "claim": "Treasury forecasts growth of 3.4 percent next year.",
+      "citedDocument": {
+        "source": "Treasury BEFU 2026",
+        "authorityTier": 1,
+        "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
+      },
+      "expected": {"verdict": "refuted", "bindingStrictness": "direct", "mismatch": "number"}
+    },
+    {
+      "id": "cite-decorative",
+      "claim": "Treasury's own numbers show the economy is booming.",
+      "citedDocument": {
+        "source": "Treasury BEFU 2026",
+        "authorityTier": 1,
+        "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
+      },
+      "expected": {"verdict": "not_enough_evidence", "bindingStrictness": "decorative", "reason": "the citation does not say 'booming'; the claim generalises beyond the source — the strictness binds only on what the source states"}
+    },
+    {
+      "id": "cite-paywalled",
+      "claim": "The Kākā's analysis says the infrastructure gap is $104b.",
+      "citedDocument": {
+        "source": "The Kākā (paid)",
+        "authorityTier": 6,
+        "text": null,
+        "paywalled": true
+      },
+      "expected": {"verdict": "not_enough_evidence", "quotedClaimOnly": true, "reason": "paywalled cited sources degrade to quoted-claim-only; never circumvented (ADR-0006 paywall policy)"}
+    }
+  ]
+}

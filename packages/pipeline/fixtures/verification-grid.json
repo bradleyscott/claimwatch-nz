@@ -1,0 +1,80 @@
+{
+  "description": "Stat-grid golden fixtures (VER-R1): fixture series with pinned vintages and the golden expected grid per claim. The verdict-class boundary (VERIFICATION §2.2) is arithmetic: robust across grid → supported; material alternatives contradict → conflicting_cherry_picking; no canonical series → not_enough_evidence; number matches no grid row → refuted.",
+  "series": {
+    "policedata_victimisations": {
+      "authorityRef": "policedata.nz",
+      "authorityTier": 1,
+      "seriesIdentity": "victimisations-monthly",
+      "unit": "count",
+      "vintageDate": "2026-06-30",
+      "retrievedAt": "2026-09-08",
+      "archiveSnapshotUrl": "https://web.archive.org/web/2026/https://www.policedata.nz/victimisations",
+      "populationSeries": {
+        "seriesIdentity": "nz-pop-estimate",
+        "authorityTier": 1,
+        "vintageDate": "2026-06-30",
+        "points": [
+          {"period": "2017", "value": 4790000},
+          {"period": "2020", "value": 5080000},
+          {"period": "2024", "value": 5310000},
+          {"period": "2026", "value": 5390000}
+        ]
+      },
+      "points": [
+        {"period": "2017", "value": 328000},
+        {"period": "2018", "value": 312000},
+        {"period": "2019", "value": 322000},
+        {"period": "2020", "value": 335000},
+        {"period": "2024", "value": 352000},
+        {"period": "2026", "value": 366400}
+      ]
+    }
+  },
+  "claims": [
+    {
+      "id": "grid-crime-30",
+      "claim": "Crime is up 30% since 2017.",
+      "fingerprint": {"core": "crime is up 30% since 2017", "claimant": "minister", "domain": "crime", "temporal": "since 2017", "quantity": "30%", "source": "Q+A"},
+      "discourseContext": {"attachedProposal": "tougher sentencing package", "argumentDirection": "problem"},
+      "expected": {
+        "endpointWindow": {"periods": ["2017", "2026"], "percentChange": 11.6},
+        "matchedGridRow": "raw-total-window-2017-2026",
+        "verdictClass": "conflicting_cherry_picking",
+        "reason": "endpoint window shows +11.6%, not 30%; per-capita shows +1.9% — material alternatives contradict the impression",
+        "asDeployed": "deployed in support of tougher sentencing",
+        "alternativesRows": [
+          {"axis": "window", "variant": "2017→2026", "percentChange": 11.6},
+          {"axis": "window", "variant": "2019→2026", "percentChange": 13.7},
+          {"axis": "per-capita", "variant": "2017→2026", "percentChange": 1.9}
+        ]
+      }
+    },
+    {
+      "id": "grid-crime-robust",
+      "claim": "Victimisations have risen every year since 2019.",
+      "fingerprint": {"core": "victimisations rise every year since 2019", "claimant": null, "domain": "crime", "temporal": "since 2019", "quantity": null, "source": null},
+      "expected": {
+        "verdictClass": "supported",
+        "reason": "every year-over-year change from 2019 on is positive — robust across the grid"
+      }
+    },
+    {
+      "id": "grid-no-row-match",
+      "claim": "Crime is up 55% since 2017.",
+      "fingerprint": {"core": "crime is up 55% since 2017", "claimant": null, "domain": "crime", "temporal": "since 2017", "quantity": "55%", "source": null},
+      "expected": {
+        "verdictClass": "refuted",
+        "reason": "no grid row produces 55% — the number matches nothing in the field (class boundary: arithmetic, not characterisation)"
+      }
+    },
+    {
+      "id": "grid-no-series",
+      "claim": "Shoplifting is up 20% since 2020.",
+      "fingerprint": {"core": "shoplifting is up 20% since 2020", "claimant": null, "domain": "shoplifting", "temporal": "since 2020", "quantity": "20%", "source": null},
+      "expected": {
+        "verdictClass": "not_enough_evidence",
+        "reason": "no canonical series for the domain — visibly lower reliability, abstention is a measured capability"
+      }
+    }
+  ]
+}

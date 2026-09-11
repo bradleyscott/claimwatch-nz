@@ -1,0 +1,22 @@
+{
+  "description": "Authority map resolutions (VER-R14, SOURCE-TAXONOMY T1–T6). Precedence T1 > T2 > … > T6; advocacy data never enters as evidence. Where the conflict is the finding, verdicts cite the claim's own tier first, then the higher authority.",
+  "resolutions": [
+    {
+      "domain": "crime-statistics",
+      "requested": {"source": "policedata.nz", "tier": 1},
+      "expectPrimary": "policedata.nz"
+    },
+    {
+      "domain": "economic-forecasts",
+      "requested": {"source": "NZ Initiative report", "tier": 6},
+      "expectPrimary": "treasury.govt.nz",
+      "expectNote": "claim's own tier cited first (T6), then the T1 authority; the gap is the finding"
+    },
+    {
+      "domain": "advocacy-poll",
+      "requested": {"source": "Curia poll for NZ Initiative", "tier": 6},
+      "expectReject": true,
+      "reason": "advocacy data is at best T6, never a verdict basis (ADR-0018)"
+    }
+  ]
+}
