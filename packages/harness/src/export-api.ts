@@ -111,6 +111,7 @@ export interface AveritecPrediction {
 export interface RunManifest {
   runId: string;
   pipelineVersion: string;
+  storeSchemaVersion?: string;
   modelVersions: Record<string, string>;
   promptVersions: Record<string, string>;
   datasetVersion: string;

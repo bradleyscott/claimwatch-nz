@@ -1,0 +1,157 @@
+{
+  "description": "Golden-set L2 corpus: 20 pinned claims spanning lanes and verification modes, with expected verdict classes. Any pipeline change produces a visible behaviour diff against the stored snapshot (TEST-STRATEGY §2 L2). Prompt/model versions are pinned per claim; the snapshot records verdict + confidence + evidence path + justifications.",
+  "pinnedVersions": {
+    "pipelineVersion": "0.1.0",
+    "promptVersions": { "triage": "triage@1", "adjudication": "adjudication@1", "nli": "nli@1" },
+    "modelVersions": {
+      "triage": "flash-class@v1",
+      "adjudication": "sonnet-class@v1",
+      "nli": "flash-class@v1"
+    },
+    "gridAxesVersion": "grid-axes-2026-09",
+    "fingerprintNormalisationVersion": "fp-norm-2025-01",
+    "searchConfig": "brave-primary"
+  },
+  "claims": [
+    {
+      "id": "gold-01",
+      "lane": "beehive-rss",
+      "mode": "stat-grid",
+      "claim": "Crime is up 30% since 2017.",
+      "expectedVerdictClass": "conflicting_cherry_picking"
+    },
+    {
+      "id": "gold-02",
+      "lane": "beehive-rss",
+      "mode": "stat-grid",
+      "claim": "Victimisations have risen every year since 2019.",
+      "expectedVerdictClass": "supported"
+    },
+    {
+      "id": "gold-03",
+      "lane": "beehive-rss",
+      "mode": "stat-grid",
+      "claim": "Crime is up 55% since 2017.",
+      "expectedVerdictClass": "refuted"
+    },
+    {
+      "id": "gold-04",
+      "lane": "rnz-politics",
+      "mode": "open-web",
+      "claim": "The Prime Minister has never visited the West Coast.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-05",
+      "lane": "rnz-politics",
+      "mode": "citation-check",
+      "claim": "Treasury forecasts growth of 2.1 percent next year.",
+      "expectedVerdictClass": "supported"
+    },
+    {
+      "id": "gold-06",
+      "lane": "youtube-captions",
+      "mode": "quote-fidelity",
+      "claim": "Unemployment is at a record low of three too percent.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-07",
+      "lane": "youtube-captions",
+      "mode": "stat-grid",
+      "claim": "We've invested 200 million dollars in youth employment.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-08",
+      "lane": "institution",
+      "mode": "citation-check",
+      "claim": "Housing completions have fallen 40% since 2022.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-09",
+      "lane": "false-context",
+      "mode": "provenance",
+      "claim": "Watch the devastating flooding in Auckland this week.",
+      "expectedVerdictClass": "refuted"
+    },
+    {
+      "id": "gold-10",
+      "lane": "beehive-rss",
+      "mode": "open-web",
+      "claim": "The Government has delivered 10,000 homes this year.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-11",
+      "lane": "beehive-rss",
+      "mode": "stat-grid",
+      "claim": "Unemployment is at a record low of 3.2 percent.",
+      "expectedVerdictClass": "supported"
+    },
+    {
+      "id": "gold-12",
+      "lane": "rnz-politics",
+      "mode": "stat-grid",
+      "claim": "Hospital waiting lists have doubled since 2020.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-13",
+      "lane": "rnz-politics",
+      "mode": "open-web",
+      "claim": "New Zealand's emissions fell 5% last year.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-14",
+      "lane": "youtube-captions",
+      "mode": "quote-fidelity",
+      "claim": "We will not raise taxes.",
+      "expectedVerdictClass": "supported"
+    },
+    {
+      "id": "gold-15",
+      "lane": "institution",
+      "mode": "stat-grid",
+      "claim": "The infrastructure gap is $104 billion.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-16",
+      "lane": "beehive-rss",
+      "mode": "citation-check",
+      "claim": "Treasury forecasts growth of 3.4 percent next year.",
+      "expectedVerdictClass": "refuted"
+    },
+    {
+      "id": "gold-17",
+      "lane": "rnz-politics",
+      "mode": "stat-grid",
+      "claim": "Crime is down 10% since 2020.",
+      "expectedVerdictClass": "refuted"
+    },
+    {
+      "id": "gold-18",
+      "lane": "youtube-captions",
+      "mode": "open-web",
+      "claim": "Te Tiriti obligations were discussed.",
+      "expectedVerdictClass": "not_enough_evidence"
+    },
+    {
+      "id": "gold-19",
+      "lane": "false-context",
+      "mode": "provenance",
+      "claim": "Empty hospital during this week's nurse strike.",
+      "expectedVerdictClass": "refuted"
+    },
+    {
+      "id": "gold-20",
+      "lane": "beehive-rss",
+      "mode": "stat-grid",
+      "claim": "The regional flood protection budget has doubled.",
+      "expectedVerdictClass": "not_enough_evidence"
+    }
+  ]
+}
