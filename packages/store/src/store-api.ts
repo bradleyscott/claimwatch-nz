@@ -19,7 +19,13 @@ export interface ClaimFixture {
   publicationId?: string;
   utteranceText: string;
   text: string;
-  claimType: "statistical" | "citation-backed" | "broadcast-quote" | "institution-citation" | "false-context" | "other";
+  claimType:
+    | "statistical"
+    | "citation-backed"
+    | "broadcast-quote"
+    | "institution-citation"
+    | "false-context"
+    | "other";
   fingerprint?: Fingerprint | null;
   discourseContext: DiscourseContext;
   mediaAnchor?: MediaAnchor | null;
@@ -79,7 +85,13 @@ export interface ProvenanceFixture {
 
 export interface VerdictWrite {
   provenance: ProvenanceFixture | null;
-  verdictClass?: "supported" | "refuted" | "not_enough_evidence" | "conflicting_cherry_picking" | "pledge" | "conditional";
+  verdictClass?:
+    | "supported"
+    | "refuted"
+    | "not_enough_evidence"
+    | "conflicting_cherry_picking"
+    | "pledge"
+    | "conditional";
   confidence?: number;
 }
 
@@ -109,23 +121,44 @@ export interface Store {
   readonly fixtures: StoreFixtures;
   close(): Promise<void>;
 
-  recordPublication(fixture: PublicationFixture): Promise<{ publicationId: string; contentHash: string; retrievedAt: Date; retrievalMethod: string; pipelineVersion: string }>;
+  recordPublication(fixture: PublicationFixture): Promise<{
+    publicationId: string;
+    contentHash: string;
+    retrievedAt: Date;
+    retrievalMethod: string;
+    pipelineVersion: string;
+  }>;
   countPublications(canonicalUrl: string): Promise<number>;
 
   recordClaim(fixture: ClaimFixture): Promise<{ claimId: string } & ClaimFixture>;
-  recordEvidenceItem(fixture: EvidenceItemFixture): Promise<{ itemId: string; version: number; vintageDate: Date; retrievedAt: Date; archiveSnapshotUrl: string }>;
+  recordEvidenceItem(fixture: EvidenceItemFixture): Promise<{
+    itemId: string;
+    version: number;
+    vintageDate: Date;
+    retrievedAt: Date;
+    archiveSnapshotUrl: string;
+  }>;
   appendEvidencePack(claimId: string, fixture: EvidencePackFixture): Promise<{ packId: string }>;
 
   writeVerdict(claimId: string, packId: string, write: VerdictWrite): Promise<VerdictRecord>;
-  logTransition(verdictId: string, transition: { from: string; to: string; at?: Date; reason?: string }): Promise<void>;
-  transitions(verdictId: string): Promise<Array<{ from: string; to: string; at: Date; reason: string | null }>>;
+  logTransition(
+    verdictId: string,
+    transition: { from: string; to: string; at?: Date; reason?: string },
+  ): Promise<void>;
+  transitions(
+    verdictId: string,
+  ): Promise<Array<{ from: string; to: string; at: Date; reason: string | null }>>;
 
   logFallback(event: FallbackEvent): Promise<void>;
   fallbackRateByLane(): Promise<Array<{ lane: string; count: number }>>;
 
   // Append-only enforcement probes (STO-R1)
-  tryUpdate(table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version"): Promise<unknown>;
-  tryDelete(table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version"): Promise<unknown>;
+  tryUpdate(
+    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version",
+  ): Promise<unknown>;
+  tryDelete(
+    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version",
+  ): Promise<unknown>;
   roleCanInsert(role: string, table: string): Promise<boolean>;
   roleCanUpdate(role: string, table: string): Promise<boolean>;
   roleCanSelect(role: string, table: string): Promise<boolean>;

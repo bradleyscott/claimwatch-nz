@@ -10,16 +10,15 @@
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-
+import { createTestStore } from "./store.ts";
 // Contracts under test — implemented in this phase:
 //   { migrate, pool, tables, appendOnlyGuards, recordPublication, recordClaim,
 //     recordEvidenceItem, appendEvidencePack, writeVerdictV1, writeVerdictV2,
 //     logTransition, logFallback, FREEZE_WINDOW }
 import type { Store } from "./store-api.ts";
 
-declare const createTestStore: (databaseUrl: string, labelsDatabaseUrl?: string) => Promise<Store>;
-
-const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch_test";
+const DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch_test";
 
 let store: Store;
 
@@ -38,7 +37,12 @@ describe("migrations", () => {
   });
 
   it("rejects UPDATE and DELETE on append-only tables (STO-R1)", async () => {
-    const appendOnly = ["publication", "evidence_item", "evidence_pack", "verdict_version"] as const;
+    const appendOnly = [
+      "publication",
+      "evidence_item",
+      "evidence_pack",
+      "verdict_version",
+    ] as const;
     for (const table of appendOnly) {
       await expect(store.tryUpdate(table)).rejects.toThrow();
       await expect(store.tryDelete(table)).rejects.toThrow();
@@ -133,7 +137,10 @@ describe("verdict versioning", () => {
   it("writes v2 with a structured diff on a validated pack (STO-R2)", async () => {
     const claim = await store.recordClaim(store.fixtures.statClaim());
     const pack1 = await store.appendEvidencePack(claim.claimId, store.fixtures.evidencePack());
-    const pack2 = await store.appendEvidencePack(claim.claimId, store.fixtures.evidencePack({ revised: true }));
+    const pack2 = await store.appendEvidencePack(
+      claim.claimId,
+      store.fixtures.evidencePack({ revised: true }),
+    );
     const v1 = await store.writeVerdict(claim.claimId, pack1.packId, {
       provenance: store.fixtures.fullProvenance(),
       verdictClass: "conflicting_cherry_picking",
@@ -147,7 +154,9 @@ describe("verdict versioning", () => {
     expect(v2.version).toBe(2);
     expect(v2.supersededBy).toBeNull();
     expect(v1.supersededBy).toBe(v2.verdictId);
-    expect(v2.diff).toMatchObject({ verdictClass: { from: "conflicting_cherry_picking", to: "supported" } });
+    expect(v2.diff).toMatchObject({
+      verdictClass: { from: "conflicting_cherry_picking", to: "supported" },
+    });
   });
 });
 
@@ -163,7 +172,9 @@ describe("transition log and freeze", () => {
     const logged = await store.transitions(v1.verdictId);
     expect(logged).toHaveLength(1);
 
-    await expect(store.logTransition(v1.verdictId, { from: "PUBLISHED", to: "DRAFT" })).rejects.toThrow();
+    await expect(
+      store.logTransition(v1.verdictId, { from: "PUBLISHED", to: "DRAFT" }),
+    ).rejects.toThrow();
   });
 
   it("rejects MUTATED transitions while the freeze window is active (STO-R14)", async () => {
@@ -183,8 +194,20 @@ describe("transition log and freeze", () => {
 
 describe("fallback log", () => {
   it("lands Tier-2 events with lane/stage/reason, queryable per lane (STO-R12)", async () => {
-    await store.logFallback({ lane: "youtube-captions", sourceId: "1news", stage: "extract", tier: 2, reason: "vtt-parse-failed" });
-    await store.logFallback({ lane: "beehive-rss", sourceId: "beehive", stage: "extract", tier: 2, reason: "readability-empty" });
+    await store.logFallback({
+      lane: "youtube-captions",
+      sourceId: "1news",
+      stage: "extract",
+      tier: 2,
+      reason: "vtt-parse-failed",
+    });
+    await store.logFallback({
+      lane: "beehive-rss",
+      sourceId: "beehive",
+      stage: "extract",
+      tier: 2,
+      reason: "readability-empty",
+    });
     const rates = await store.fallbackRateByLane();
     expect(rates).toEqual(
       expect.arrayContaining([
