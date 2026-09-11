@@ -1,1 +1,20 @@
-{"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [{"baseUrl": "https://www.youtube.com/api/timedtext?lang=en&fmt=vtt", "name": {"simpleText": "English"}, "languageCode": "en", "kind": "asr", "isTranslatable": true}]}, "videoDetails": {"videoId": "qa1234567890", "title": "Q+A: Interview with the Finance Minister", "author": "Q+A"}}}
+{
+  "captions": {
+    "playerCaptionsTracklistRenderer": {
+      "captionTracks": [
+        {
+          "baseUrl": "https://www.youtube.com/api/timedtext?lang=en&fmt=vtt",
+          "name": { "simpleText": "English" },
+          "languageCode": "en",
+          "kind": "asr",
+          "isTranslatable": true
+        }
+      ]
+    },
+    "videoDetails": {
+      "videoId": "qa1234567890",
+      "title": "Q+A: Interview with the Finance Minister",
+      "author": "Q+A"
+    }
+  }
+}

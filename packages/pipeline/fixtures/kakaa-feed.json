@@ -9,7 +9,7 @@
       "title": "The truth about New Zealand's housing crisis numbers",
       "content_html": "<p>Housing completions have fallen 40% since 2022, according to my analysis of Stats NZ building consents data.</p><p>My sources: Stats NZ building consents series (linked below), plus my own calculations.</p>",
       "date_published": "2026-09-05T06:00:00+12:00",
-      "author": {"name": "Bernard Hickey"}
+      "author": { "name": "Bernard Hickey" }
     },
     {
       "id": "https://www.thekaka.co.nz/deep-dive/paid",
@@ -17,7 +17,7 @@
       "title": "Deep Dive: The infrastructure funding gap (paid)",
       "content_text": "This is the opening preview of a paid Deep Dive. Subscribe to read the full analysis of the $104b infrastructure gap.",
       "date_published": "2026-09-04T06:00:00+12:00",
-      "author": {"name": "Bernard Hickey"}
+      "author": { "name": "Bernard Hickey" }
     }
   ]
 }

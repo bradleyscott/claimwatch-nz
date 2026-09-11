@@ -1,27 +1,24 @@
-{
-  "rss": {
-    "channel": {
-      "title": "Beehive.govt.nz - Latest Releases",
-      "link": "https://www.beehive.govt.nz/releases",
-      "description": "Latest press releases from the New Zealand Government",
-      "item": [
-        {
-          "title": "Government boosts flood resilience funding",
-          "link": "https://www.beehive.govt.nz/release/government-boosts-flood-resilience",
-          "guid": {"_text": "https://www.beehive.govt.nz/release/government-boosts-flood-resilience", "_attr": {"isPermaLink": "true"}},
-          "pubDate": "Wed, 09 Sep 2026 04:00:00 +1200",
-          "description": "The Government is investing $200 million in flood resilience over four years.",
-          "dc:creator": "Hon Sample Minister"
-        },
-        {
-          "title": "Crime prevention package announced",
-          "link": "https://www.beehive.govt.nz/release/crime-prevention-package",
-          "guid": {"_text": "https://www.beehive.govt.nz/release/crime-prevention-package", "_attr": {"isPermaLink": "true"}},
-          "pubDate": "Tue, 08 Sep 2026 03:30:00 +1200",
-          "description": "Crime is up 30 percent since 2017 and this package will turn the tide.",
-          "dc:creator": "Hon Another Minister"
-        }
-      ]
-    }
-  }
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>Beehive.govt.nz - Latest Releases</title>
+    <link>https://www.beehive.govt.nz/releases</link>
+    <description>Latest press releases from the New Zealand Government</description>
+    <item>
+      <title>Government boosts flood resilience funding</title>
+      <link>https://www.beehive.govt.nz/release/government-boosts-flood-resilience</link>
+      <guid isPermaLink="true">https://www.beehive.govt.nz/release/government-boosts-flood-resilience</guid>
+      <pubDate>Wed, 09 Sep 2026 04:00:00 +1200</pubDate>
+      <description>The Government is investing $200 million in flood resilience over four years.</description>
+      <dc:creator>Hon Sample Minister</dc:creator>
+    </item>
+    <item>
+      <title>Crime prevention package announced</title>
+      <link>https://www.beehive.govt.nz/release/crime-prevention-package</link>
+      <guid isPermaLink="true">https://www.beehive.govt.nz/release/crime-prevention-package</guid>
+      <pubDate>Tue, 08 Sep 2026 03:30:00 +1200</pubDate>
+      <description>Crime is up 30 percent since 2017 and this package will turn the tide.</description>
+      <dc:creator>Hon Another Minister</dc:creator>
+    </item>
+  </channel>
+</rss>

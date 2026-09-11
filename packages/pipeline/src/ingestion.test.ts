@@ -2,10 +2,10 @@
 // (TDD red). Every LLM/search call is mocked or absent; fetches go to the
 // rate-budget fixture server only (CRO-R6 — tests must never hit live APIs).
 
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
@@ -15,25 +15,27 @@ const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8")
 //   buildMediaAnchor, normaliseDocument, dedupeKey, hashContent,
 //   startRateBudgetServer, createLane, KAKAA_INSTITUTION_LANE
 import {
-  parseFeed,
-  extractArticle,
-  parseCaptions,
-  resolveCaptionTier,
-  buildMediaAnchor,
   assertLaneHealthy,
-  fetchWithBudget,
-  dedupeKey,
+  buildMediaAnchor,
   computeContentHash,
-  startRateBudgetServer,
+  dedupeKey,
+  extractArticle,
+  fetchWithBudget,
   INSTITUTION_LANE,
   loadFalseContextSet,
+  parseCaptions,
+  parseFeed,
+  resolveCaptionTier,
+  startRateBudgetServer,
 } from "./ingestion.ts";
 
 describe("feed parsing (Tier 1)", () => {
   it("extracts items, GUIDs, links, dates from the Beehive feed", () => {
     const items = parseFeed(readFixture("beehive-feed.xml"));
     expect(items).toHaveLength(2);
-    expect(items[0]?.guid).toBe("https://www.beehive.govt.nz/release/government-boosts-flood-resilience");
+    expect(items[0]?.guid).toBe(
+      "https://www.beehive.govt.nz/release/government-boosts-flood-resilience",
+    );
     expect(items[0]?.link).toContain("beehive.govt.nz");
     expect(items[0]?.publishedAt).toBeInstanceOf(Date);
     expect(items[1]?.title).toContain("Crime prevention");
@@ -52,7 +54,14 @@ describe("feed parsing (Tier 1)", () => {
   });
 
   it("flags a frozen feed as stale when last-new-item age exceeds the cadence (ING-R1)", () => {
-    expect(() => assertLaneHealthy({ itemsSeen: 16, httpStatus: 200, lastNewItemAgeHours: 72, stalenessBandHours: 6 })).toThrow(/stale/i);
+    expect(() =>
+      assertLaneHealthy({
+        itemsSeen: 16,
+        httpStatus: 200,
+        lastNewItemAgeHours: 72,
+        stalenessBandHours: 6,
+      }),
+    ).toThrow(/stale/i);
   });
 
   it("rejects malformed XML with a parse error, never silent empty extraction (ING-R2)", () => {
@@ -62,7 +71,10 @@ describe("feed parsing (Tier 1)", () => {
 
 describe("article extraction (Tier 1 readability)", () => {
   it("extracts headline, body paragraphs, and the table from the Beehive release", () => {
-    const doc = extractArticle(readFixture("beehive-release.html"), "https://www.beehive.govt.nz/release/government-boosts-flood-resilience");
+    const doc = extractArticle(
+      readFixture("beehive-release.html"),
+      "https://www.beehive.govt.nz/release/government-boosts-flood-resilience",
+    );
     expect(doc.title).toContain("flood resilience");
     expect(doc.text).toContain("$200 million");
     expect(doc.text).toContain("2024");
@@ -70,12 +82,17 @@ describe("article extraction (Tier 1 readability)", () => {
   });
 
   it("round-trips Māori macrons through HTML entities byte-exact (ING-R8)", () => {
-    const doc = extractArticle(readFixture("rnz-article.html"), "https://www.rnz.co.nz/news/political/health-funding-record");
+    const doc = extractArticle(
+      readFixture("rnz-article.html"),
+      "https://www.rnz.co.nz/news/political/health-funding-record",
+    );
     expect(doc.text).toContain("Tāpu");
   });
 
   it("detects double-encoded entities instead of silently corrupting (ING-R8)", () => {
-    expect(() => extractArticle(readFixture("rnz-article-double-encoded.html"), "https://www.rnz.co.nz/x")).toThrow(/encoding/i);
+    expect(() =>
+      extractArticle(readFixture("rnz-article-double-encoded.html"), "https://www.rnz.co.nz/x"),
+    ).toThrow(/encoding/i);
   });
 });
 
@@ -97,7 +114,9 @@ describe("caption track tiering (ING-R3)", () => {
   });
 
   it("no tracks → explicit out-of-scope, not a silent empty transcript", () => {
-    expect(() => resolveCaptionTier(readFixture("captions-tracks-none.json"))).toThrow(/no captions/i);
+    expect(() => resolveCaptionTier(readFixture("captions-tracks-none.json"))).toThrow(
+      /no captions/i,
+    );
   });
 
   it("provenance is never defaulted: tier comes from the track's own metadata", () => {
@@ -143,7 +162,9 @@ describe("media_anchor construction (ING-R4)", () => {
   });
 
   it("rejects anchors with a missing end timestamp — never a dead-end link", () => {
-    expect(() => buildMediaAnchor({ videoId: "qa1234567890", startS: 4.5, endS: null, padSeconds: 2 })).toThrow(/end/i);
+    expect(() =>
+      buildMediaAnchor({ videoId: "qa1234567890", startS: 4.5, endS: null, padSeconds: 2 }),
+    ).toThrow(/end/i);
   });
 });
 
@@ -151,9 +172,13 @@ describe("dedupe (ING-R5, R6)", () => {
   it("identical documents collapse to the same dedupe key", () => {
     const a = dedupeKey({ guid: "g1", canonicalUrl: "https://x/y", content: "same" });
     const b = dedupeKey({ guid: "g1", canonicalUrl: "https://x/y", content: "same" });
-    expect(a).not.toBe(b);
-    const same = dedupeKey({ guid: "g1", canonicalUrl: "https://x/y", content: "same" });
-    expect(same).toBe(b);
+    expect(a).toBe(b);
+    const different = dedupeKey({
+      guid: "g1",
+      canonicalUrl: "https://x/y",
+      content: "different content",
+    });
+    expect(different).not.toBe(b);
   });
 
   it("content hash is stable across re-ingest (STO-R13 precondition)", () => {
@@ -222,7 +247,11 @@ describe("rate budget + bounded retries (ING-R7)", () => {
   it("treats a bot-wall 200 as a failure signal, not content (ING-R2/7)", async () => {
     const server = await startRateBudgetServer(0, {
       responses: [
-        { status: 200, body: "<html><head><title>Access Denied</title></head><body>Verify you are human</body></html>", headers: {} },
+        {
+          status: 200,
+          body: "<html><head><title>Access Denied</title></head><body>Verify you are human</body></html>",
+          headers: {},
+        },
       ],
     });
     try {

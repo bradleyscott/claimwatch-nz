@@ -1,18 +1,15 @@
-{
-  "rss": {
-    "channel": {
-      "title": "RNZ Politics",
-      "link": "https://www.rnz.co.nz/news/political",
-      "description": "RNZ political news",
-      "item": [
-        {
-          "title": "Minister defends health funding record",
-          "link": "https://www.rnz.co.nz/news/political/health-funding-record",
-          "guid": {"_text": "https://www.rnz.co.nz/news/political/health-funding-record"},
-          "pubDate": "Wed, 09 Sep 2026 05:15:00 +1200",
-          "description": "Record amounts are going into health, the Minister says."
-        }
-      ]
-    }
-  }
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>RNZ Politics</title>
+    <link>https://www.rnz.co.nz/news/political</link>
+    <description>RNZ political news</description>
+    <item>
+      <title>Minister defends health funding record</title>
+      <link>https://www.rnz.co.nz/news/political/health-funding-record</link>
+      <guid>https://www.rnz.co.nz/news/political/health-funding-record</guid>
+      <pubDate>Wed, 09 Sep 2026 05:15:00 +1200</pubDate>
+      <description>Record amounts are going into health, the Minister says.</description>
+    </item>
+  </channel>
+</rss>

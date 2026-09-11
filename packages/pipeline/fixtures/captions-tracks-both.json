@@ -1,1 +1,24 @@
-{"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [{"baseUrl": "https://www.youtube.com/api/timedtext?lang=en-NZ&fmt=vtt", "name": {"simpleText": "English (New Zealand)"}, "languageCode": "en-NZ"}, {"baseUrl": "https://www.youtube.com/api/timedtext?lang=en&fmt=vtt", "name": {"simpleText": "English (auto-generated)"}, "languageCode": "en", "kind": "asr"}]}, "videoDetails": {"videoId": "1news2468", "title": "1News: Crime package debate", "author": "1News"}}}
+{
+  "captions": {
+    "playerCaptionsTracklistRenderer": {
+      "captionTracks": [
+        {
+          "baseUrl": "https://www.youtube.com/api/timedtext?lang=en-NZ&fmt=vtt",
+          "name": { "simpleText": "English (New Zealand)" },
+          "languageCode": "en-NZ"
+        },
+        {
+          "baseUrl": "https://www.youtube.com/api/timedtext?lang=en&fmt=vtt",
+          "name": { "simpleText": "English (auto-generated)" },
+          "languageCode": "en",
+          "kind": "asr"
+        }
+      ]
+    },
+    "videoDetails": {
+      "videoId": "1news2468",
+      "title": "1News: Crime package debate",
+      "author": "1News"
+    }
+  }
+}

@@ -1,8 +1,8 @@
-{
-  "rss": {
-    "channel": {
-      "title": "RNZ Politics",
-      "item": []
-    }
-  }
-}
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>RNZ Politics</title>
+    <link>https://www.rnz.co.nz/news/political</link>
+    <description>RNZ political news</description>
+  </channel>
+</rss>

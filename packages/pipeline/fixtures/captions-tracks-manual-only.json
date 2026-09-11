@@ -1,1 +1,19 @@
-{"captions": {"playerCaptionsTracklistRenderer": {"captionTracks": [{"baseUrl": "https://www.youtube.com/api/timedtext?lang=en-NZ&fmt=vtt", "name": {"simpleText": "English (New Zealand)"}, "languageCode": "en-NZ", "isTranslatable": false}]}, "videoDetails": {"videoId": "1news9876543", "title": "1News at Six: Health funding", "author": "1News"}}}
+{
+  "captions": {
+    "playerCaptionsTracklistRenderer": {
+      "captionTracks": [
+        {
+          "baseUrl": "https://www.youtube.com/api/timedtext?lang=en-NZ&fmt=vtt",
+          "name": { "simpleText": "English (New Zealand)" },
+          "languageCode": "en-NZ",
+          "isTranslatable": false
+        }
+      ]
+    },
+    "videoDetails": {
+      "videoId": "1news9876543",
+      "title": "1News at Six: Health funding",
+      "author": "1News"
+    }
+  }
+}
