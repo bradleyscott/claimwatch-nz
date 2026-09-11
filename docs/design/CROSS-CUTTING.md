@@ -306,12 +306,12 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | INGESTION.md | ING-R1…R14 | L2 (R1, R7, R11); L4a (R4) | CI every push; golden diffs per PR |
 | TRIAGE.md | TRI-R1…R13 | L2 (R7, R10, R13); L3 (R1–R3, R5, R9, R10) | CI; golden diffs; drop-recall + per-type accuracy in L3 |
 | VERIFICATION.md | VER-R1…R15 | L2 (R7, R10, R13); L3 (R2–R5, R8, R10–R12, R15); L4a (R6, R9) | CI; golden diffs; per-stratum L3 gate |
-| STORE.md | STO-R1…R18 | L2 (R5, R11, R12, R16); L3+pg_cron (R3); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
+| STORE.md | STO-R1…R19 | L2 (R5, R11, R12, R16); L3+pg_cron (R3, R19); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
 | SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
 | HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
 | CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
 
-**Totals: 105 risks across 7 docs** (ING 14, TRI 13, VER 15, STO 18, SIT 14, HAR 12, CRO 19). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost).
+**Totals: 106 risks across 7 docs** (ING 14, TRI 13, VER 15, STO 19, SIT 14, HAR 12, CRO 19). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R19 (worker silence).
 
 ## 14. Open questions
 
