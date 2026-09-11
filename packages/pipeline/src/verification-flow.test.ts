@@ -95,8 +95,11 @@ describe("evidence pack assembly + publication gate", () => {
 
   it("writes verdict v1 and publishes via the legal transition", async () => {
     const { createTestStore } = await import("@cw/store");
+    // Own scratch database: vitest forks run suites concurrently, and another
+    // suite's from-zero wipe on a shared DB drops tables mid-flight.
     const store = await createTestStore(
       process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch",
+      { scratchSuffix: "_flow" },
     );
     try {
       const llm = MockVerificationLlm.forNli(packInput.justifications[0] ?? "", "pass");

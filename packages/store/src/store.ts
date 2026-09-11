@@ -457,8 +457,35 @@ function makeFixtures(): StoreFixtures {
   };
 }
 
-export async function createTestStore(databaseUrl: string): Promise<Store> {
-  const pool = new Pool({ connectionString: databaseUrl });
+export async function createTestStore(
+  databaseUrl: string,
+  opts?: { scratchSuffix?: string },
+): Promise<Store> {
+  let url = databaseUrl;
+  if (opts?.scratchSuffix) {
+    // Vitest runs files in parallel forks; every suite wiping ONE shared
+    // scratch DB interferes with the others (fallback counts, idempotency
+    // fixtures). Each suite gets its own database, created on demand.
+    const parsed = new URL(databaseUrl);
+    const scratchName = `${parsed.pathname.replace(/^\//, "")}${opts.scratchSuffix}`;
+    if (!/^[a-z_][a-z0-9_]*$/.test(scratchName)) {
+      throw new Error(`unsafe scratch database name: ${scratchName}`);
+    }
+    const admin = new Pool({ connectionString: databaseUrl });
+    try {
+      const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [
+        scratchName,
+      ]);
+      if (exists.rowCount === 0) {
+        await admin.query(`CREATE DATABASE "${scratchName}"`);
+      }
+    } finally {
+      await admin.end();
+    }
+    parsed.pathname = `/${scratchName}`;
+    url = parsed.toString();
+  }
+  const pool = new Pool({ connectionString: url });
   // Scratch semantics: every run applies the chain from zero (STO-R5, and the
   // "from zero" migration test). Drop everything in the public schema first.
   await pool.query(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`);
