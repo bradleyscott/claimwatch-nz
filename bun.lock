@@ -16,6 +16,7 @@
       "name": "@cw/harness",
       "version": "0.1.0",
       "dependencies": {
+        "@cw/llm": "workspace:*",
         "@cw/pipeline": "workspace:*",
         "@cw/store": "workspace:*",
         "drizzle-orm": "0.45.2",
@@ -27,10 +28,21 @@
         "tsx": "^4.19.0",
       },
     },
+    "packages/llm": {
+      "name": "@cw/llm",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "4.6.2",
+      },
+      "devDependencies": {
+        "@types/node": "^24.0.0",
+      },
+    },
     "packages/pipeline": {
       "name": "@cw/pipeline",
       "version": "0.1.0",
       "dependencies": {
+        "@cw/llm": "workspace:*",
         "@cw/store": "workspace:*",
         "cheerio": "^1.0.0",
         "fast-xml-parser": "^5.2.0",
@@ -82,6 +94,8 @@
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.13", "", { "os": "win32", "cpu": "x64" }, "sha512-VOofU/nW761XWzUeUNE8zzYNyPrxuMuNFMizL0qz7J75yeV8N7WFheUlk1/K6dOkaFpH9wJ+lDKlwjAbw0346w=="],
 
     "@cw/harness": ["@cw/harness@workspace:packages/harness"],
+
+    "@cw/llm": ["@cw/llm@workspace:packages/llm"],
 
     "@cw/pipeline": ["@cw/pipeline@workspace:packages/pipeline"],
 

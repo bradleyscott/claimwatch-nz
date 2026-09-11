@@ -4,7 +4,7 @@
 // recomputed at assert time (HAR-R7) — never trusted from storage.
 
 import { createHash } from "node:crypto";
-import { FINGERPRINT_NORMALISATION_VERSION, GRID_AXES_VERSION } from "@cw/pipeline";
+import { FINGERPRINT_NORMALISATION_VERSION, GRID_AXES_VERSION } from "@cw/llm";
 import { STORE_SCHEMA_VERSION } from "@cw/store";
 import type { GoldenSnapshot, RunManifest } from "./golden-api.ts";
 

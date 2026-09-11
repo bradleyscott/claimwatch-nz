@@ -5,6 +5,7 @@
 // output carries provenance; every rejection is logged, never silent.
 
 import { createHash } from "node:crypto";
+import { FINGERPRINT_NORMALISATION_VERSION } from "@cw/llm";
 import { z } from "zod";
 import type {
   CanonicalFingerprintKey,
@@ -41,7 +42,7 @@ export type {
 
 // ---------- versioned normalisation config (TRIAG open Q3) ----------
 
-export const FINGERPRINT_NORMALISATION_VERSION = "fp-norm-2025-01";
+export { FINGERPRINT_NORMALISATION_VERSION };
 
 function normaliseCore(text: string): string {
   return (

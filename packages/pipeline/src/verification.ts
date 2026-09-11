@@ -6,6 +6,7 @@
 // · number matches nothing → refuted · no canonical series → NEI.
 
 import { createHash } from "node:crypto";
+import { GRID_AXES_VERSION } from "@cw/llm";
 import { z } from "zod";
 import type {
   AuthorityResolution,
@@ -42,7 +43,8 @@ export type {
 
 // Pre-declared grid axes (ADR-0005): identical for every claimant. Changing
 // these is a pipeline change that re-runs the harness (CROSS-CUTTING §2).
-export const GRID_AXES_VERSION = "grid-axes-2026-09";
+export { GRID_AXES_VERSION };
+
 // Class-boundary tolerances, pre-declared: a claim number within
 // MATCH_TOLERANCE_PTS of the cited-window row is supported; beyond
 // REFUTED_CAP × the row it matches nothing in the field (refuted); in between
