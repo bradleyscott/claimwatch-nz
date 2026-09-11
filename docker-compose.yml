@@ -1,0 +1,39 @@
+# Slice dev stack — Postgres (pgvector) + Graphile Worker.
+# Host-agnostic per CROSS-CUTTING §9: this file is the only hosting commitment.
+#
+# Blind rule (HARNESS §2.4): labels live on a SEPARATE database (claimwatch_labels).
+# Both databases live in one Postgres instance for the slice; separation is by
+# database boundary + role grants, never by trust.
+
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: claimwatch
+      POSTGRES_PASSWORD: claimwatch
+      POSTGRES_DB: claimwatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./ops/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claimwatch -d claimwatch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Scheduler/executor on the same database (STORE §2.3). Workers run Node job
+  # handlers from packages/pipeline; graphile-worker here hosts the crontab.
+  worker:
+    image: node:24-slim
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://claimwatch:claimwatch@db:5432/claimwatch
+    command: ["sleep", "infinity"]
+    # Real command arrives with packages/pipeline (Graphile Worker task handlers).
+
+volumes:
+  db-data:

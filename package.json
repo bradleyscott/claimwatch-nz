@@ -1,0 +1,22 @@
+{
+  "name": "claimwatch",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:migrate": "pnpm --filter @cw/store db:migrate",
+    "db:generate": "pnpm --filter @cw/store db:generate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0",
+    "vite": "8.3.0"
+  }
+}
