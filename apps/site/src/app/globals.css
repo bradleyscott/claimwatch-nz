@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from docs/mockups/claim-page.html (the client-approved
+ * direction). The verdict mark is a custom component on these tokens —
+ * the shadcn default skin is deliberately not used (ADR-0014).
+ */
+:root {
+  --ink: #10192a;
+  --mut: #5a6472;
+  --faint: #9aa2ad;
+  --paper: #fbfaf8;
+  --card: #ffffff;
+  --line: #e8e4dc;
+  --blue: #155cc4;
+  --v-inc: #c47f1d;
+  --v-inc-soft: #f6ecd6;
+  --v-ref: #c0392b;
+  --v-nei: #64748b;
+  --v-sup: #15803d;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-mut: var(--mut);
+  --color-faint: var(--faint);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-link: var(--blue);
+  --color-v-sup: var(--v-sup);
+  --color-v-nei: var(--v-nei);
+  --color-v-inc: var(--v-inc);
+  --color-v-ref: var(--v-ref);
+  --font-quote: Georgia, "Times New Roman", serif;
+  --font-calc: "SF Mono", Consolas, monospace;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
