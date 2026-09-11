@@ -161,11 +161,13 @@ Two sources, deliberately: OTel events give the live view for operational alerti
 
 ### 5.3 Cost + LLM telemetry
 
-Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, cost, latency, parent-span linkage. One span stream powers three views: the nested verification trace (Tempo), cost per role × model (ADR-0011 dashboard), and **cost per claim per stratum** (spans tagged with stratum labels at harness time; dashboard aggregates spend ÷ claims — feeding the VALIDATION-SLICE table alongside accuracy).
+Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, latency, parent-span linkage — **tokens and model only, no cost field**. Pricing changes too often to pin at call time; cost is computed at aggregation from one price map (versioned in-repo, updated like any config), so a price change is a one-file edit that never invalidates recorded spans. That one span stream powers three views: the nested verification trace (Tempo), cost per role × model (ADR-0011 dashboard), and **cost per claim per stratum** (spans tagged with stratum labels at harness time; dashboard aggregates tokens × price ÷ claims — feeding the VALIDATION-SLICE table alongside accuracy).
 
 ### 5.4 Scheduled jobs
 
 Batch jobs (L3 runs, health re-probes, reconciliation) fail by *silence* — a job that never ran emits nothing to count. So: heartbeat + duration/status metrics, long-running reprocesses emit progress, and no-data/dead-man's-switch alerts fire on the absence of a heartbeat, not on an error.
+
+**Forced refresh:** any stale output is replaced by re-running the job that produced it — Graphile Worker `add_job` (STORE §2.3) with the target's id in the payload, crontab backfill for missed schedules. Never hand-edit stored data to "refresh" it; a re-run is auditable, a hand-edit isn't.
 
 ### 5.5 Dashboards
 
@@ -179,7 +181,7 @@ Batch jobs (L3 runs, health re-probes, reconciliation) fail by *silence* — a j
 
 **Not here:** site/user analytics (separate privacy decision, ADR-0012), model-quality metrics (funnel shifts are tripwires; the harness measures accuracy), prompt-editing UI (§3).
 
-**Test risks:** a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift · cost telemetry lies (stale pricing, missing fields) → L1 middleware tests with fixture pricing; L3 cost cross-checked against provider billing · dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change · alerts fire on silence, not just error → no-data conditions asserted in fixture runs.
+**Test risks:** a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift · cost telemetry lies (span missing model/tokens, price map gaps) → L1 middleware tests assert every span carries model + token counts; unknown-model lookups fail loudly; L3 cost cross-checked against provider billing · dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change · alerts fire on silence, not just error → no-data conditions asserted in fixture runs.
 
 ## 6. Error handling, retries & idempotency
 
@@ -223,6 +225,8 @@ Typed Drizzle schema in `packages/store`, shared end-to-end; migrations generate
 
 ## 8. Blind-rule isolation
 
+**Labels** = the harness's ground-truth records: the verdict label a trained labeller assigns each claim (accurate/misleading/etc. per the label grid), labeller reasoning, and inter-annotator-agreement data (HARNESS §2). They are the measuring stick — the pipeline must never see them, or it can drift toward what the labels want to hear and the harness stops measuring anything real.
+
 The blind rule (EVALUATION §3): the pipeline never accesses labels; labels never change to suit the pipeline. Enforced **structurally**:
 
 - Labels live on a separate storage path with **no grants to the pipeline process identity**.
@@ -235,13 +239,13 @@ HARNESS.md owns the full mechanism. Cross-cutting commitments: the boundary is t
 
 ## 9. Environments & deployment
 
-Hosting-agnostic by construction: the deployment unit is **Docker Compose** — `site`, `pipeline-worker`, `harness-worker`, Postgres (pgvector), Graphile Worker — so any Docker host works: a homelab VM behind Cloudflare (our default), a single VPS, or a cloud instance. Paid services are LLM + search APIs and Grafana Cloud only (ADR-0012); contributors choose the architecture that suits their context, and the compose file is the only hosting commitment the repo makes.
+Hosting-agnostic by construction: the deployment unit is **Docker Compose** — `site`, `pipeline-worker`, `harness-worker`, Postgres (pgvector), Graphile Worker — deployable to any Docker host. Assume professional-grade public-cloud hosting (managed VM or container platform); the compose file is the only hosting commitment the repo makes. Paid services are LLM + search APIs and Grafana Cloud only (ADR-0012).
 
 | Environment | Where | Postgres | LLM/search | Runs |
 |---|---|---|---|---|
 | Dev | workstation | `docker compose` service | mocked or real per-test | L1 |
 | CI | GitHub Actions | scratch (pinned version + extensions) | mocked | L1 + L2 + L4a per PR |
-| Slice | any Docker host (ours: homelab VM behind Cloudflare) | compose service | real APIs, batch-routed | live ingestion, site, L3, L4b |
+| Slice | public-cloud Docker host | compose service | real APIs, batch-routed | live ingestion, site, L3, L4b |
 
 **Scoring-run triggering (D3):** L2 fires per PR in CI. L3 runs weekly + pre-release, batch-routed (`latency_class: batch`), scheduled as a Graphile Worker crontab entry → harness worker. A release tag's CI requires a green L3 in-window before deploy. Run outputs land in versioned files the methodology page renders.
 
@@ -306,13 +310,12 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | INGESTION.md | ING-R1…R14 | L2 (R1, R7, R11); L4a (R4) | CI every push; golden diffs per PR |
 | TRIAGE.md | TRI-R1…R13 | L2 (R7, R10, R13); L3 (R1–R3, R5, R9, R10) | CI; golden diffs; drop-recall + per-type accuracy in L3 |
 | VERIFICATION.md | VER-R1…R15 | L2 (R7, R10, R13); L3 (R2–R5, R8, R10–R12, R15); L4a (R6, R9) | CI; golden diffs; per-stratum L3 gate |
-| STORE.md | STO-R1…R19 | L2 (R5, R11, R12, R16); L3 + Graphile Worker (R3, R19); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
+| STORE.md | STO-R1…R18 | L2 (R4, R10, R11, R15); L3 + Graphile Worker (R18); ops drills (R7, R9) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
 | SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
 | HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
 | TOOLCHAIN.md | TOO-R1…R8 | L1 (all); ops (R4–R6) | CI per push/PR; weekly security cron; dead-man's alert on missing security run |
 | CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
-
-**Totals: 114 risks across 8 docs** (ING 14, TRI 13, VER 15, STO 19, SIT 14, HAR 12, CRO 19, TOO 8). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R19 (worker silence).
+**Totals: 113 risks across 8 docs** (ING 14, TRI 13, VER 15, STO 18, SIT 14, HAR 12, CRO 19, TOO 8). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R11 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R6/HAR-R5 (schema drift) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R18 (worker silence).
 
 ## 14. Open questions
 
@@ -323,7 +326,7 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | 3 | Secret-scanning tooling: GitHub built-in vs gitleaks in CI | Either satisfies the gate |
 | 4 | Alert routing + paging thresholds beyond ADR-0012's defaults at slice scale | Slice-specific thresholds untested |
 | 5 | Scoring-run trigger ownership: Graphile Worker crontab + manual pre-release trigger, or a release-pipeline step? | D3 fixes cadence, not mechanism |
-| 6 | Backup off-box target: second Docker host vs object storage; retention policy | §10 assumes off-box copies exist |
+| 6 | Backup off-box target: object storage (S3/R2) — which provider, retention policy | §10 assumes off-box copies exist; public-cloud hosting makes object storage the boring default |
 | 7 | Label-schema version publication: does it ride in the run tuple and the published dataset? | Follows from TEST-STRATEGY §1 |
 | 8 | Does the false-context curated set run through the normal config surface or a pinned offline manifest? | Not a live lane; leans offline manifest |
 | 9 | Site analytics (Plausible/Matomo) — out of ADR-0012's scope; when is the decision made? | Site MVP ships without it per VALIDATION-SLICE |

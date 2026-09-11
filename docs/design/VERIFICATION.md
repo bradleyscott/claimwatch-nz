@@ -108,7 +108,7 @@ Every justification sentence must be entailed by its cited evidence before publi
 | `verdict_version` (v1) | four classes + pledge/conditional, confidence, status; below-threshold → open questions |
 | `evidence_pack` | items + grid result + justifications + NLI outcome; append-only, pinned by the verdict version |
 | `evidence_item` | authority ref, series/document identity, `vintage_date`, URL, `archive_snapshot_url`, hash, version — one row per fetched version |
-| `verdict_provenance` | pipeline/prompt/model versions, search refs, cost/latency spans — rendered as the site's provenance block |
+| `verdict_provenance` | pipeline/prompt/model versions, search refs, token/latency spans (cost via price map) — rendered as the site's provenance block |
 | `fallback_log` | per-lane Tier-2 events |
 | open-question record | below-threshold claims with the pack attached, inviting contest |
 
@@ -116,7 +116,7 @@ Every justification sentence must be entailed by its cited evidence before publi
 
 - **Brave primary** (Goggles map onto T1–T6 authority restriction), **Serper fallback/bulk**. Which is primary is routing config, not code.
 - Query-level control is the requirement: black-box grounding rejected because evidence-pack reproducibility needs it for the grid and authority restriction.
-- Every call cost/latency-telemetered via gen_ai spans; queries + result URLs recorded on the pack so the retrieval path is auditable and re-runnable.
+- Every call token/latency-telemetered via gen_ai spans (cost applied at aggregation from the price map — CROSS-CUTTING §5.3); queries + result URLs recorded on the pack so the retrieval path is auditable and re-runnable.
 
 ### 3.4 Official series (authority map)
 

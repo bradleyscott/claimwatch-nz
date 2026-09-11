@@ -83,8 +83,7 @@ Verdict-mix targets across the gated labels: Supported ~40% (the corrective to A
 | 4. Score | Layer 1: official eval script as a **pinned tool step** (Python exists nowhere in the runtime). Layer 2: TS scoring — verdict-class match, per-stratum accuracy, calibration, cost/claim |
 | 5. Gate | §2.6 comparison vs baseline; exit non-zero on block |
 | 6. Publish | Run output → `harness/runs/<run-id>.json` (immutable, content-addressed); the methodology page renders from this file — generated, never hand-edited |
-| 7. Log | Cost/token counts per claim into the run file (gen_ai spans) |
-
+| 7. Log | Token counts per claim from gen_ai spans; cost computed at aggregation from the versioned price map (CROSS-CUTTING §5.3) into the run file |
 Outputs per run, per layer, never blended: accuracy with 95% interval, per-stratum accuracy, calibration, cost/claim per stratum, IAA, EV2R development score.
 
 ### 2.6 Regression gate (D2)
