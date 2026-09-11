@@ -37,11 +37,15 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # Pre-create per-suite scratch DBs (createTestStore self-creates them,
+      # but pre-creation keeps CI independent of runtime CREATEDB privileges).
+      - name: Create scratch databases
+        run: |
+          PGPASSWORD=claimwatch psql -h localhost -U claimwatch -d claimwatch_test -c "CREATE DATABASE claimwatch_test_flow" || true
+          PGPASSWORD=claimwatch psql -h localhost -U claimwatch -d claimwatch_test -c "CREATE DATABASE claimwatch_labels_test" || true
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       # Scratch-Postgres migration chain from zero on every PR (STORE §2.4, CRO-R12).
       - run: pnpm db:migrate
-        env:
-          CREATE_LABELS_DB: "true"
       - run: pnpm test
