@@ -1,0 +1,86 @@
+{
+  "description": "Fingerprint triples (TRI-R2): the six-tuple is (assertion core, claimant, domain, temporal qualifier, quantity, source). Normalisation is versioned. Same normalised tuple → same key (merge). Different claimant or window → no merge, flagged for review (ING-A gap triage). Adjacent windows with the same core → same key, second occurrence (TRI-R2).",
+  "mergePair": {
+    "a": {
+      "core": "Crime is up thirty percent since 2017.",
+      "claimant": "CHL",
+      "domain": "crime",
+      "temporal": "since 2017",
+      "quantity": "30 percent",
+      "source": "Q+A"
+    },
+    "b": {
+      "core": "Crime is up 30% since 2017.",
+      "claimant": "CHL",
+      "domain": "crime",
+      "temporal": "since 2017",
+      "quantity": "30 percent",
+      "source": "Q+A"
+    },
+    "expectSameKey": true
+  },
+  "noMergePair": {
+    "a": {
+      "core": "Crime is up 30% since 2017.",
+      "claimant": "CHL",
+      "domain": "crime",
+      "temporal": "since 2017",
+      "quantity": "30 percent",
+      "source": "Q+A"
+    },
+    "b": {
+      "core": "Crime is up 30% since 2017.",
+      "claimant": "HIP",
+      "domain": "crime",
+      "temporal": "since 2018",
+      "quantity": "30 percent",
+      "source": "Debate",
+      "reviewFlag": "no-merge-differs"
+    },
+    "expectSameKey": false
+  },
+  "adjacentWindowPair": {
+    "a": {
+      "core": "The number of people on the waitlist has doubled.",
+      "claimant": "HIP",
+      "domain": "health",
+      "temporal": null,
+      "quantity": null,
+      "source": "Q+A",
+      "windowSeconds": [1200, 1215]
+    },
+    "b": {
+      "core": "The number of people on the waitlist has doubled.",
+      "claimant": "HIP",
+      "domain": "health",
+      "temporal": null,
+      "quantity": null,
+      "source": "Q+A",
+      "windowSeconds": [1216, 1230]
+    },
+    "expectSameKey": true,
+    "expectOccurrences": 2
+  },
+  "normalisationVariants": [
+    {
+      "id": "norm-macron",
+      "a": "M\u0101ori unemployment is high.",
+      "b": "Maori unemployment is high.",
+      "normaliseEqual": true,
+      "note": "macron folding is a VERSIONED normalisation decision, not silent loss — the config records the version"
+    },
+    {
+      "id": "norm-number",
+      "a": "growth will be 2.1 percent next year",
+      "b": "growth will be 2.1% next year",
+      "normaliseEqual": true
+    },
+    {
+      "id": "norm-whitespace",
+      "a": "Crime is up  30%  since 2017.",
+      "b": "Crime is up 30% since 2017.",
+      "normaliseEqual": true
+    }
+  ],
+  "normalisationConfigVersion": "fp-norm-2025-01"
+}

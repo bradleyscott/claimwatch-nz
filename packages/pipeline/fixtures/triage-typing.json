@@ -1,0 +1,51 @@
+{
+  "description": "Type-routing set (TRI-R3): one fixture per claim type; the type selects the verification mode. The degrade case pins the conservative boundary — a statistical signal with an unusable fingerprint degrades to 'other' WITH the fingerprint attempt retained.",
+  "items": [
+    {
+      "id": "type-stat",
+      "text": "Crime is up 30 percent since 2017.",
+      "claimType": "statistical",
+      "routesTo": "stat-grid"
+    },
+    {
+      "id": "type-citation",
+      "text": "According to the Treasury's Budget Economic and Fiscal Update, growth will be 2.1 percent next year.",
+      "claimType": "citation-backed",
+      "routesTo": "citation-check"
+    },
+    {
+      "id": "type-broadcast",
+      "text": "KAI: But unemployment for young Maori is much higher.",
+      "claimType": "broadcast-quote",
+      "transcriptTier": "publisher-auto",
+      "routesTo": "quote-fidelity"
+    },
+    {
+      "id": "type-institution",
+      "text": "Housing completions have fallen 40% since 2022, according to my analysis of Stats NZ building consents data.",
+      "claimType": "institution-citation",
+      "routesTo": "citation-check",
+      "stratum": "institution"
+    },
+    {
+      "id": "type-false-context",
+      "text": "Watch the devastating flooding in Auckland this week.",
+      "isCuratedFixture": true,
+      "claimType": "false-context",
+      "routesTo": "provenance"
+    },
+    {
+      "id": "type-other",
+      "text": "The Prime Minister has never visited the West Coast.",
+      "claimType": "other",
+      "routesTo": "open-web"
+    },
+    {
+      "id": "type-degrade",
+      "text": "Economic conditions have improved significantly.",
+      "claimType": "statistical-signal-no-fingerprint",
+      "expectedType": "other",
+      "retainFingerprintAttempt": true
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "description": "Checkability corpus (TRI-R1): what the triage LLM must promote to claims and what it must drop. Each entry carries the expected decision and, for drops, the rejection class. The LLM is mocked at L1 — this corpus pins the CONTRACT, not model behaviour.",
+  "sentences": [
+    {
+      "id": "chk-01",
+      "text": "Unemployment is at a record low of three point two percent.",
+      "expected": "checkable",
+      "window": "Welcome back to Q+A. Unemployment is at a record low of three point two percent. The opposition disagrees."
+    },
+    {
+      "id": "chk-02",
+      "text": "Crime is up 30 percent since 2017.",
+      "expected": "checkable",
+      "window": "Crime is up 30 percent since 2017. That is why this package matters."
+    },
+    {
+      "id": "chk-03",
+      "text": "I believe the economy is heading in the right direction.",
+      "expected": "not-checkable",
+      "rejectionClass": "opinion",
+      "window": "I believe the economy is heading in the right direction."
+    },
+    {
+      "id": "chk-04",
+      "text": "This Government has failed New Zealanders at every turn.",
+      "expected": "not-checkable",
+      "rejectionClass": "rhetoric",
+      "window": "This Government has failed New Zealanders at every turn."
+    },
+    {
+      "id": "chk-05",
+      "text": "The bill will now proceed to the select committee process.",
+      "expected": "not-checkable",
+      "rejectionClass": "procedure",
+      "window": "The bill will now proceed to the select committee process."
+    },
+    {
+      "id": "chk-06",
+      "text": "Sure, and next they will be taxing the air we breathe!",
+      "expected": "not-checkable",
+      "rejectionClass": "satire",
+      "window": "Sure, and next they will be taxing the air we breathe!"
+    },
+    {
+      "id": "chk-07",
+      "text": "If elected, we will build 10,000 homes a year.",
+      "expected": "pledge",
+      "rejectionClass": "pledge-conditional",
+      "window": "If elected, we will build 10,000 homes."
+    },
+    {
+      "id": "chk-08",
+      "text": "What is the Government doing about hospital waiting lists?",
+      "expected": "not-checkable",
+      "rejectionClass": "question",
+      "window": "What is the Government doing about hospital waiting lists?"
+    }
+  ]
+}
