@@ -1,0 +1,115 @@
+{
+  "description": "L4a corpus: ClaimReview JSON-LD that MUST validate, plus the malformed variants that fail LOUDLY in CI (malformed JSON-LD fails silently in the wild — TEST-STRATEGY §2 L4). Schema per schema.org ClaimReview + Google Fact Check guidelines; verdict classes map per ADR-0004.",
+  "valid": [
+    {
+      "id": "cr-valid-1",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://claimwatch.nz/verdict/gold-01",
+        "author": {
+          "@type": "Organization",
+          "name": "ClaimWatch NZ",
+          "url": "https://claimwatch.nz"
+        },
+        "claimReviewed": "Crime is up 30% since 2017.",
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": 3,
+          "bestRating": 4,
+          "worstRating": 1,
+          "ratingName": "Conflicting Evidence/Cherrypicking",
+          "alternateName": "Accurate but incomplete"
+        },
+        "datePublished": "2026-09-10",
+        "itemReviewed": {
+          "@type": "Claim",
+          "datePublished": "2026-09-08",
+          "author": { "@type": "Person", "name": "Hon Sample Minister", "jobTitle": "Minister" },
+          "firstAppearance": {
+            "@type": "CreativeWork",
+            "url": "https://www.youtube.com/watch?v=qa1234567890&t=4.5s&end=11.8s"
+          }
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "cr-no-claim-reviewed",
+      "reason": "missing claimReviewed",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://x/1",
+        "reviewRating": { "@type": "Rating", "ratingValue": 1 }
+      }
+    },
+    {
+      "id": "cr-no-rating-name",
+      "reason": "ratingName missing — the four-verdict vocabulary must appear verbatim (ADR-0004)",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://x/2",
+        "claimReviewed": "c",
+        "reviewRating": { "@type": "Rating", "ratingValue": 2 }
+      }
+    },
+    {
+      "id": "cr-unknown-verdict",
+      "reason": "ratingName outside the ADR-0004 four-class vocabulary",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://x/3",
+        "claimReviewed": "c",
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": 2,
+          "ratingName": "Mostly False",
+          "bestRating": 4,
+          "worstRating": 1
+        }
+      }
+    },
+    {
+      "id": "cr-rating-out-of-range",
+      "reason": "ratingValue outside 1–4 with bestRating 4",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://x/4",
+        "claimReviewed": "c",
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": 7,
+          "ratingName": "Supported",
+          "bestRating": 4,
+          "worstRating": 1
+        }
+      }
+    },
+    {
+      "id": "cr-wrong-type",
+      "reason": "@type must be ClaimReview",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "url": "https://x/5",
+        "claimReviewed": "c"
+      }
+    },
+    {
+      "id": "cr-no-date-published",
+      "reason": "datePublished missing",
+      "jsonld": {
+        "@context": "https://schema.org",
+        "@type": "ClaimReview",
+        "url": "https://x/6",
+        "claimReviewed": "c",
+        "reviewRating": { "@type": "Rating", "ratingValue": 1, "ratingName": "Supported" }
+      }
+    }
+  ]
+}

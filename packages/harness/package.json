@@ -16,7 +16,8 @@
     "@cw/store": "workspace:*",
     "drizzle-orm": "0.45.2",
     "pg": "8.23.0",
-    "@cw/llm": "workspace:*"
+    "@cw/llm": "workspace:*",
+    "zod": "4.6.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
