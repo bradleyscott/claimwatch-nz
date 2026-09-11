@@ -492,7 +492,7 @@ async function ensureRoles(pool: Pool): Promise<void> {
     await pool.query(`GRANT SELECT ON ${table} TO site`);
   }
 }
-async function migrate(pool: Pool): Promise<string[]> {
+export async function migrate(pool: Pool): Promise<string[]> {
   const applied: string[] = [];
   const run = async (name: string, statement: string) => {
     await pool.query(statement);
@@ -672,7 +672,7 @@ function fallbackLogDdl(): string {
   )`;
 }
 
-async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
+export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
   for (const table of APPEND_ONLY_TABLES) {
     await pool.query(`
       CREATE OR REPLACE FUNCTION ${table}_append_only_guard() RETURNS trigger AS $$
