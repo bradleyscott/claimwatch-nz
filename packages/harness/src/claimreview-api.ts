@@ -4,7 +4,7 @@
 // because it fails silently in the wild.
 
 import { z } from "zod";
-import type { ClaimReview } from "./claimreview-api.ts";
+import type { ClaimReview } from "./claimreview-types.ts";
 
 export const VERDICT_CLASS_TO_RATING: Record<string, { ratingName: string; ratingValue: number }> =
   {
