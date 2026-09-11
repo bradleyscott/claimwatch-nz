@@ -2,7 +2,7 @@
 
 *Proposed. ADRs: 0005, 0006, 0011, 0012, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, the component designs in `docs/design/`.*
 
-Concerns that span every component: config, prompts, secrets, observability, error handling, schema policy, the blind-rule boundary, environments, backups, cost. This doc does not re-derive component behaviour — it defines the shared mechanisms and the test posture for each. Stack per ADR-0014: TypeScript (Vercel AI SDK), Postgres (pgvector + FTS), Drizzle, pnpm monorepo, Graphile Worker for job scheduling/queueing (STORE §2.3). Test layers L1–L4 per `TEST-STRATEGY.md` §2.
+Concerns that span every component: config, prompts, secrets, observability, error handling, schema policy, the blind-rule boundary, environments, backups, cost. This doc does not re-derive component behaviour — it defines the shared mechanisms and the test posture for each. Stack per ADR-0014: TypeScript (Vercel AI SDK), Postgres (pgvector + FTS), Drizzle, pnpm monorepo, Graphile Worker for job scheduling/queueing (STORE §2.3). Guardrails (lint/format/tests/CI pipelines) live in `TOOLCHAIN.md`. Test layers L1–L4 per `TEST-STRATEGY.md` §2.
 
 ## 1. Component map
 
@@ -309,9 +309,10 @@ Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b re
 | STORE.md | STO-R1…R19 | L2 (R5, R11, R12, R16); L3 + Graphile Worker (R3, R19); ops drills (R8, R10) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
 | SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
 | HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
+| TOOLCHAIN.md | TOO-R1…R8 | L1 (all); ops (R4–R6) | CI per push/PR; weekly security cron; dead-man's alert on missing security run |
 | CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
 
-**Totals: 106 risks across 7 docs** (ING 14, TRI 13, VER 15, STO 19, SIT 14, HAR 12, CRO 19). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R19 (worker silence).
+**Totals: 114 risks across 8 docs** (ING 14, TRI 13, VER 15, STO 19, SIT 14, HAR 12, CRO 19, TOO 8). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R12 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R7/HAR-R5 (schema drift) · CRO-R17 ↔ STO-R3 (evidence rot) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R19 (worker silence).
 
 ## 14. Open questions
 

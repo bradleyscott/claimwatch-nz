@@ -120,7 +120,7 @@ A scoring run carries a **run manifest** — the run is reproducible iff the man
 | IAA records, double-labelling assignments | Same database |
 | Stratification assignment | Same database — the pipeline must not know a claim is an oversample or it could behave differently on it |
 | Baseline run files during pipeline execution | Run files consumed only by the gate script after the run completes |
-| Anything exported from `packages/harness` | Dependency-direction lint |
+| Anything exported from `packages/harness` | Dependency-direction lint (TOOLCHAIN §2.3) |
 
 Testable end-to-end: CI connects with the pipeline's actual credentials and asserts every labels read fails (HAR-R1).
 

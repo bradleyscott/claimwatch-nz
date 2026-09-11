@@ -57,7 +57,7 @@ pnpm workspaces; TypeScript everywhere; shared Zod schemas in `packages/store` a
 
 ### Remaining stack (as recommended, confirmed)
 
-- **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR).
+- **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR). Guardrails spec: `docs/design/TOOLCHAIN.md`.
 - **Fetch/parse:** `fetch` (undici), `fast-xml-parser` for RSS/Atom, Playwright (TS) for the later party-lane slice, `cheerio` for HTML extraction (readability-style); PDF extraction deferred until an evidence source requires it.
 - **Search API:** per ADR-0011 — Brave primary (Goggles maps onto T1–T6 authority-restricted retrieval), Serper fallback/bulk. *(Correction: an earlier revision of this ADR said "Serper primary (ADR-0011 unchanged)", which contradicted ADR-0011's provider table; ADR-0011 governs provider selection and is re-affirmed here — Bradley confirmed 10 Sep 2026.)*
 - **Config/secrets:** env + `.env` (gitignored) — no Vault.
