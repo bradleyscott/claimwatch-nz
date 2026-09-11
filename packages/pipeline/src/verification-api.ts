@@ -3,12 +3,21 @@
 // (materiality selection, citation comparison, NLI audit, quote fidelity) run
 // through the injectable VerificationLlm port and are mocked at L1.
 
+import type {
+  ClaimType,
+  DiscourseContext,
+  FingerprintTuple,
+  VerificationMode,
+} from "./triage-api.ts";
 import type { VerificationLlm } from "./verification-llm.ts";
-import type { DiscourseContext, FingerprintTuple, ClaimType, VerificationMode } from "./triage-api.ts";
 
-export type { DiscourseContext, FingerprintTuple, ClaimType, VerificationMode };
+export type { ClaimType, DiscourseContext, FingerprintTuple, VerificationMode };
 
-export type VerdictClass = "supported" | "refuted" | "not_enough_evidence" | "conflicting_cherry_picking";
+export type VerdictClass =
+  | "supported"
+  | "refuted"
+  | "not_enough_evidence"
+  | "conflicting_cherry_picking";
 
 export interface SeriesPoint {
   period: string;
@@ -24,7 +33,14 @@ export interface SeriesData {
   retrievedAt: string;
   archiveSnapshotUrl: string;
   points: SeriesPoint[];
-  populationSeries?: { seriesIdentity: string; authorityTier: 1 | 2 | 3 | 4 | 5 | 6; vintageDate: string; points: SeriesPoint[] } | undefined;
+  populationSeries?:
+    | {
+        seriesIdentity: string;
+        authorityTier: 1 | 2 | 3 | 4 | 5 | 6;
+        vintageDate: string;
+        points: SeriesPoint[];
+      }
+    | undefined;
 }
 
 export interface GridRow {
@@ -83,7 +99,11 @@ export interface AuthorityResolution {
   note?: string;
 }
 
-export function resolveAuthority(_input: { domain: string; requestedSource: string; requestedTier: number }): never {
+export function resolveAuthority(_input: {
+  domain: string;
+  requestedSource: string;
+  requestedTier: number;
+}): never {
   throw new Error("NOT IMPLEMENTED: resolveAuthority (verification red phase)");
 }
 
@@ -102,27 +122,35 @@ export interface CitedDocument {
 
 export interface CitationOutcome {
   verdict: VerdictClass;
-  bindingStrictness: "direct" | "decorative";
+  /** Absent when the citation was never compared (paywalled → quoted-claim-only). */
+  bindingStrictness?: "direct" | "decorative";
   quotedClaimOnly?: boolean;
   mismatch?: string;
   reason?: string;
 }
 
-export function citationCheck(_llm: VerificationLlm, _input: { claim: string; citedDocument: CitedDocument }): never {
+export function citationCheck(
+  _llm: VerificationLlm,
+  _input: { claim: string; citedDocument: CitedDocument },
+): never {
   throw new Error("NOT IMPLEMENTED: citationCheck (verification red phase)");
 }
 
 // ---------- quote-fidelity mode ----------
 
 export interface QuoteFidelityOutcome {
-  verdict: VerdictClass;
+  /** Absent when the claim cannot be anchored — no comparison ran (VER-R5). */
+  verdict?: VerdictClass;
   note: string;
   captionQualityFlag?: boolean;
   routesToStatGrid?: boolean;
   anchorMissing?: boolean;
 }
 
-export function quoteFidelityCheck(_llm: VerificationLlm, _input: { claimText: string; captionText: string; transcriptTier: string }): never {
+export function quoteFidelityCheck(
+  _llm: VerificationLlm,
+  _input: { claimText: string; captionText: string; transcriptTier: string },
+): never {
   throw new Error("NOT IMPLEMENTED: quoteFidelityCheck (verification red phase)");
 }
 
@@ -130,10 +158,17 @@ export function quoteFidelityCheck(_llm: VerificationLlm, _input: { claimText: s
 
 export interface NliCheckResult {
   verdict: "pass" | "fail";
-  failureClass?: "unattributed-synthesis" | "unstated-arithmetic" | "authority-by-citation" | "hallucinated-content";
+  failureClass?:
+    | "unattributed-synthesis"
+    | "unstated-arithmetic"
+    | "authority-by-citation"
+    | "hallucinated-content";
 }
 
-export function nliAudit(_llm: VerificationLlm, _input: { justification: string; citedSpan: string }): never {
+export function nliAudit(
+  _llm: VerificationLlm,
+  _input: { justification: string; citedSpan: string },
+): never {
   throw new Error("NOT IMPLEMENTED: nliAudit (verification red phase)");
 }
 
@@ -146,6 +181,9 @@ export interface DepthCapResult {
   confidence: number;
 }
 
-export function openWebLoop(_llm: VerificationLlm, _input: { claim: string; depthCap: number; mockRounds: number }): never {
+export function openWebLoop(
+  _llm: VerificationLlm,
+  _input: { claim: string; depthCap: number; mockRounds: number },
+): never {
   throw new Error("NOT IMPLEMENTED: openWebLoop (verification red phase)");
 }

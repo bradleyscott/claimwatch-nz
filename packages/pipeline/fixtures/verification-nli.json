@@ -3,14 +3,14 @@
   "mustPass": [
     {
       "id": "nli-pass-1",
-      "justification": "Police-recorded victimisations rose from 328,000 in 2017 to 366,400 in 2026, an increase of about 11.6%.",
-      "citedSpan": "2017: 328,000; 2026: 366,400",
+      "justification": "Police-recorded victimisations rose from 328,000 in 2017 to 366,000 in 2026, an increase of about 11.6%.",
+      "citedSpan": "2017: 328,000; 2026: 366,000",
       "expected": "pass"
     },
     {
       "id": "nli-pass-2",
       "justification": "On a per-capita basis the increase from 2017 to 2026 is about 1.9%, reflecting population growth over the period.",
-      "citedSpan": "population 2017: 4,790,000; population 2026: 5,390,000; victimisations 2017: 328,000; victimisations 2026: 366,400",
+      "citedSpan": "population 2017: 4,790,000; population 2026: 5,390,000; victimisations 2017: 328,000; victimisations 2026: 366,000",
       "expected": "pass"
     }
   ],
@@ -18,14 +18,14 @@
     {
       "id": "nli-fail-unattributed",
       "justification": "Experts agree crime is out of control.",
-      "citedSpan": "2017: 328,000; 2026: 366,400",
+      "citedSpan": "2017: 328,000; 2026: 366,000",
       "expected": "fail",
       "failureClass": "unattributed-synthesis"
     },
     {
       "id": "nli-fail-arithmetic",
       "justification": "The data shows crime nearly doubled since 2017.",
-      "citedSpan": "2017: 328,000; 2026: 366,400",
+      "citedSpan": "2017: 328,000; 2026: 366,000",
       "expected": "fail",
       "failureClass": "unstated-arithmetic"
     },

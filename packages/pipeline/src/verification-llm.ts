@@ -10,7 +10,12 @@ export interface LlmUsage {
 
 export type LlmCallResult<T> =
   | { ok: true; value: T; usage: LlmUsage; model: string }
-  | { ok: false; failureClass: "schema-validation" | "llm-refusal" | "timeout"; rawOutput?: string; model?: string };
+  | {
+      ok: false;
+      failureClass: "schema-validation" | "llm-refusal" | "timeout";
+      rawOutput?: string;
+      model?: string;
+    };
 
 export interface VerificationLlm {
   generateObject<T>(
@@ -22,7 +27,10 @@ export interface VerificationLlm {
 
 export class MockVerificationLlm implements VerificationLlm {
   private constructor(
-    private readonly script: (role: string, input: unknown) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
+    private readonly script: (
+      role: string,
+      input: unknown,
+    ) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
   ) {}
 
   async generateObject<T>(
@@ -39,35 +47,58 @@ export class MockVerificationLlm implements VerificationLlm {
         model: "mock-verification",
       };
     }
-    return { ok: true, value: schema.parse(out.value), usage: { tokensIn: 55, tokensOut: 23 }, model: "mock-verification" };
+    return {
+      ok: true,
+      value: schema.parse(out.value),
+      usage: { tokensIn: 55, tokensOut: 23 },
+      model: "mock-verification",
+    };
   }
 
   // ---- domain-specific script builders (test support) ----
 
-  static scripted(script: (role: string, input: unknown) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string }): VerificationLlm {
+  static scripted(
+    script: (
+      role: string,
+      input: unknown,
+    ) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
+  ): VerificationLlm {
     return new MockVerificationLlm(script);
   }
 
-  static forCitation(claim: string, citedDocument: object, expected: Record<string, unknown>): VerificationLlm {
+  static forCitation(
+    claim: string,
+    citedDocument: object,
+    expected: Record<string, unknown>,
+  ): VerificationLlm {
     return new MockVerificationLlm((_role, input) => {
       const req = input as { claim?: string };
-      if (req.claim !== claim) return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
+      if (req.claim !== claim)
+        return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
       const doc = citedDocument as { paywalled?: boolean };
       if (doc.paywalled) {
-        return { ok: true, value: { verdict: "not_enough_evidence", bindingStrictness: "direct", quotedClaimOnly: true } };
+        return { ok: true, value: { verdict: "not_enough_evidence", quotedClaimOnly: true } };
       }
-      const value: Record<string, unknown> = { verdict: expected.verdict, bindingStrictness: expected.bindingStrictness };
+      const value: Record<string, unknown> = {
+        verdict: expected.verdict,
+        bindingStrictness: expected.bindingStrictness,
+      };
       if (expected.mismatch) value.mismatch = expected.mismatch;
       return { ok: true, value };
     });
   }
 
-  static forQuoteFidelity(artefact: { claimText: string; captionText: string }, expected: Record<string, unknown>): VerificationLlm {
+  static forQuoteFidelity(
+    artefact: { claimText: string; captionText: string },
+    expected: Record<string, unknown>,
+  ): VerificationLlm {
     return new MockVerificationLlm((_role, input) => {
       const req = input as { claimText?: string };
-      if (req.claimText !== artefact.claimText) return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
-      const value: Record<string, unknown> = { verdict: expected.verdict, note: expected.note };
-      if (expected.anchorMissing) value.anchorMissing = true;
+      if (req.claimText !== artefact.claimText)
+        return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
+      const value: Record<string, unknown> = expected.anchorMissing
+        ? { anchorMissing: true, note: expected.reason }
+        : { verdict: expected.verdict, note: expected.note };
       if (expected.verdict === "not_enough_evidence") value.captionQualityFlag = true;
       if (expected.routesToStatGrid) value.routesToStatGrid = true;
       return { ok: true, value };
@@ -77,7 +108,8 @@ export class MockVerificationLlm implements VerificationLlm {
   static forNli(justification: string, verdict: string, failureClass?: string): VerificationLlm {
     return new MockVerificationLlm((_role, input) => {
       const req = input as { justification?: string };
-      if (req.justification !== justification) return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
+      if (req.justification !== justification)
+        return { ok: false, raw: "unexpected input", failureClass: "schema-validation" };
       if (verdict === "pass") return { ok: true, value: { verdict: "pass" } };
       return { ok: true, value: { verdict: "fail", failureClass } };
     });

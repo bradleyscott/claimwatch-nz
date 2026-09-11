@@ -9,7 +9,7 @@
         "authorityTier": 1,
         "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
       },
-      "expected": {"verdict": "supported", "bindingStrictness": "direct"}
+      "expected": { "verdict": "supported", "bindingStrictness": "direct" }
     },
     {
       "id": "cite-number-mismatch",
@@ -19,7 +19,7 @@
         "authorityTier": 1,
         "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
       },
-      "expected": {"verdict": "refuted", "bindingStrictness": "direct", "mismatch": "number"}
+      "expected": { "verdict": "refuted", "bindingStrictness": "direct", "mismatch": "number" }
     },
     {
       "id": "cite-decorative",
@@ -29,7 +29,11 @@
         "authorityTier": 1,
         "text": "Real GDP growth is forecast to be 2.1 percent in the year ending June 2027."
       },
-      "expected": {"verdict": "not_enough_evidence", "bindingStrictness": "decorative", "reason": "the citation does not say 'booming'; the claim generalises beyond the source — the strictness binds only on what the source states"}
+      "expected": {
+        "verdict": "not_enough_evidence",
+        "bindingStrictness": "decorative",
+        "reason": "the citation does not say 'booming'; the claim generalises beyond the source — the strictness binds only on what the source states"
+      }
     },
     {
       "id": "cite-paywalled",
@@ -40,7 +44,11 @@
         "text": null,
         "paywalled": true
       },
-      "expected": {"verdict": "not_enough_evidence", "quotedClaimOnly": true, "reason": "paywalled cited sources degrade to quoted-claim-only; never circumvented (ADR-0006 paywall policy)"}
+      "expected": {
+        "verdict": "not_enough_evidence",
+        "quotedClaimOnly": true,
+        "reason": "paywalled cited sources degrade to quoted-claim-only; never circumvented (ADR-0006 paywall policy)"
+      }
     }
   ]
 }
