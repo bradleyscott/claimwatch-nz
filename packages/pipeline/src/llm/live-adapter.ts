@@ -28,7 +28,9 @@ export type PortRole =
   | "quote-fidelity"
   | "nli-audit"
   | "open-web"
-  | "authority-classify";
+  | "authority-classify"
+  | "claim-decompose"
+  | "research-assess";
 
 export interface ProviderCall {
   role: PortRole;
@@ -67,6 +69,8 @@ export const DEFAULT_ROUTING: Record<
   "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
   "open-web": { provider: "anthropic", model: "claude-sonnet-5" },
   "authority-classify": { provider: "anthropic", model: "claude-sonnet-5" },
+  "claim-decompose": { provider: "anthropic", model: "claude-sonnet-5" },
+  "research-assess": { provider: "anthropic", model: "claude-sonnet-5" },
 };
 
 const PROVIDER_ENV: Record<"anthropic" | "openai", string> = {

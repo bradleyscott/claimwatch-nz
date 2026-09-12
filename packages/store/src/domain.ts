@@ -11,6 +11,7 @@ export function normaliseDomain(raw: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, "-")
+    .replace(/['’]s\b/g, "")
     .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
@@ -51,6 +52,8 @@ const KEYWORD_BUCKETS: Array<[string[], string]> = [
   [["population", "census", "demographic", "immigration"], "population-estimates"],
   [["hospital", "health", "dhb", "waiting-list"], "health"],
   [["housing", "house-price", "rent"], "housing"],
+  [["import", "export", "trade", "tariff"], "trade"],
+  [["unemployment-benefit", "jobseeker", "wage-subsidy"], "welfare"],
 ];
 const STOP_HEAD = new Set([
   "more",

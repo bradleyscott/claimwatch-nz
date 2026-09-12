@@ -14,7 +14,13 @@ import { readFileSync } from "node:fs";
 import { createLiveAdapter } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
+import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
 import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
+import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidence.ts";
+import {
+  RESEARCHER_PROMPT,
+  runDeepResearch,
+} from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import { triageDocument } from "../packages/pipeline/src/triage.ts";
 import {
@@ -79,6 +85,65 @@ const triageLlm = {
     return { ...call, rawOutput: call.raw };
   },
 };
+
+// Deep-research bridges: decomposer (claim → questions) and researcher
+// (per-round evidence assessment). Both ride the live adapter; the researcher
+// role is routed like the other verification roles.
+const decomposeLlm = {
+  decompose: async (input: { claim: string }) => {
+    const call = await adapter.call({
+      role: "claim-decompose" as never,
+      system: DECOMPOSITION_PROMPT,
+      user: JSON.stringify(input, null, 2),
+      schema: {
+        parse: (v: unknown) =>
+          v as {
+            questions: Array<{ question: string; queries: string[] }>;
+          },
+      } as never,
+    });
+    if (!call.ok) throw new Error(`decompose failed: ${call.failureClass}`);
+    return call.value as unknown as { questions: Array<{ question: string; queries: string[] }> };
+  },
+};
+
+const researcherLlm = {
+  assessRound: async (input: unknown) => {
+    const call = await adapter.call({
+      role: "research-assess" as never,
+      system: RESEARCHER_PROMPT,
+      user: JSON.stringify(input, null, 2),
+      schema: {
+        parse: (v: unknown) =>
+          v as {
+            sufficient: boolean;
+            confidence: number;
+            gaps: string[];
+            refinedQueries?: string[];
+            verdictSignal: string;
+          },
+      } as never,
+    });
+    if (!call.ok) {
+      // Researcher failure: honest default — not sufficient, keep going but
+      // do not fabricate gaps. The cap will bound the loop.
+      return {
+        sufficient: false,
+        confidence: 0,
+        gaps: [],
+        refinedQueries: [],
+        verdictSignal: "not_enough_evidence",
+      };
+    }
+    return call.value as unknown as {
+      sufficient: boolean;
+      confidence: number;
+      gaps: string[];
+      refinedQueries?: string[];
+      verdictSignal: "supported" | "refuted" | "not_enough_evidence";
+    };
+  },
+};
 const verificationLlm = {
   generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
     const call = await adapter.call({
@@ -97,7 +162,9 @@ const PROMPTS: Record<string, string> = {
   "grid-materiality":
     'You select which grid rows are material to how a claim is deployed. Reply with ONLY JSON: {"materialRows": string[]}.',
   "citation-compare":
-    'Compare a claim against a cited document: does the document say what the claim says (numbers, period, population, direction)? Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "bindingStrictness": "direct"|"decorative", "mismatch": string}.',
+    'Compare a claim against sources. You receive the claim and sources with title/link/snippet AND fetched pageText where available. Does the totality of the evidence settle the claim (numbers, period, population, direction)? Weigh official/statistical sources above commentary; a source that directly states the specific figure the claim asserts outweighs many commentary pieces. If no source states the specific figure, the honest verdict is not_enough_evidence. Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "bindingStrictness": "direct"|"decorative", "mismatch": string}.',
+  "claim-decompose": DECOMPOSITION_PROMPT,
+  "research-assess": RESEARCHER_PROMPT,
   "nli-audit":
     'Check if a justification sentence is entailed by the cited evidence. Reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}.',
   "authority-classify":
@@ -134,14 +201,14 @@ async function main(): Promise<void> {
       (d.questions?.length ?? 0) > 0 &&
       d.speaker,
   );
-  const target = pool[0];
+  const target = pool[index % pool.length];
   if (!target) {
-    throw new Error("no numerical claim with QAs found in the dev set");
+    throw new Error(`no numerical claim with QAs at index ${index} (pool size ${pool.length})`);
   }
-  void index;
-
   console.log("── one-claim AVeriTeC dev-set slice ──");
-  console.log(`claim [pool index 0 of ${pool.length}]: "${target.claim.slice(0, 120)}"`);
+  console.log(
+    `claim [pool index ${index % pool.length} of ${pool.length}]: "${target.claim.slice(0, 120)}"`,
+  );
   console.log(
     `ground-truth label: ${target.label} | speaker: ${target.speaker} | date: ${target.claim_date}`,
   );
@@ -233,6 +300,10 @@ async function main(): Promise<void> {
     console.log(`  ${note}`);
   } else {
     // REAL retrieval: fingerprint-conditioned query → Serper → capped rounds.
+    // DEEP RESEARCH (user direction, Sept 2026): decompose → research each
+    // question → grade evidence (snippets + domains + fetched page text) →
+    // chase gaps → capped rounds. Replaces the one-shot loop: the researcher
+    // LLM has an explicit sufficiency bar and refines on gaps.
     const fingerprint = claim.fingerprintAttempt ?? {
       core: claim.text,
       claimant: null,
@@ -241,34 +312,60 @@ async function main(): Promise<void> {
       quantity: null,
       source: null,
     };
-    const retrieval = await runOpenWebRetrieval(
-      { claim: target.claim, fingerprint },
+    const search = createSerperSearch(requireEnv("SERPER_API_KEY"));
+
+    // 1. Decompose (LLM, schema-constrained; falls back to claim-as-question).
+    const questions = await decomposeClaim({ claim: target.claim }, decomposeLlm);
+    console.log(`  decomposed into ${questions.length} question(s):`);
+    for (const q of questions) {
+      console.log(`    · ${q.question.slice(0, 90)}`);
+    }
+
+    // 2. Research: per-question searches → evidence fetch → graded rounds.
+    const outcome = await runDeepResearch(
+      { claim: target.claim, questions },
       {
-        search: createSerperSearch(requireEnv("SERPER_API_KEY")).search,
-        llm: verificationLlm as never,
-        depthCap: 2,
+        search: search.search,
+        researcher: researcherLlm,
+        depthCap: 3,
+        resultsPerQuery: 5,
       },
     );
     console.log(
-      `  open-web: ${retrieval.evidence.length} evidence URLs across ${retrieval.roundsUsed} round(s), confidence ${retrieval.confidence}${retrieval.cappedRun ? " (CAP BOUND)" : ""}`,
+      `  research: ${outcome.evidence.length} evidence URLs, ${outcome.roundsUsed} round(s), confidence ${outcome.confidence}${outcome.cappedRun ? " (CAP BOUND)" : ""}`,
     );
-    for (const e of retrieval.evidence.slice(0, 3)) {
+    for (const e of outcome.evidence.slice(0, 4)) {
       console.log(`    · ${e.title.slice(0, 60)} — ${e.link}`);
     }
+    if (outcome.gaps.length > 0) {
+      console.log(`  unresolved gaps: ${outcome.gaps.join(" | ").slice(0, 200)}`);
+    }
 
-    // Evidence-grounded verdict: the LLM adjudicates the claim against the
-    // retrieved sources; no evidence → honest open question.
-    if (retrieval.evidence.length === 0) {
+    // 3. Adjudicate against FULL evidence with fetched page text — the
+    // adjudicator reads the pages, not just titles.
+    if (outcome.evidence.length === 0) {
       verdictClass = "not_enough_evidence";
-      note = "open-web retrieval found no evidence — published as an open question";
+      note = "open-web research found no evidence — published as an open question";
     } else {
+      const evidenceWithText = await Promise.all(
+        outcome.evidence.slice(0, 5).map(async (e) => {
+          const page = await fetchEvidenceText(e.link, undefined, { snippet: e.snippet });
+          return {
+            title: e.title,
+            link: e.link,
+            snippet: e.snippet,
+            pageText: page.text.slice(0, 1500),
+            pageFetched: page.ok,
+          };
+        }),
+      );
       const adjudication = await verificationLlm.generateObject(
         "citation-compare",
         {
           claim: target.claim,
-          sources: retrieval.evidence
-            .slice(0, 5)
-            .map((e) => ({ title: e.title, link: e.link, snippet: e.snippet })),
+          sources: evidenceWithText,
+          researchGaps: outcome.gaps,
+          researchConfidence: outcome.confidence,
         },
         {
           parse: (v: unknown) =>
@@ -276,7 +373,7 @@ async function main(): Promise<void> {
         },
       );
       verdictClass = (adjudication as { value: { verdict: string } }).value.verdict;
-      note = `open-web (cap ${retrieval.capBinding}, ${retrieval.roundsUsed} rounds, confidence ${retrieval.confidence})`;
+      note = `deep research (${outcome.evidence.length} sources, ${outcome.roundsUsed} rounds, confidence ${outcome.confidence}${outcome.cappedRun ? ", cap-bound" : ""})`;
     }
     console.log(`  open-web → ${verdictClass}`);
 
