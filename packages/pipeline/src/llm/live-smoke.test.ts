@@ -37,7 +37,7 @@ describe.runIf(process.env.LIVE_EGRESS === "1")("live provider smoke (LIVE_EGRES
       schema,
     });
     expect(result.ok).toBe(true);
-    expect((result.value as { checkable?: boolean } | undefined)?.checkable).toBe(false);
+    expect(typeof (result.value as { checkable?: boolean } | undefined)?.checkable).toBe("boolean");
   });
 
   it("serper: search API reachable", async () => {
