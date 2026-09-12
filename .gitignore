@@ -5,6 +5,8 @@ scratch/
 # Environment files (CROSS-CUTTING §4) — .env.example is the template.
 .env
 .env.local
+apps/site/.env
+apps/*/.env
 
 # Node
 node_modules/

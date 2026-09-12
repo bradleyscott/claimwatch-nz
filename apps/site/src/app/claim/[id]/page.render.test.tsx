@@ -6,7 +6,12 @@
 import { validateClaimReview } from "@cw/store";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
-import { fixtureSiteStore, setSiteStore, type VerdictPageData } from "@/lib/site-store";
+import {
+  fixtureSiteStore,
+  pinFixtureStore,
+  resetSiteStore,
+  type VerdictPageData,
+} from "@/lib/site-store";
 
 const claimId = "gold-01";
 const pageData = {
@@ -48,7 +53,11 @@ async function renderVerdictPage(
 
 describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
   beforeEach(() => {
-    setSiteStore(fixtureSiteStore([], { [claimId]: pageData }));
+    // Hermetic: clear the live-install latch (the .env load sets SITE_STORE=
+    // live and an earlier request may have installed the live store), then
+    // pin the fixture store — the render tests never touch Postgres.
+    resetSiteStore();
+    pinFixtureStore(fixtureSiteStore([], { [claimId]: pageData }));
   });
 
   it("embeds exactly one ClaimReview JSON-LD script in the initial HTML (SIT-R1)", async () => {

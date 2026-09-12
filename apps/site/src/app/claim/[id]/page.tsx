@@ -15,7 +15,10 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   // Live store reader lands with the deployment slice; the page shape is
   // pinned by lib/verdict-page L1 tests and rendered below.
-  const { getSiteStore } = await import("@/lib/site-store");
+  const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
+  if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
+    installLiveStore(process.env.DATABASE_URL);
+  }
   const data = await getSiteStore().getVerdictPage(id);
   if (!data) {
     return (

@@ -20,8 +20,11 @@ const VERDICT_TONE: Record<FeedItem["verdictClass"], { label: string; color: str
 
 export default async function FeedPage() {
   // Live store lands with the deployment slice; empty state is the honest one.
-  const { fixtureSiteStore } = await import("@/lib/site-store");
-  const store = fixtureSiteStore([]);
+  const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
+  if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
+    installLiveStore(process.env.DATABASE_URL);
+  }
+  const store = getSiteStore();
   const { entries } = await store.getFeed(0, 20);
 
   return (

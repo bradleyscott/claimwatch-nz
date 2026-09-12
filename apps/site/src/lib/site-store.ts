@@ -1,8 +1,10 @@
-// Read-only store access for the site (SITE-MVP §3.1): the site is a reader
-// over the typed store — the feedback table is the only write, and it lives
-// behind an API route, not this module. Contract surface for tests; the live
-// pool lands with the deployment slice.
+// Site store (SITE-MVP §3.1): the site is a READER over the typed store —
+// no write path to claims/verdicts (feedback stays behind the API route).
+// Three surfaces: the live Postgres reader, a fixture-backed store for L4a
+// smoke tests + empty-store edges (SIT-R14), and the DI seam pages render
+// through.
 
+import { Pool } from "pg";
 import { z } from "zod";
 
 export const VerdictPageData = z.object({
@@ -73,9 +75,86 @@ export function fixtureSiteStore(
   };
 }
 
-// Test seam (DI boundary): L4a render tests swap the store before invoking the
-// page component; production wiring assigns the live reader here.
+/** Live Postgres reader over the typed store (SITE-MVP §3.1). Read-only. */
+export function liveSiteStore(databaseUrl: string): SiteStore {
+  const pool = new Pool({ connectionString: databaseUrl });
+  return {
+    async getVerdictPage(claimId: string): Promise<VerdictPageData | null> {
+      const result = await pool.query(
+        `SELECT c.claim_id, c.utterance_text AS claim_text,
+                c.discourse_context->>'attachedProposal' AS attached_proposal,
+                c.transcript_tier, c.pipeline_version, c.prompt_versions,
+                v.verdict_class, v.confidence::float8 AS confidence,
+                v.created_at AS published_at
+         FROM claim c
+         JOIN verdict_version v ON v.claim_id = c.claim_id AND v.version =
+              (SELECT MAX(version) FROM verdict_version WHERE claim_id = c.claim_id)
+         WHERE c.claim_id = $1::uuid AND v.status IN ('DRAFT','PUBLISHED')`,
+        [claimId],
+      );
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      const evidence = await pool.query(
+        `SELECT authority_ref, series_identity, vintage_date
+         FROM evidence_item WHERE claim_id = $1::uuid`,
+        [claimId],
+      );
+      return VerdictPageData.parse({
+        claimId: row.claim_id,
+        claimText: row.claim_text,
+        speaker: null, // attribution lands with the entity slice
+        speakerAffiliation: null,
+        publishedAt: row.published_at,
+        verdictClass: row.verdict_class,
+        confidence: row.confidence ?? 0.5,
+        attachedProposal: row.attached_proposal,
+        mediaAnchor: null, // caption lanes land with the YouTube slice
+        transcriptTier: row.transcript_tier,
+        evidence: evidence.rows.map((e) => ({
+          authorityRef: e.authority_ref,
+          seriesIdentity: e.series_identity,
+          vintageDate: e.vintage_date,
+          plainReason: "",
+        })),
+        pipelineVersion: row.pipeline_version ?? "unknown",
+        promptVersions: row.prompt_versions ?? {},
+      });
+    },
+    async getFeed(
+      page: number,
+      pageSize: number,
+    ): Promise<{ entries: FeedEntry[]; hasMore: boolean }> {
+      const result = await pool.query(
+        `SELECT c.claim_id, c.utterance_text AS claim_text, v.verdict_class, v.created_at AS published_at
+         FROM claim c
+         JOIN verdict_version v ON v.claim_id = c.claim_id AND v.version =
+              (SELECT MAX(version) FROM verdict_version WHERE claim_id = c.claim_id)
+         WHERE v.status IN ('DRAFT','PUBLISHED')
+         ORDER BY v.created_at DESC
+         OFFSET $1 LIMIT $2`,
+        [page * pageSize, pageSize],
+      );
+      return {
+        entries: result.rows.map((r) =>
+          FeedEntry.parse({
+            claimId: r.claim_id,
+            claimText: r.claim_text,
+            verdictClass: r.verdict_class,
+            publishedAt: r.published_at,
+          }),
+        ),
+        hasMore: result.rows.length === pageSize,
+      };
+    },
+  };
+}
+
+// DI seam: L4a render tests pin the fixture store; production installs the
+// live reader via installLiveStore (one-way latch — pages don't re-install per
+// request). resetSiteStore clears the latch for hermetic tests.
 let activeSiteStore: SiteStore = fixtureSiteStore([]);
+let liveInstalled = false;
+let pinnedOverride = false;
 
 export function getSiteStore(): SiteStore {
   return activeSiteStore;
@@ -83,4 +162,25 @@ export function getSiteStore(): SiteStore {
 
 export function setSiteStore(store: SiteStore): void {
   activeSiteStore = store;
+}
+
+/** Installs the live reader once; later calls are no-ops. */
+export function installLiveStore(databaseUrl: string): void {
+  if (liveInstalled || pinnedOverride) return;
+  setSiteStore(liveSiteStore(databaseUrl));
+  liveInstalled = true;
+}
+
+/** Test seam: pins the fixture store AND blocks installLiveStore re-latching. */
+export function pinFixtureStore(store: SiteStore): void {
+  setSiteStore(store);
+  pinnedOverride = true;
+  liveInstalled = false;
+}
+
+/** Test seam reset: clears the latch so a pinned fixture store takes effect. */
+export function resetSiteStore(): void {
+  setSiteStore(fixtureSiteStore([]));
+  liveInstalled = false;
+  pinnedOverride = false;
 }
