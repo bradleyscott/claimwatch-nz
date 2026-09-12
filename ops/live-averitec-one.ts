@@ -512,8 +512,7 @@ async function main(): Promise<void> {
       packJustifications.push(...researchNarrative.paragraphs);
       packJustifications.push(researchNarrative.pull);
     }
-    if (adjudicationMismatch)
-      packJustifications.push(`Claim-source mismatch: ${adjudicationMismatch}`);
+    if (adjudicationMismatch) packJustifications.push(adjudicationMismatch);
     if (packJustifications.length === 0) packJustifications.push(target.justification);
     // Record the research's sources as evidence_item rows — the page's
     // evidence section lists them with URLs.
