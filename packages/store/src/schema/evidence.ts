@@ -21,9 +21,7 @@ export const evidenceItem = pgTable(
   "evidence_item",
   {
     itemId: uuid("item_id").primaryKey().defaultRandom(),
-    claimId: uuid("claim_id")
-      .notNull()
-      .references(() => claim.claimId),
+    claimId: uuid("claim_id").references(() => claim.claimId),
     authorityRef: text("authority_ref").notNull(),
     seriesIdentity: text("series_identity").notNull(),
     vintageDate: timestamp("vintage_date", { withTimezone: true }).notNull(),
@@ -32,6 +30,11 @@ export const evidenceItem = pgTable(
     archiveSnapshotUrl: text("archive_snapshot_url").notNull(),
     contentHash: text("content_hash").notNull(),
     version: integer("version").notNull().default(1),
+    // Open-web evidence: what this source says relevant to the claim + its
+    // reliability tier (1-6, null when unclassified). Null for stat-grid rows
+    // (the series IS the finding).
+    plainFinding: text("plain_finding"),
+    tier: integer("tier"),
   },
   (t) => [
     uniqueIndex("evidence_item_series_vintage_uq").on(t.seriesIdentity, t.vintageDate, t.version),
@@ -135,3 +138,19 @@ export const fallbackLog = pgTable(
     index("fallback_log_source_stage_idx").on(t.sourceId, t.stage),
   ],
 );
+
+// Authority registry (user direction, Sept 2026): discovered authorities with
+// recorded provenance; append-only like evidence vintages.
+export const authority = pgTable("authority", {
+  authorityId: uuid("authority_id").primaryKey().defaultRandom(),
+  domain: text("domain").notNull(),
+  authorityRef: text("authority_ref").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  tier: integer("tier").notNull(),
+  rationale: text("rationale").notNull(),
+  confidence: numeric("confidence").notNull(),
+  discoveredBy: text("discovered_by").notNull(),
+  searchRefs: jsonb("search_refs").notNull().default([]),
+  status: text("status").notNull().default("active"),
+  discoveredAt: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
+});

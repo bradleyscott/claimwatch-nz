@@ -46,9 +46,7 @@ export const segment = pgTable(
   "segment",
   {
     segmentId: uuid("segment_id").primaryKey().defaultRandom(),
-    publicationId: uuid("publication_id")
-      .notNull()
-      .references(() => publication.publicationId),
+    publicationId: uuid("publication_id").references(() => publication.publicationId),
     spanStart: integer("span_start"),
     spanEnd: integer("span_end"),
     summary: text("summary"),
@@ -74,9 +72,7 @@ export const claim = pgTable(
   "claim",
   {
     claimId: uuid("claim_id").primaryKey().defaultRandom(),
-    publicationId: uuid("publication_id")
-      .notNull()
-      .references(() => publication.publicationId),
+    publicationId: uuid("publication_id").references(() => publication.publicationId),
     segmentId: uuid("segment_id").references(() => segment.segmentId),
     sentenceSpan: jsonb("sentence_span"),
     utteranceText: text("utterance_text").notNull(),

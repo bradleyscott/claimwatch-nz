@@ -2,7 +2,10 @@
 // grants + triggers in SQL (applied by ensureGuards); fixtures serve the tests.
 // Contract: store-api.ts (frozen — tests authored first).
 
+import { and, desc, eq, sql } from "drizzle-orm";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import * as s from "./schema/index.ts";
 import type {
   AuthorityFixture,
   AuthorityRecord,
@@ -40,6 +43,7 @@ export class PgStore implements Store {
   readonly appliedMigrations: readonly string[];
   readonly fixtures: StoreFixtures;
   private pool: Pool;
+  private db: NodePgDatabase;
   // Derived supersession index: verdictId → the verdict that superseded it.
   // Append-only tables are never UPDATEd; supersede is derivable from
   // monotonic versions and indexed here for the returned live records.
@@ -47,6 +51,7 @@ export class PgStore implements Store {
 
   constructor(pool: Pool, appliedMigrations: string[]) {
     this.pool = pool;
+    this.db = drizzle(pool);
     this.appliedMigrations = appliedMigrations;
     this.fixtures = makeFixtures();
   }
@@ -62,66 +67,79 @@ export class PgStore implements Store {
     retrievalMethod: string;
     pipelineVersion: string;
   }> {
-    const insert = await this.pool.query(
-      `INSERT INTO publication (source_id, canonical_url, content_hash, retrieved_at, retrieval_method, pipeline_version, raw_ref, text)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       ON CONFLICT (content_hash) DO NOTHING
-       RETURNING publication_id, content_hash, retrieved_at, retrieval_method, pipeline_version`,
-      [
-        fixture.sourceId,
-        fixture.canonicalUrl,
-        fixture.contentHash,
-        fixture.retrievedAt,
-        fixture.retrievalMethod,
-        fixture.pipelineVersion,
-        fixture.rawRef,
-        fixture.text,
-      ],
-    );
-    const rows =
-      insert.rows.length > 0
-        ? insert.rows
-        : (
-            await this.pool.query(
-              `SELECT publication_id, content_hash, retrieved_at, retrieval_method, pipeline_version FROM publication WHERE content_hash = $1`,
-              [fixture.contentHash],
-            )
-          ).rows;
-    const r = rows[0];
+    // Idempotent by content hash (STO-R13): insert, and on conflict select
+    // the existing row — drizzle's onConflictDoNothing + a follow-up select.
+    const inserted = await this.db
+      .insert(s.publication)
+      .values({
+        sourceId: fixture.sourceId,
+        canonicalUrl: fixture.canonicalUrl,
+        contentHash: fixture.contentHash,
+        retrievedAt: fixture.retrievedAt,
+        retrievalMethod: fixture.retrievalMethod,
+        pipelineVersion: fixture.pipelineVersion,
+        rawRef: fixture.rawRef,
+        text: fixture.text,
+      })
+      .onConflictDoNothing()
+      .returning({
+        publicationId: s.publication.publicationId,
+        contentHash: s.publication.contentHash,
+        retrievedAt: s.publication.retrievedAt,
+        retrievalMethod: s.publication.retrievalMethod,
+        pipelineVersion: s.publication.pipelineVersion,
+      });
+    const r =
+      inserted[0] ??
+      (
+        await this.db
+          .select({
+            publicationId: s.publication.publicationId,
+            contentHash: s.publication.contentHash,
+            retrievedAt: s.publication.retrievedAt,
+            retrievalMethod: s.publication.retrievalMethod,
+            pipelineVersion: s.publication.pipelineVersion,
+          })
+          .from(s.publication)
+          .where(eq(s.publication.contentHash, fixture.contentHash))
+          .limit(1)
+      )[0];
+    if (r == null) throw new Error("publication upsert produced no row");
     return {
-      publicationId: r.publication_id,
-      contentHash: r.content_hash,
-      retrievedAt: r.retrieved_at,
-      retrievalMethod: r.retrieval_method,
-      pipelineVersion: r.pipeline_version,
+      publicationId: r.publicationId,
+      contentHash: r.contentHash,
+      retrievedAt: r.retrievedAt,
+      retrievalMethod: r.retrievalMethod,
+      pipelineVersion: r.pipelineVersion,
     };
   }
 
   async countPublications(canonicalUrl: string): Promise<number> {
-    const r = await this.pool.query(
-      "SELECT COUNT(*)::int AS n FROM publication WHERE canonical_url = $1",
-      [canonicalUrl],
-    );
-    return r.rows[0].n;
+    const [r] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(s.publication)
+      .where(eq(s.publication.canonicalUrl, canonicalUrl));
+    return r?.n ?? 0;
   }
 
   async recordClaim(fixture: ClaimFixture): Promise<{ claimId: string } & ClaimFixture> {
-    const rows = await this.pool.query(
-      `INSERT INTO claim (publication_id, utterance_text, text, claim_type, fingerprint, discourse_context, media_anchor, transcript_tier, pipeline_version)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING claim_id`,
-      [
-        fixture.publicationId ?? null,
-        fixture.utteranceText,
-        fixture.text,
-        fixture.claimType,
-        fixture.fingerprint ? JSON.stringify(fixture.fingerprint) : null,
-        JSON.stringify(fixture.discourseContext),
-        fixture.mediaAnchor ? JSON.stringify(fixture.mediaAnchor) : null,
-        fixture.transcriptTier ?? null,
-        "test",
-      ],
-    );
-    return { claimId: rows.rows[0].claim_id, ...fixture };
+    const [r] = await this.db
+      .insert(s.claim)
+      .values({
+        publicationId: fixture.publicationId ?? null,
+        utteranceText: fixture.utteranceText,
+        text: fixture.text,
+        claimType: fixture.claimType,
+        fingerprint: fixture.fingerprint ?? null,
+        discourseContext: fixture.discourseContext,
+        mediaAnchor: fixture.mediaAnchor ?? null,
+        transcriptTier: fixture.transcriptTier ?? null,
+        pipelineVersion: "test",
+        attributionCandidates: fixture.attributionCandidates ?? [],
+      })
+      .returning({ claimId: s.claim.claimId });
+    if (r == null) throw new Error("claim insert returned no row");
+    return { claimId: r.claimId, ...fixture };
   }
 
   async recordEvidenceItem(fixture: EvidenceItemFixture): Promise<{
@@ -131,33 +149,42 @@ export class PgStore implements Store {
     retrievedAt: Date;
     archiveSnapshotUrl: string;
   }> {
-    const prior = await this.pool.query(
-      `SELECT COALESCE(MAX(version),0) AS v FROM evidence_item WHERE series_identity = $1`,
-      [fixture.seriesIdentity],
-    );
-    const version = prior.rows[0].v + 1;
-    const rows = await this.pool.query(
-      `INSERT INTO evidence_item (claim_id, authority_ref, series_identity, vintage_date, retrieved_at, url, archive_snapshot_url, content_hash, version)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING item_id, version, vintage_date, retrieved_at, archive_snapshot_url`,
-      [
-        fixture.claimId ?? null,
-        fixture.authorityRef,
-        fixture.seriesIdentity,
-        fixture.vintageDate,
-        new Date(),
-        fixture.url,
-        fixture.archiveSnapshotUrl,
-        fixture.contentHash,
+    // Monotonic version per series identity (STO-R3): MAX+1 under the same
+    // series key.
+    const [prior] = await this.db
+      .select({ v: sql<number>`coalesce(max(${s.evidenceItem.version}), 0)` })
+      .from(s.evidenceItem)
+      .where(eq(s.evidenceItem.seriesIdentity, fixture.seriesIdentity));
+    const version = (prior?.v ?? 0) + 1;
+    const [r] = await this.db
+      .insert(s.evidenceItem)
+      .values({
+        claimId: fixture.claimId ?? null,
+        authorityRef: fixture.authorityRef,
+        seriesIdentity: fixture.seriesIdentity,
+        vintageDate: fixture.vintageDate,
+        retrievedAt: new Date(),
+        url: fixture.url,
+        archiveSnapshotUrl: fixture.archiveSnapshotUrl,
+        contentHash: fixture.contentHash,
         version,
-      ],
-    );
-    const r = rows.rows[0];
+        plainFinding: fixture.plainFinding ?? null,
+        tier: fixture.tier ?? null,
+      })
+      .returning({
+        itemId: s.evidenceItem.itemId,
+        version: s.evidenceItem.version,
+        vintageDate: s.evidenceItem.vintageDate,
+        retrievedAt: s.evidenceItem.retrievedAt,
+        archiveSnapshotUrl: s.evidenceItem.archiveSnapshotUrl,
+      });
+    if (r == null) throw new Error("evidence_item insert returned no row");
     return {
-      itemId: r.item_id,
+      itemId: r.itemId,
       version: r.version,
-      vintageDate: r.vintage_date,
-      retrievedAt: r.retrieved_at,
-      archiveSnapshotUrl: r.archive_snapshot_url,
+      vintageDate: r.vintageDate,
+      retrievedAt: r.retrievedAt,
+      archiveSnapshotUrl: r.archiveSnapshotUrl,
     };
   }
 
@@ -165,75 +192,83 @@ export class PgStore implements Store {
     claimId: string,
     fixture: EvidencePackFixture,
   ): Promise<{ packId: string }> {
-    const rows = await this.pool.query(
-      `INSERT INTO evidence_pack (claim_id, item_refs, grid_result, justifications, nli_outcome)
-       VALUES ($1,$2,$3,$4,$5) RETURNING pack_id`,
-      [
+    const [r] = await this.db
+      .insert(s.evidencePack)
+      .values({
         claimId,
-        JSON.stringify(fixture.itemRefs),
-        fixture.gridResult ? JSON.stringify(fixture.gridResult) : null,
-        JSON.stringify(fixture.justifications),
-        fixture.nliOutcome,
-      ],
-    );
-    return { packId: rows.rows[0].pack_id };
+        itemRefs: fixture.itemRefs,
+        gridResult: fixture.gridResult ?? null,
+        justifications: fixture.justifications,
+        nliOutcome: fixture.nliOutcome,
+      })
+      .returning({ packId: s.evidencePack.packId });
+    if (r == null) throw new Error("evidence_pack insert returned no row");
+    return { packId: r.packId };
   }
-
   async writeVerdict(claimId: string, packId: string, write: VerdictWrite): Promise<VerdictRecord> {
-    if (!write.provenance) {
+    const provenance = write.provenance;
+    if (provenance == null) {
       throw new Error("verdict requires full provenance (STO-R10)");
     }
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      const prior = await client.query(
-        `SELECT version FROM verdict_version WHERE claim_id = $1 ORDER BY version DESC LIMIT 1`,
-        [claimId],
-      );
-      const version = (prior.rows[0]?.version ?? 0) + 1;
-      const provRows = await client.query(
-        `INSERT INTO verdict_provenance (pipeline_version, prompt_versions, model_versions, search_refs)
-         VALUES ($1,$2,$3,$4) RETURNING provenance_id`,
-        [
-          write.provenance.pipelineVersion,
-          JSON.stringify(write.provenance.promptVersions),
-          JSON.stringify(write.provenance.modelVersions),
-          JSON.stringify(write.provenance.searchRefs),
-        ],
-      );
-      const provenanceId = provRows.rows[0].provenance_id;
-      const inserted = await client.query(
-        `INSERT INTO verdict_version (claim_id, version, status, verdict_class, confidence, evidence_pack_id, provenance_id, diff)
-         VALUES ($1,$2,'DRAFT',$3,$4,$5,$6,$7) RETURNING verdict_id`,
-        [
+    // Multi-row atomic write: drizzle's transaction wraps the version bump,
+    // provenance insert and verdict insert — same guarantees as the old
+    // BEGIN/COMMIT client block.
+    return this.db.transaction(async (tx) => {
+      const [prior] = await tx
+        .select({ version: s.verdictVersion.version })
+        .from(s.verdictVersion)
+        .where(eq(s.verdictVersion.claimId, claimId))
+        .orderBy(desc(s.verdictVersion.version))
+        .limit(1);
+      const version = (prior?.version ?? 0) + 1;
+      const [prov] = await tx
+        .insert(s.verdictProvenance)
+        .values({
+          pipelineVersion: provenance.pipelineVersion,
+          promptVersions: provenance.promptVersions,
+          modelVersions: provenance.modelVersions,
+          searchRefs: provenance.searchRefs,
+        })
+        .returning({ provenanceId: s.verdictProvenance.provenanceId });
+      if (prov == null) throw new Error("provenance insert returned no row");
+      const [inserted] = await tx
+        .insert(s.verdictVersion)
+        .values({
           claimId,
           version,
-          write.verdictClass ?? "not_enough_evidence",
-          write.confidence != null ? String(write.confidence) : null,
-          packId,
-          provenanceId,
-          null,
-        ],
-      );
-      const verdictId = inserted.rows[0].verdict_id;
+          status: "DRAFT",
+          verdictClass: write.verdictClass ?? "not_enough_evidence",
+          confidence: write.confidence != null ? String(write.confidence) : null,
+          evidencePackId: packId,
+          provenanceId: prov.provenanceId,
+          diff: null,
+        })
+        .returning({ verdictId: s.verdictVersion.verdictId });
+      if (inserted == null) throw new Error("verdict insert returned no row");
+      const verdictId = inserted.verdictId;
       let diff: VerdictRecord["diff"] = null;
       if (version > 1) {
-        const prev = await client.query(
-          `SELECT verdict_class, verdict_id FROM verdict_version WHERE claim_id = $1 AND version = $2`,
-          [claimId, version - 1],
-        );
+        const [prev] = await tx
+          .select({
+            verdictClass: s.verdictVersion.verdictClass,
+            verdictId: s.verdictVersion.verdictId,
+          })
+          .from(s.verdictVersion)
+          .where(
+            and(eq(s.verdictVersion.claimId, claimId), eq(s.verdictVersion.version, version - 1)),
+          );
+        if (prev == null) throw new Error(`v${version - 1} missing for diff`);
         diff = {
           verdictClass: {
-            from: prev.rows[0].verdict_class,
+            from: prev.verdictClass,
             to: write.verdictClass ?? "not_enough_evidence",
           },
         };
         // Append-only: never UPDATE the superseded row. Monotonic versions make
         // "superseded" derivable — a v(n) is superseded iff v(n+1) exists. The
         // live-record getter below exposes that without touching v1's row.
-        this.supersededByIndex.set(prev.rows[0].verdict_id, verdictId);
+        this.supersededByIndex.set(prev.verdictId, verdictId);
       }
-      await client.query("COMMIT");
       const index = this.supersededByIndex;
       return {
         verdictId,
@@ -243,15 +278,13 @@ export class PgStore implements Store {
         verdictClass: write.verdictClass ?? "not_enough_evidence",
         confidence: write.confidence ?? 0,
         evidencePackId: packId,
-        provenance: write.provenance,
+        provenance,
         diff,
         get supersededBy() {
           return index.get(verdictId) ?? null;
         },
       };
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async logTransition(
@@ -270,38 +303,36 @@ export class PgStore implements Store {
     if (!legal.includes(transition.to)) {
       throw new Error(`illegal transition ${transition.from} → ${transition.to} (STO-R14)`);
     }
-    await this.pool.query(
-      `INSERT INTO verdict_transition_log (verdict_id, from_status, to_status, reason, actor, at)
-       VALUES ($1,$2,$3,$4,'pipeline',$5)`,
-      [
-        verdictId,
-        transition.from,
-        transition.to,
-        transition.reason ?? null,
-        transition.at ?? new Date(),
-      ],
-    );
+    await this.db.insert(s.verdictTransitionLog).values({
+      verdictId,
+      fromStatus: transition.from,
+      toStatus: transition.to,
+      reason: transition.reason ?? null,
+      actor: "pipeline",
+      at: transition.at ?? new Date(),
+    });
     // The transition IS the status change. The append-only guard on
     // verdict_version exempts status-only updates (lifecycle, not history);
     // the log row above records every change (STO-R14). Without this the
     // verdict stayed DRAFT forever — the site reader's status filter never
     // saw published verdicts, and no lifecycle ever advanced.
-    await this.pool.query(`UPDATE verdict_version SET status = $2 WHERE verdict_id = $1`, [
-      verdictId,
-      transition.to,
-    ]);
+    await this.db
+      .update(s.verdictVersion)
+      .set({ status: transition.to })
+      .where(eq(s.verdictVersion.verdictId, verdictId));
   }
 
   async transitions(
     verdictId: string,
   ): Promise<Array<{ from: string; to: string; at: Date; reason: string | null }>> {
-    const rows = await this.pool.query(
-      `SELECT from_status, to_status, at, reason FROM verdict_transition_log WHERE verdict_id = $1 ORDER BY at`,
-      [verdictId],
-    );
-    return rows.rows.map((r) => ({
-      from: r.from_status,
-      to: r.to_status,
+    const rows = await this.db
+      .select()
+      .from(s.verdictTransitionLog)
+      .where(eq(s.verdictTransitionLog.verdictId, verdictId))
+      .orderBy(s.verdictTransitionLog.at);
+    return rows.map((r) => ({
+      from: r.fromStatus,
+      to: r.toStatus,
       at: r.at,
       reason: r.reason,
     }));
@@ -314,31 +345,32 @@ export class PgStore implements Store {
     tier: number;
     reason: string;
   }): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO fallback_log (lane, source_id, stage, tier, reason) VALUES ($1,$2,$3,$4,$5)`,
-      [event.lane, event.sourceId, event.stage, event.tier, event.reason],
-    );
+    await this.db.insert(s.fallbackLog).values({
+      lane: event.lane,
+      sourceId: event.sourceId,
+      stage: event.stage,
+      tier: event.tier,
+      reason: event.reason,
+    });
   }
 
   async recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord> {
-    const rows = await this.pool.query(
-      `INSERT INTO authority (domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
-       RETURNING authority_id, discovered_at`,
-      [
-        fixture.domain,
-        fixture.authorityRef,
-        fixture.sourceUrl,
-        fixture.tier,
-        fixture.rationale,
-        fixture.confidence,
-        fixture.discoveredBy,
-        JSON.stringify(fixture.searchRefs),
-      ],
-    );
-    const r = rows.rows[0];
+    const [r] = await this.db
+      .insert(s.authority)
+      .values({
+        domain: fixture.domain,
+        authorityRef: fixture.authorityRef,
+        sourceUrl: fixture.sourceUrl,
+        tier: fixture.tier,
+        rationale: fixture.rationale,
+        confidence: String(fixture.confidence),
+        discoveredBy: fixture.discoveredBy,
+        searchRefs: fixture.searchRefs,
+      })
+      .returning({ authorityId: s.authority.authorityId, discoveredAt: s.authority.discoveredAt });
+    if (r == null) throw new Error("authority insert returned no row");
     return {
-      authorityId: r.authority_id,
+      authorityId: r.authorityId,
       domain: fixture.domain,
       sourceUrl: fixture.sourceUrl,
       authorityRef: fixture.authorityRef,
@@ -347,7 +379,7 @@ export class PgStore implements Store {
       confidence: fixture.confidence,
       discoveredBy: fixture.discoveredBy,
       searchRefs: fixture.searchRefs,
-      discoveredAt: r.discovered_at,
+      discoveredAt: r.discoveredAt,
     };
   }
 
@@ -355,35 +387,40 @@ export class PgStore implements Store {
     // Active only — retired rows never resolve. Best candidate: highest tier,
     // then latest discovery (a newer T1 with a fresher vintage beats an older
     // equal-tier row).
-    const rows = await this.pool.query(
-      `SELECT authority_id, domain, source_url, authority_ref, tier, rationale, confidence, discovered_by, search_refs, discovered_at
-       FROM authority WHERE domain = $1 AND status = 'active'
-       ORDER BY tier ASC, discovered_at DESC LIMIT 1`,
-      [domain],
-    );
-    if (rows.rows.length === 0) return null;
-    const r = rows.rows[0];
+    const rows = await this.db
+      .select()
+      .from(s.authority)
+      .where(and(eq(s.authority.domain, domain), eq(s.authority.status, "active")))
+      .orderBy(s.authority.tier, desc(s.authority.discoveredAt))
+      .limit(1);
+    const r = rows[0];
+    if (r == null) return null;
     return {
-      authorityId: r.authority_id,
+      authorityId: r.authorityId,
       domain: r.domain,
-      sourceUrl: r.source_url,
-      authorityRef: r.authority_ref,
+      sourceUrl: r.sourceUrl,
+      authorityRef: r.authorityRef,
       tier: r.tier,
       rationale: r.rationale,
       confidence: Number(r.confidence),
-      discoveredBy: r.discovered_by,
-      searchRefs: r.search_refs,
-      discoveredAt: r.discovered_at,
+      discoveredBy: r.discoveredBy,
+      searchRefs: (r.searchRefs ?? []) as string[],
+      discoveredAt: r.discoveredAt,
     };
   }
 
   async fallbackRateByLane(): Promise<Array<{ lane: string; count: number }>> {
-    const rows = await this.pool.query(
-      `SELECT lane, COUNT(*)::int AS count FROM fallback_log GROUP BY lane ORDER BY lane`,
-    );
-    return rows.rows.map((r) => ({ lane: r.lane, count: r.count }));
+    const rows = await this.db
+      .select({ lane: s.fallbackLog.lane, count: sql<number>`count(*)::int` })
+      .from(s.fallbackLog)
+      .groupBy(s.fallbackLog.lane)
+      .orderBy(s.fallbackLog.lane);
+    return rows.map((r) => ({ lane: r.lane, count: r.count }));
   }
 
+  // These probes DELIBERATELY use raw SQL: their job is to prove the database
+  // rejects UPDATE/DELETE regardless of the client library. Routing them
+  // through drizzle would test drizzle, not the guards.
   async tryUpdate(table: (typeof APPEND_ONLY_TABLES)[number]): Promise<unknown> {
     await this.seedProbeRow(table);
     return this.pool.query(
@@ -431,6 +468,7 @@ export class PgStore implements Store {
     return this.hasPrivilege(role, table, "SELECT");
   }
 
+  // Postgres introspection (has_table_privilege) — not a drizzle use case.
   private async hasPrivilege(role: string, table: string, privilege: string): Promise<boolean> {
     const r = await this.pool.query(`SELECT has_table_privilege($1, $2, $3) AS allowed`, [
       role,
@@ -628,6 +666,12 @@ export async function migrate(pool: Pool): Promise<string[]> {
   await run("012-fallback-log", fallbackLogDdl());
   await run("013-authority", authorityDdl());
   await run("014-authority-seed", authoritySeed());
+  // Additive columns for existing databases (open-web evidence findings).
+  await run(
+    "015-evidence-finding",
+    `ALTER TABLE evidence_item ADD COLUMN IF NOT EXISTS plain_finding text`,
+  );
+  await run("016-evidence-tier", `ALTER TABLE evidence_item ADD COLUMN IF NOT EXISTS tier integer`);
   return applied;
 }
 
@@ -712,6 +756,8 @@ function evidenceDdl(): string {
     archive_snapshot_url text NOT NULL,
     content_hash text NOT NULL,
     version integer NOT NULL DEFAULT 1,
+    plain_finding text,
+    tier integer,
     UNIQUE (series_identity, vintage_date, version)
   )`;
 }

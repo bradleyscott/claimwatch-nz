@@ -163,7 +163,21 @@ const PROMPTS: Record<string, string> = {
   "grid-materiality":
     'You select which grid rows are material to how a claim is deployed. Reply with ONLY JSON: {"materialRows": string[]}.',
   "citation-compare":
-    'Compare a claim against sources. You receive the claim and sources with title/link/snippet AND fetched pageText where available. Does the totality of the evidence settle the claim (numbers, period, population, direction)? Weigh official/statistical sources above commentary; a source that directly states the specific figure the claim asserts outweighs many commentary pieces. If no source states the specific figure, the honest verdict is not_enough_evidence. Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "bindingStrictness": "direct"|"decorative", "mismatch": string}.',
+    `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).
+Decide the verdict, then EXPLAIN it in plain language. Write for someone with no statistics training — short sentences, no jargon.
+Reply with ONLY JSON:
+{"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking",
+ "bindingStrictness": "direct"|"decorative",
+ "mismatch": string,
+ "narrative": {"lead": string, "paragraphs": string[], "pull": string},
+ "sourceFindings": [{"link": string, "tier": number, "finding": string}]}
+Rules for "narrative":
+- lead: one sentence a reader could quote. Say what the evidence ACTUALLY shows vs the claim.
+- paragraph: 2-4 sentences of plain explanation. Reference the specific numbers/periods the sources state. No jargon (no "tier", "stratum", "grid", "NLI").
+- pull: one short sentence summarising the takeaway, like a pull-quote.
+"sourceFindings": for EACH source, what it actually says that is relevant to the claim (one sentence, quote the figure where possible), and its reliability tier (1 = official statistics/government for the claim's jurisdiction, 2 = academic, 3 = major media, 5 = NGO, 6 = unknown).
+If no source states the specific figure, the honest verdict is not_enough_evidence.`,
+
   "claim-decompose": DECOMPOSITION_PROMPT,
   "research-assess": RESEARCHER_PROMPT,
   "nli-audit":
@@ -244,7 +258,14 @@ async function main(): Promise<void> {
   // claims); null for stat-grid claims.
   let researchNote: string | null = null;
   let adjudicationMismatch: string | null = null;
-  let researchEvidence: Array<{ title: string; link: string; snippet: string }> = [];
+  let researchNarrative: { lead: string; paragraphs: string[]; pull: string } | null = null;
+  let researchEvidence: Array<{
+    title: string;
+    link: string;
+    snippet: string;
+    finding: string;
+    tier: number | null;
+  }> = [];
 
   const store = await createStore(DATABASE_URL);
   const registry = {
@@ -378,14 +399,27 @@ async function main(): Promise<void> {
             v as { verdict: string; bindingStrictness: string; mismatch: string },
         },
       );
-      const adj = (adjudication as { value: { verdict: string; mismatch: string } }).value;
+      const adj = (adjudication as {
+        value: {
+          verdict: string;
+          mismatch: string;
+          narrative?: { lead: string; paragraphs: string[]; pull: string };
+          sourceFindings?: Array<{ link: string; tier: number; finding: string }>;
+        };
+      }).value;
       verdictClass = adj.verdict;
       adjudicationMismatch = adj.mismatch || null;
-      researchEvidence = outcome.evidence.slice(0, 5).map((e) => ({
-        title: e.title,
-        link: e.link,
-        snippet: e.snippet,
-      }));
+      researchNarrative = adj.narrative ?? null;
+      researchEvidence = outcome.evidence.slice(0, 5).map((e) => {
+        const finding = (adj.sourceFindings ?? []).find((f) => f.link === e.link);
+        return {
+          title: e.title,
+          link: e.link,
+          snippet: e.snippet,
+          finding: finding?.finding ?? "",
+          tier: finding?.tier ?? null,
+        };
+      });
       researchNote = `Deep research checked ${outcome.evidence.length} sources across ${outcome.roundsUsed} round(s) — sources included: ${outcome.evidence
         .slice(0, 3)
         .map((e) => new URL(e.link).hostname)
@@ -460,7 +494,13 @@ async function main(): Promise<void> {
       utteranceText: target.claim,
       text: target.claim,
       claimType: claim.claimType,
-      discourseContext: { window: `AVeriTeC dev set, claim_date ${target.claim_date}` },
+      attributionCandidates: target.speaker
+        ? [{ name: target.speaker, kind: "person", confidence: 1.0, basis: "benchmark metadata" }]
+        : [],
+      discourseContext: {
+        window: `AVeriTeC dev set, claim_date ${target.claim_date}`,
+        speechContext: target.speaker ? `said by ${target.speaker}` : undefined,
+      },
     });
     // Persist the pack with what the research actually produced: the
     // adjudication's own commentary (not the benchmark's justification) and
@@ -484,6 +524,8 @@ async function main(): Promise<void> {
           url: e.link,
           archiveSnapshotUrl: "",
           contentHash: createHash("sha256").update(e.link).digest("hex"),
+          plainFinding: e.finding || null,
+          tier: e.tier,
         });
         itemRefs.push(item.itemId);
       } catch {

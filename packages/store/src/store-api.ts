@@ -30,6 +30,9 @@ export interface ClaimFixture {
   discourseContext: DiscourseContext;
   mediaAnchor?: MediaAnchor | null;
   transcriptTier?: "publisher-reviewed" | "publisher-auto" | null;
+  // Speaker attribution candidates (ADR-0005 entity model): the first
+  // candidate renders on the claim card's "who" line.
+  attributionCandidates?: Array<{ name: string; kind: string; confidence: number; basis?: string }>;
 }
 
 export interface Fingerprint {
@@ -66,6 +69,10 @@ export interface EvidenceItemFixture {
   archiveSnapshotUrl: string;
   contentHash: string;
   revised?: boolean;
+  // Open-web evidence: what this source actually says relevant to the claim,
+  // and its reliability tier (1-6, null when unclassified).
+  plainFinding?: string | null;
+  tier?: number | null;
 }
 
 export interface EvidencePackFixture {

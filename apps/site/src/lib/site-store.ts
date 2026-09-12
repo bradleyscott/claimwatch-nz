@@ -91,6 +91,8 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
       const result = await pool.query(
         `SELECT c.claim_id, c.utterance_text AS claim_text,
                 c.discourse_context->>'attachedProposal' AS attached_proposal,
+                c.discourse_context->>'speechContext' AS speech_context,
+                c.attribution_candidates->0->>'name' AS speaker_name,
                 c.transcript_tier,
                 v.verdict_class, v.confidence::float8 AS confidence,
                 v.created_at AS published_at,
@@ -120,8 +122,8 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
       return VerdictPageData.parse({
         claimId: row.claim_id,
         claimText: row.claim_text,
-        speaker: null, // attribution lands with the entity slice
-        speakerAffiliation: null,
+        speaker: row.speaker_name ?? null,
+        speakerAffiliation: row.speech_context ?? null,
         transcriptTier: row.transcript_tier ?? null,
         publishedAt: row.published_at,
         verdictClass: row.verdict_class,
