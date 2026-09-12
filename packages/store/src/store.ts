@@ -2,6 +2,9 @@
 // grants + triggers in SQL (applied by ensureGuards); fixtures serve the tests.
 // Contract: store-api.ts (frozen — tests authored first).
 
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate as migrateDb } from "drizzle-orm/node-postgres/migrator";
@@ -623,10 +626,11 @@ export async function createStore(databaseUrl: string): Promise<Store> {
  */
 export async function migrate(pool: Pool): Promise<string[]> {
   const db = drizzle(pool);
-  await migrateDb(db, {
-    // store.ts lives in src/, so the folder is ../drizzle/ relative to it —
-    // but under vitest + bundling, resolve from the package root instead.
-    migrationsFolder: new URL("../drizzle/", import.meta.url).pathname,
-  });
+  // The migrations folder ships inside the @cw/store package. Bundlers
+  // (Next.js turbopack) rewrite import.meta.url, so anchor on the package
+  // location via require.resolve of our own package.json.
+  const pkgJsonPath = createRequire(import.meta.url).resolve("../package.json");
+  const migrationsFolder = join(dirname(pkgJsonPath), "drizzle");
+  await migrateDb(db, { migrationsFolder });
   return ["drizzle-chain"];
 }

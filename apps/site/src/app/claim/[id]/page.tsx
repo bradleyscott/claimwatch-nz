@@ -169,11 +169,13 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         </div>
         {data.justifications.length > 0 ? (
           <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">
-            {data.justifications.map((j, i) => (
-              <p key={i} className="text-[15.5px] font-semibold leading-relaxed text-[#33270f]">
-                {j}
-              </p>
-            ))}
+            {data.justifications
+              .filter((j) => !j.startsWith("Deep research checked"))
+              .map((j, i) => (
+                <p key={i} className="text-[16px] leading-relaxed text-[#2c3644]">
+                  {j}
+                </p>
+              ))}
           </div>
         ) : null}
         {data.evidence.length === 0 ? (
@@ -183,36 +185,42 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
               : "No external evidence was needed for this check."}
           </p>
         ) : (
-          data.evidence.map((e) => (
-            <div
-              key={e.seriesIdentity}
-              className="grid grid-cols-[150px_1fr] gap-5 border-t border-line py-4"
-            >
-              <div className="pt-0.5 text-[11px] font-extrabold uppercase tracking-[.08em] text-faint">
-                {e.authorityRef}
-              </div>
-              <div>
-                <b className="text-[15.5px] font-bold">
-                  {e.url ? (
+          data.evidence.map((e) => {
+            const sourceLabel = e.authorityRef;
+            const sourceLink = e.url;
+            return (
+              <div
+                key={e.seriesIdentity}
+                className="grid grid-cols-[150px_1fr] gap-5 border-t border-line py-4"
+              >
+                <div className="pt-0.5 text-[11px] font-extrabold uppercase tracking-[.08em] text-faint">
+                  {sourceLink ? (
                     <a
-                      href={e.url}
+                      href={sourceLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#155cc4] hover:underline"
+                      className="break-all text-link hover:underline"
                     >
-                      {e.seriesIdentity}
+                      {sourceLabel}
                     </a>
                   ) : (
-                    e.seriesIdentity
+                    sourceLabel
                   )}
-                </b>
-                <p className="mt-1 text-[13.5px] leading-relaxed text-mut">{e.plainReason}</p>
-                <p className="mt-1 font-calc text-[12px] text-[#b3b9c0]">
-                  as measured at {e.vintageDate}
-                </p>
+                </div>
+                <div className="min-w-0">
+                  <b className="text-[15.5px] font-bold">{e.seriesIdentity}</b>
+                  {e.plainReason ? (
+                    <p className="mt-1 whitespace-pre-line text-[13.5px] leading-relaxed text-mut">
+                      {e.plainReason}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 font-calc text-[12px] text-[#b3b9c0]">
+                    as measured at {e.vintageDate}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </section>
       {/* Provenance — collapsed by default, the one place technical vocabulary is permitted */}

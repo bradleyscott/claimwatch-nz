@@ -256,7 +256,6 @@ async function main(): Promise<void> {
   let note = "";
   // Captured from the deep-research path for the evidence pack (open-web
   // claims); null for stat-grid claims.
-  let researchNote: string | null = null;
   let adjudicationMismatch: string | null = null;
   let researchNarrative: { lead: string; paragraphs: string[]; pull: string } | null = null;
   let researchEvidence: Array<{
@@ -398,15 +397,15 @@ async function main(): Promise<void> {
           parse: (v: unknown) =>
             v as { verdict: string; bindingStrictness: string; mismatch: string },
         },
-      );
-      const adj = (adjudication as {
-        value: {
-          verdict: string;
-          mismatch: string;
-          narrative?: { lead: string; paragraphs: string[]; pull: string };
-          sourceFindings?: Array<{ link: string; tier: number; finding: string }>;
-        };
-      }).value;
+      ) as { ok: boolean; value?: { verdict: string; mismatch: string; narrative?: { lead: string; paragraphs: string[]; pull: string }; sourceFindings?: Array<{ link: string; tier: number; finding: string }> }; failureClass?: string };
+      // Adjudication failure → honest NEI with the failure recorded. Never
+      // fabricate a verdict from a missing LLM response.
+      if (!adjudication.ok || !adjudication.value) {
+        verdictClass = "not_enough_evidence";
+        note = `adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question`;
+        console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
+      } else {
+      const adj = adjudication.value;
       verdictClass = adj.verdict;
       adjudicationMismatch = adj.mismatch || null;
       researchNarrative = adj.narrative ?? null;
@@ -420,11 +419,10 @@ async function main(): Promise<void> {
           tier: finding?.tier ?? null,
         };
       });
-      researchNote = `Deep research checked ${outcome.evidence.length} sources across ${outcome.roundsUsed} round(s) — sources included: ${outcome.evidence
-        .slice(0, 3)
-        .map((e) => new URL(e.link).hostname)
-        .join(", ")}.${outcome.gaps.length > 0 ? ` Unresolved: ${outcome.gaps[0]}` : ""}`;
+      // Reader-facing commentary comes from the adjudicator's narrative —
+      // pipeline meta-commentary (rounds, source lists) stays out of the pack.
       note = `deep research (${outcome.evidence.length} sources, ${outcome.roundsUsed} rounds, confidence ${outcome.confidence}${outcome.cappedRun ? ", cap-bound" : ""})`;
+      }
     }
     console.log(`  open-web → ${verdictClass}`);
 
@@ -507,7 +505,13 @@ async function main(): Promise<void> {
     // the retrieved evidence as item rows — the page's evidence section reads
     // both.
     const packJustifications: string[] = [];
-    if (researchNote) packJustifications.push(researchNote);
+    if (researchNarrative) {
+      // The adjudicator's plain-language explanation is the pack's
+      // commentary: lead + paragraphs + pull, in that order.
+      packJustifications.push(researchNarrative.lead);
+      packJustifications.push(...researchNarrative.paragraphs);
+      packJustifications.push(researchNarrative.pull);
+    }
     if (adjudicationMismatch)
       packJustifications.push(`Claim-source mismatch: ${adjudicationMismatch}`);
     if (packJustifications.length === 0) packJustifications.push(target.justification);
