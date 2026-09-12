@@ -152,6 +152,11 @@ export interface Store {
   logFallback(event: FallbackEvent): Promise<void>;
   fallbackRateByLane(): Promise<Array<{ lane: string; count: number }>>;
 
+  // Authority registry (user direction Sept 2026): discovered authorities with
+  // recorded provenance; append-only like evidence vintages.
+  recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord>;
+  resolveAuthority(domain: string): Promise<AuthorityRecord | null>;
+
   // Append-only enforcement probes (STO-R1)
   tryUpdate(
     table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version",
@@ -162,6 +167,30 @@ export interface Store {
   roleCanInsert(role: string, table: string): Promise<boolean>;
   roleCanUpdate(role: string, table: string): Promise<boolean>;
   roleCanSelect(role: string, table: string): Promise<boolean>;
+}
+
+export interface AuthorityRecord {
+  authorityId: string;
+  domain: string;
+  sourceUrl: string;
+  authorityRef: string;
+  tier: number;
+  rationale: string;
+  confidence: number;
+  discoveredBy: string;
+  searchRefs: string[];
+  discoveredAt: Date;
+}
+
+export interface AuthorityFixture {
+  domain: string;
+  sourceUrl: string;
+  authorityRef: string;
+  tier: number;
+  rationale: string;
+  confidence: number;
+  discoveredBy: string;
+  searchRefs: string[];
 }
 
 export interface StoreFixtures {
