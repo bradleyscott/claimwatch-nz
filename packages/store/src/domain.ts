@@ -39,11 +39,19 @@ const ALIASES: Record<string, string> = {
   hospital: "health",
 };
 
-// The triage fingerprint's domain may be null; the core then carries the
-// topical signal as free text. A full sentence is not a domain key — take the
-// leading topical phrase so near-duplicate claims collapse. Imperfect by
-// design: with discovery non-blocking, a missed collapse costs a redundant
-// search, never a wrong verdict.
+// Keyword buckets: the triage fingerprint's domain is often null, and the
+// core then carries free text ("225,000 people dead... covid-19"). Without
+// bucketing every claim fragments into its own registry key and discoveries
+// never amortise. A bucket fires when the normalised text CONTAINS a keyword
+// — category-level, so all covid-mortality claims share one registry key.
+const KEYWORD_BUCKETS: Array<[string[], string]> = [
+  [["covid", "coronavirus", "pandemic"], "covid-mortality"],
+  [["crime", "criminal", "victimisation", "offending"], "crime-statistics"],
+  [["economy", "economic", "gdp", "inflation", "unemployment", "recession"], "economic-forecasts"],
+  [["population", "census", "demographic", "immigration"], "population-estimates"],
+  [["hospital", "health", "dhb", "waiting-list"], "health"],
+  [["housing", "house-price", "rent"], "housing"],
+];
 const STOP_HEAD = new Set([
   "more",
   "than",
@@ -70,6 +78,9 @@ const STOP_HEAD = new Set([
 export function canonicalDomain(raw: string): string {
   const normalised = normaliseDomain(raw);
   if (ALIASES[normalised]) return ALIASES[normalised];
+  // Buckets fire on substring containment — before any key-size logic.
+  const bucketed = KEYWORD_BUCKETS.find(([keys]) => keys.some((k) => normalised.includes(k)));
+  if (bucketed) return bucketed[1];
   const words = normalised.split("-").filter(Boolean);
   if (words.length <= 4) return normalised; // already key-sized
   // Long free text: keep the first non-stopword head plus up to three

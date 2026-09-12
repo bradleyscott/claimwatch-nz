@@ -556,6 +556,20 @@ export async function createTestStore(
   return new PgStore(pool, appliedMigrations);
 }
 
+/**
+ * Live-run store: migrates and guards WITHOUT dropping the schema. The
+ * authority registry (and every other table) persists across runs — this is
+ * what makes discovered authorities amortise. Tests use createTestStore (from
+ * zero); production/live-run code uses this.
+ */
+export async function createStore(databaseUrl: string): Promise<Store> {
+  const pool = new Pool({ connectionString: databaseUrl });
+  const appliedMigrations = await migrate(pool);
+  await ensureRoles(pool);
+  await ensureAppendOnlyGuards(pool);
+  return new PgStore(pool, appliedMigrations);
+}
+
 async function ensureRoles(pool: Pool): Promise<void> {
   for (const role of ["pipeline", "site", "harness"]) {
     await pool.query(

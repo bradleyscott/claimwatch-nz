@@ -113,4 +113,16 @@ describe("authority registry — discovery persistence (user direction, Sept 202
     // Different real-world categories stay distinct.
     expect(canonicalDomain("covid-mortality")).not.toBe(canonicalDomain("vehicle theft"));
   });
+
+  it("keyword buckets: free-text claim cores collapse to category keys (no registry fragmentation)", () => {
+    // The Biden AVeriTeC claim's core — previously keyed as the whole sentence.
+    expect(canonicalDomain("More than 225,000 people dead because of covid-19")).toBe(
+      "covid-mortality",
+    );
+    // Any phrasing sharing a keyword lands in the same bucket.
+    expect(canonicalDomain("recorded crime victimisations fell in 2026")).toBe("crime-statistics");
+    expect(canonicalDomain("the economy shrank two quarters in a row")).toBe("economic-forecasts");
+    // No keyword → no bucket: the text is used as-is (honest unknown category).
+    expect(canonicalDomain("electricity-grid-capacity")).toBe("electricity-grid-capacity");
+  });
 });

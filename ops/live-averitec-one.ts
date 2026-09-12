@@ -25,7 +25,7 @@ import {
 } from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
 import { canonicalDomain } from "../packages/store/src/domain.ts";
-import { createTestStore } from "../packages/store/src/store.ts";
+import { createStore } from "../packages/store/src/store.ts";
 
 interface AveritecClaim {
   claim: string;
@@ -173,22 +173,29 @@ async function main(): Promise<void> {
   let verdictClass: string | null = null;
   let note = "";
 
-  const store = await createTestStore(DATABASE_URL, { scratchSuffix: "" });
+  const store = await createStore(DATABASE_URL);
   const registry = {
     resolveAuthority: (domain: string) => store.resolveAuthority(domain),
   };
 
-  // The registry probe decides stat-grid vs open-web for statistical claims.
-  const routedMode = await routeMode(
-    { claimType: claim.claimType, domain: claim.fingerprintAttempt?.domain ?? null },
-    registry,
+  // One canonical key for BOTH routing and discovery — the triage fingerprint
+  // often carries no domain, so the key derives from the fingerprint core.
+  const routingFingerprint = claim.fingerprintAttempt ?? {
+    core: claim.text,
+    claimant: null,
+    domain: null,
+    temporal: null,
+    quantity: null,
+    source: null,
+  };
+  const domainKey = canonicalDomain(
+    routingFingerprint.domain ?? routingFingerprint.core ?? target.claim,
   );
+  const routedMode = await routeMode({ claimType: claim.claimType, domain: domainKey }, registry);
   console.log(`  registry routing: ${claim.claimType} → ${routedMode}`);
 
   if (routedMode === "stat-grid") {
-    const authority = await store.resolveAuthority(
-      canonicalDomain(claim.fingerprintAttempt?.domain ?? ""),
-    );
+    const authority = await store.resolveAuthority(domainKey);
     console.log(
       `  authority: ${authority?.authorityRef} (T${authority?.tier}, discovered ${authority?.discoveredBy})`,
     );
@@ -274,11 +281,8 @@ async function main(): Promise<void> {
     console.log(`  open-web → ${verdictClass}`);
 
     // Non-blocking discovery: registry miss → search + vet + persist for the
-    // next claim. The triage fingerprint's domain may be null for claims
-    // triage didn't domain-classify — fall back to the fingerprint core so
-    // discovery still populates the registry for this category. Failures
-    // never block the current verdict.
-    const domainKey = canonicalDomain(fingerprint.domain ?? fingerprint.core ?? target.claim);
+    // next claim. Uses the SAME canonical domainKey as routing — one key per
+    // category, so discoveries amortise. Failures never block the verdict.
     if (domainKey) {
       try {
         const outcome = await discoverAuthority(
