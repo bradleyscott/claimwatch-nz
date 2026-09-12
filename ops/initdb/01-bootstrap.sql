@@ -6,6 +6,6 @@
 CREATE DATABASE claimwatch_labels;
 
 -- \c claimwatch
--- CREATE ROLE pipeline LOGIN PASSWORD 'pipeline';
+-- CREATE ROLE pipeline LOGIN PASSWORD '<set in .env>';
 -- CREATE ROLE site READ ONLY ...
 -- Grants land with the first store migration (they reference its tables).
