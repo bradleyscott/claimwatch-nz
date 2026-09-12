@@ -4,6 +4,7 @@
 
 import { and, desc, eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { migrate as migrateDb } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import * as s from "./schema/index.ts";
 import type {
@@ -571,22 +572,22 @@ export async function createTestStore(
 ): Promise<Store> {
   let url = databaseUrl;
   if (opts?.scratchSuffix) {
-    // Vitest runs files in parallel forks; every suite wiping ONE shared
-    // scratch DB interferes with the others (fallback counts, idempotency
-    // fixtures). Each suite gets its own database, created on demand.
+    // Vitest runs files in parallel forks; every suite gets its own scratch
+    // database, created on demand.
     const parsed = new URL(databaseUrl);
     const scratchName = `${parsed.pathname.replace(/^\//, "")}${opts.scratchSuffix}`;
     if (!/^[a-z_][a-z0-9_]*$/.test(scratchName)) {
       throw new Error(`unsafe scratch database name: ${scratchName}`);
     }
+    // Drop + recreate the WHOLE scratch database — not just the public
+    // schema. Drizzle tracks applied migrations in its own schema
+    // (drizzle.__drizzle_migrations), so a public-only wipe leaves stale
+    // "applied" rows while the tables are gone; the next migrate() then
+    // no-ops on an empty database.
     const admin = new Pool({ connectionString: databaseUrl });
     try {
-      const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [
-        scratchName,
-      ]);
-      if (exists.rowCount === 0) {
-        await admin.query(`CREATE DATABASE "${scratchName}"`);
-      }
+      await admin.query(`DROP DATABASE IF EXISTS "${scratchName}" WITH (FORCE)`);
+      await admin.query(`CREATE DATABASE "${scratchName}"`);
     } finally {
       await admin.end();
     }
@@ -594,12 +595,7 @@ export async function createTestStore(
     url = parsed.toString();
   }
   const pool = new Pool({ connectionString: url });
-  // Scratch semantics: every run applies the chain from zero (STO-R5, and the
-  // "from zero" migration test). Drop everything in the public schema first.
-  await pool.query(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`);
   const appliedMigrations = await migrate(pool);
-  await ensureRoles(pool);
-  await ensureAppendOnlyGuards(pool);
   return new PgStore(pool, appliedMigrations);
 }
 
@@ -611,298 +607,26 @@ export async function createTestStore(
  */
 export async function createStore(databaseUrl: string): Promise<Store> {
   const pool = new Pool({ connectionString: databaseUrl });
+  // Migrations apply the full chain — tables, seeds, append-only guards,
+  // roles — via Drizzle's native migrator. Everything the old TS-side
+  // ensureRoles/ensureAppendOnlyGuards helpers did now lives in the
+  // migration chain (0001_seeds / 0002_guards / 0003_roles).
   const appliedMigrations = await migrate(pool);
-  await ensureRoles(pool);
-  await ensureAppendOnlyGuards(pool);
   return new PgStore(pool, appliedMigrations);
 }
 
-async function ensureRoles(pool: Pool): Promise<void> {
-  for (const role of ["pipeline", "site", "harness"]) {
-    await pool.query(
-      `DO $$ BEGIN CREATE ROLE ${role} NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-    );
-  }
-  await pool.query(`GRANT USAGE ON SCHEMA public TO pipeline, site, harness`);
-  const pipelineTables = [
-    "publication",
-    "segment",
-    "claim",
-    "claimant_entity",
-    "evidence_item",
-    "evidence_pack",
-    "verdict_version",
-    "verdict_transition_log",
-    "fallback_log",
-    "verdict_provenance",
-    "authority",
-  ];
-  for (const table of pipelineTables) {
-    await pool.query(`GRANT INSERT, SELECT ON ${table} TO pipeline`);
-    await pool.query(`GRANT SELECT ON ${table} TO site`);
-  }
-}
+/**
+ * Migration entrypoint: delegates to Drizzle's native migrator, which applies
+ * the generated chain in packages/store/drizzle/ and tracks applied state in
+ * the drizzle_migrations table — native concurrency handling, no custom
+ * locks. Idempotent: safe on every service startup.
+ */
 export async function migrate(pool: Pool): Promise<string[]> {
-  const applied: string[] = [];
-  const run = async (name: string, statement: string) => {
-    await pool.query(statement);
-    applied.push(name);
-  };
-
-  await run("001-extensions", `CREATE EXTENSION IF NOT EXISTS vector`);
-  await run("002-publication", documentsDdl());
-  await run(
-    "003-publication-hash-uq",
-    `CREATE UNIQUE INDEX IF NOT EXISTS publication_content_hash_uq ON publication (content_hash)`,
-  );
-  await run("004-segment", segmentDdl());
-  await run("005-claimant-entity", claimantEntityDdl());
-  await run("006-claim", claimDdl());
-  await run("007-evidence-item", evidenceDdl());
-  await run("008-evidence-pack", evidencePackDdl());
-  await run("009-verdict-provenance", verdictProvenanceDdl());
-  await run("010-verdict-version", verdictVersionDdl());
-  await run("011-verdict-transition-log", verdictTransitionLogDdl());
-  await run("012-fallback-log", fallbackLogDdl());
-  await run("013-authority", authorityDdl());
-  await run("014-authority-seed", authoritySeed());
-  // Additive columns for existing databases (open-web evidence findings).
-  await run(
-    "015-evidence-finding",
-    `ALTER TABLE evidence_item ADD COLUMN IF NOT EXISTS plain_finding text`,
-  );
-  await run("016-evidence-tier", `ALTER TABLE evidence_item ADD COLUMN IF NOT EXISTS tier integer`);
-  return applied;
-}
-
-function documentsDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS publication (
-    publication_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_id text NOT NULL,
-    canonical_url text NOT NULL,
-    content_hash text NOT NULL,
-    retrieved_at timestamptz NOT NULL,
-    retrieval_method text NOT NULL,
-    pipeline_version text NOT NULL,
-    publisher text,
-    raw_ref text NOT NULL,
-    text text NOT NULL,
-    transcript text,
-    transcript_tier text,
-    track_hash text,
-    is_curated_fixture boolean NOT NULL DEFAULT false
-  )`;
-}
-function segmentDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS segment (
-    segment_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    publication_id uuid NOT NULL REFERENCES publication(publication_id),
-    span_start integer,
-    span_end integer,
-    summary text,
-    turn_structure jsonb
-  )`;
-}
-
-function claimantEntityDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS claimant_entity (
-    entity_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    name text NOT NULL,
-    kind text NOT NULL,
-    aliases jsonb NOT NULL DEFAULT '[]'::jsonb,
-    affiliation text,
-    cross_links jsonb
-  )`;
-}
-
-function claimDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS claim (
-    claim_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    publication_id uuid REFERENCES publication(publication_id),
-    segment_id uuid REFERENCES segment(segment_id),
-    sentence_span jsonb,
-    utterance_text text NOT NULL,
-    text text NOT NULL,
-    claim_type text NOT NULL,
-    fingerprint jsonb,
-    fingerprint_key text,
-    embedding text,
-    discourse_context jsonb NOT NULL,
-    media_anchor jsonb,
-    transcript_tier text,
-    caption_quality_flag text,
-    attribution_candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
-    is_curated_fixture boolean NOT NULL DEFAULT false,
-    pipeline_version text NOT NULL,
-    prompt_versions jsonb NOT NULL DEFAULT '{}'::jsonb,
-    model_version text,
-    created_at timestamptz NOT NULL DEFAULT now()
-  )`;
-}
-function evidenceDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS evidence_item (
-    item_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    claim_id uuid REFERENCES claim(claim_id),
-    authority_ref text NOT NULL,
-    series_identity text NOT NULL,
-    vintage_date timestamptz NOT NULL,
-    retrieved_at timestamptz NOT NULL,
-    url text NOT NULL,
-    archive_snapshot_url text NOT NULL,
-    content_hash text NOT NULL,
-    version integer NOT NULL DEFAULT 1,
-    plain_finding text,
-    tier integer,
-    UNIQUE (series_identity, vintage_date, version)
-  )`;
-}
-
-function evidencePackDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS evidence_pack (
-    pack_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    claim_id uuid NOT NULL REFERENCES claim(claim_id),
-    item_refs jsonb NOT NULL,
-    grid_result jsonb,
-    justifications jsonb NOT NULL DEFAULT '[]'::jsonb,
-    nli_outcome text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
-  )`;
-}
-
-function verdictProvenanceDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS verdict_provenance (
-    provenance_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    pipeline_version text NOT NULL,
-    prompt_versions jsonb NOT NULL,
-    model_versions jsonb NOT NULL,
-    search_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
-    cost_latency_refs jsonb
-  )`;
-}
-
-function verdictVersionDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS verdict_version (
-    verdict_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    claim_id uuid NOT NULL REFERENCES claim(claim_id),
-    version integer NOT NULL,
-    status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','PUBLISHED','CONTESTED','VALIDATING','MUTATED','FROZEN')),
-    verdict_class text NOT NULL CHECK (verdict_class IN ('supported','refuted','not_enough_evidence','conflicting_cherry_picking','pledge','conditional')),
-    confidence numeric(4,3),
-    evidence_pack_id uuid NOT NULL REFERENCES evidence_pack(pack_id),
-    provenance_id uuid NOT NULL REFERENCES verdict_provenance(provenance_id),
-    diff jsonb,
-    superseded_by uuid REFERENCES verdict_version(verdict_id),
-    superseded_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (claim_id, version)
-  )`;
-}
-
-function verdictTransitionLogDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS verdict_transition_log (
-    transition_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    verdict_id uuid NOT NULL REFERENCES verdict_version(verdict_id),
-    from_status text NOT NULL,
-    to_status text NOT NULL,
-    reason text,
-    actor text NOT NULL DEFAULT 'pipeline',
-    at timestamptz NOT NULL DEFAULT now()
-  )`;
-}
-
-function fallbackLogDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS fallback_log (
-    event_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    lane text NOT NULL,
-    source_id text NOT NULL,
-    stage text NOT NULL,
-    tier integer NOT NULL,
-    reason text NOT NULL,
-    at timestamptz NOT NULL DEFAULT now()
-  )`;
-}
-// Authority registry (user direction, Sept 2026): no pre-declared gate —
-// authorities are discovered over time, classified by the declared tier model,
-// and persisted with discovery provenance. Append-only: what we believed at
-// discovery time is a recorded fact; retirement supersedes, never rewrites.
-function authorityDdl(): string {
-  return `
-  CREATE TABLE IF NOT EXISTS authority (
-    authority_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain text NOT NULL,
-    authority_ref text NOT NULL,
-    source_url text NOT NULL,
-    tier integer NOT NULL CHECK (tier BETWEEN 1 AND 6),
-    rationale text NOT NULL,
-    confidence numeric NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
-    discovered_by text NOT NULL,
-    search_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
-    status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
-    discovered_at timestamptz NOT NULL DEFAULT now()
-  )`;
-}
-
-// Seeds sit on the same footing as discoveries — 'seed' provenance, tier
-// declared by the initial design (all T1 NZ Crown).
-function authoritySeed(): string {
-  return `
-  INSERT INTO authority (domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
-  SELECT * FROM (VALUES
-    ('crime-statistics', 'policedata.nz', 'https://www.policedata.nz', 1, 'NZ Police official crime data portal (initial design seed)', 1.0, 'seed', '[]'::jsonb),
-    ('economic-forecasts', 'treasury.govt.nz', 'https://www.treasury.govt.nz', 1, 'NZ Treasury official forecasts (initial design seed)', 1.0, 'seed', '[]'::jsonb),
-    ('population-estimates', 'stats.govt.nz', 'https://www.stats.govt.nz', 1, 'Stats NZ official population estimates (initial design seed)', 1.0, 'seed', '[]'::jsonb)
-  ) AS seed(domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
-  WHERE NOT EXISTS (SELECT 1 FROM authority WHERE discovered_by = 'seed')`;
-}
-
-export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
-  for (const table of APPEND_ONLY_TABLES) {
-    // verdict_version's STATUS column is lifecycle, not history: transitions
-    // (DRAFT → PUBLISHED → …) must update it, and the transition log records
-    // every change (STO-R14). The append-only guard on that table therefore
-    // fires only when any column OTHER than status changes — the row itself
-    // stays append-only.
-    const whenClause =
-      table === "verdict_version" ? "WHEN (OLD.status IS NOT DISTINCT FROM NEW.status)" : "";
-    await pool.query(`
-      CREATE OR REPLACE FUNCTION ${table}_append_only_guard() RETURNS trigger AS $$
-      BEGIN
-        RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-    await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only ON ${table}`);
-    // Split-trigger migration: the verdict_version UPDATE/DELETE split renamed
-    // the triggers — old combined AND split names must drop cleanly.
-    await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only_update ON ${table}`);
-    await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only_delete ON ${table}`);
-    if (table === "verdict_version") {
-      // UPDATE: allowed only when nothing but status changed. DELETE: always
-      // forbidden (no WHEN clause — it cannot reference NEW).
-      await pool.query(
-        `CREATE TRIGGER ${table}_append_only_update BEFORE UPDATE ON ${table} FOR EACH ROW
-         WHEN (OLD.status IS NOT DISTINCT FROM NEW.status)
-         EXECUTE FUNCTION ${table}_append_only_guard()`,
-      );
-      await pool.query(
-        `CREATE TRIGGER ${table}_append_only_delete BEFORE DELETE ON ${table} FOR EACH ROW
-         EXECUTE FUNCTION ${table}_append_only_guard()`,
-      );
-    } else {
-      await pool.query(
-        `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW
-         EXECUTE FUNCTION ${table}_append_only_guard()`,
-      );
-    }
-  }
+  const db = drizzle(pool);
+  await migrateDb(db, {
+    // store.ts lives in src/, so the folder is ../drizzle/ relative to it —
+    // but under vitest + bundling, resolve from the package root instead.
+    migrationsFolder: new URL("../drizzle/", import.meta.url).pathname,
+  });
+  return ["drizzle-chain"];
 }

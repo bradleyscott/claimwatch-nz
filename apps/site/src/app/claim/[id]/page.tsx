@@ -13,10 +13,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ClaimPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // Live store reader lands with the deployment slice; the page shape is
-  // pinned by lib/verdict-page L1 tests and rendered below.
   const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
   if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
+    // Schema is guaranteed current by the startup migration step
+    // (drizzle-kit migrate in the service entrypoint) — the page just reads.
     installLiveStore(process.env.DATABASE_URL);
   }
   const data = await getSiteStore().getVerdictPage(id);

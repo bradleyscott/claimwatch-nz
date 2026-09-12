@@ -7,7 +7,7 @@
 // never reaches into harness code (HARNESS §2.4).
 
 import { Pool } from "pg";
-import { ensureAppendOnlyGuards, migrate } from "./store.ts";
+import { migrate } from "./store.ts";
 
 export interface MigrateOptions {
   databaseUrl: string;
@@ -17,7 +17,6 @@ export async function runMigrations(options: MigrateOptions): Promise<{ applied:
   const pool = new Pool({ connectionString: options.databaseUrl });
   try {
     const applied = await migrate(pool);
-    await ensureAppendOnlyGuards(pool);
     return { applied };
   } finally {
     await pool.end();
