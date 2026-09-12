@@ -33,7 +33,7 @@ describe.runIf(process.env.LIVE_EGRESS === "1")("live provider smoke (LIVE_EGRES
     const result = await openai.call({
       role: "triage-checkability",
       system: 'Reply with ONLY a JSON object: {"checkable": boolean}.',
-      user: "Sentence: What is the Government doing about hospital waiting lists? Classify whether it is a checkable claim.",
+      user: "Sentence: I hope it rains tomorrow. Is this a checkable factual claim? Reply via the schema.",
       schema,
     });
     expect(result.ok).toBe(true);
