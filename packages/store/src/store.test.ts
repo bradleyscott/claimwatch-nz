@@ -17,8 +17,10 @@ import { createTestStore } from "./store.ts";
 //     logTransition, logFallback, FREEZE_WINDOW }
 import type { Store } from "./store-api.ts";
 
-const DATABASE_URL =
-  process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch_test";
+// Local default = the compose DB (claimwatch); CI sets DATABASE_URL to its
+// own scratch (claimwatch_test). The DB name is infra wiring, not a
+// requirement — createTestStore wipes whichever database it gets.
+const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch";
 
 let store: Store;
 
