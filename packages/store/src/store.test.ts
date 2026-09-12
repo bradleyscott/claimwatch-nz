@@ -34,7 +34,7 @@ const DATABASE_URL = requireEnv("DATABASE_URL");
 let store: Store;
 
 beforeAll(async () => {
-  store = await createTestStore(DATABASE_URL);
+  store = await createTestStore(DATABASE_URL, { scratchSuffix: "_store_test" });
 });
 
 afterAll(async () => {
