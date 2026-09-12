@@ -10,6 +10,7 @@ import { setDefaultResultOrder } from "node:dns";
 
 setDefaultResultOrder("ipv4first");
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createLiveAdapter } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
@@ -239,6 +240,11 @@ async function main(): Promise<void> {
   console.log("\n[2/5] verification…");
   let verdictClass: string | null = null;
   let note = "";
+  // Captured from the deep-research path for the evidence pack (open-web
+  // claims); null for stat-grid claims.
+  let researchNote: string | null = null;
+  let adjudicationMismatch: string | null = null;
+  let researchEvidence: Array<{ title: string; link: string; snippet: string }> = [];
 
   const store = await createStore(DATABASE_URL);
   const registry = {
@@ -372,7 +378,18 @@ async function main(): Promise<void> {
             v as { verdict: string; bindingStrictness: string; mismatch: string },
         },
       );
-      verdictClass = (adjudication as { value: { verdict: string } }).value.verdict;
+      const adj = (adjudication as { value: { verdict: string; mismatch: string } }).value;
+      verdictClass = adj.verdict;
+      adjudicationMismatch = adj.mismatch || null;
+      researchEvidence = outcome.evidence.slice(0, 5).map((e) => ({
+        title: e.title,
+        link: e.link,
+        snippet: e.snippet,
+      }));
+      researchNote = `Deep research checked ${outcome.evidence.length} sources across ${outcome.roundsUsed} round(s) — sources included: ${outcome.evidence
+        .slice(0, 3)
+        .map((e) => new URL(e.link).hostname)
+        .join(", ")}.${outcome.gaps.length > 0 ? ` Unresolved: ${outcome.gaps[0]}` : ""}`;
       note = `deep research (${outcome.evidence.length} sources, ${outcome.roundsUsed} rounds, confidence ${outcome.confidence}${outcome.cappedRun ? ", cap-bound" : ""})`;
     }
     console.log(`  open-web → ${verdictClass}`);
@@ -445,10 +462,38 @@ async function main(): Promise<void> {
       claimType: claim.claimType,
       discourseContext: { window: `AVeriTeC dev set, claim_date ${target.claim_date}` },
     });
+    // Persist the pack with what the research actually produced: the
+    // adjudication's own commentary (not the benchmark's justification) and
+    // the retrieved evidence as item rows — the page's evidence section reads
+    // both.
+    const packJustifications: string[] = [];
+    if (researchNote) packJustifications.push(researchNote);
+    if (adjudicationMismatch)
+      packJustifications.push(`Claim-source mismatch: ${adjudicationMismatch}`);
+    if (packJustifications.length === 0) packJustifications.push(target.justification);
+    // Record the research's sources as evidence_item rows — the page's
+    // evidence section lists them with URLs.
+    const itemRefs: string[] = [];
+    for (const e of researchEvidence) {
+      try {
+        const item = await store.recordEvidenceItem({
+          claimId: claimRecord.claimId,
+          authorityRef: new URL(e.link).hostname,
+          seriesIdentity: e.title.slice(0, 60) || e.link,
+          vintageDate: new Date(),
+          url: e.link,
+          archiveSnapshotUrl: "",
+          contentHash: createHash("sha256").update(e.link).digest("hex"),
+        });
+        itemRefs.push(item.itemId);
+      } catch {
+        // A duplicate or malformed source never blocks the pack.
+      }
+    }
     const pack = await store.appendEvidencePack(claimRecord.claimId, {
-      itemRefs: [],
+      itemRefs,
       gridResult: null,
-      justifications: [target.justification],
+      justifications: packJustifications,
       nliOutcome: nli.verdict === "pass" ? "pass" : "fail",
     });
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {

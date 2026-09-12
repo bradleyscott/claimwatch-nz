@@ -132,7 +132,10 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
           .map((e) => ({
             authorityRef: e.authority_ref,
             seriesIdentity: e.series_identity,
-            vintageDate: e.vintage_date,
+            vintageDate:
+              e.vintage_date instanceof Date
+                ? e.vintage_date.toISOString().slice(0, 10)
+                : String(e.vintage_date),
             plainReason: "",
           })),
         justifications,

@@ -836,6 +836,10 @@ export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
       $$ LANGUAGE plpgsql;
     `);
     await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only ON ${table}`);
+    // Split-trigger migration: the verdict_version UPDATE/DELETE split renamed
+    // the triggers — old combined AND split names must drop cleanly.
+    await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only_update ON ${table}`);
+    await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only_delete ON ${table}`);
     if (table === "verdict_version") {
       // UPDATE: allowed only when nothing but status changed. DELETE: always
       // forbidden (no WHEN clause — it cannot reference NEW).
