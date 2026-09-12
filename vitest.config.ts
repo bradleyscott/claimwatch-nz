@@ -31,7 +31,9 @@ export default defineConfig({
     hookTimeout: 30_000,
     // L1 must never touch paid APIs; a live-egress flag assertion (CRO-R6) guards this.
     env: {
-      LIVE_EGRESS: "0",
+      // CRO-R6: default to no live egress, but the shell wins (LIVE_EGRESS=1
+      // in the command line enables the gated live smoke).
+      LIVE_EGRESS: process.env.LIVE_EGRESS ?? "0",
     },
   },
   resolve: {

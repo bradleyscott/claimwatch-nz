@@ -11,13 +11,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.53",
+    "@ai-sdk/openai": "^4.0.66",
+    "@cw/llm": "workspace:*",
     "@cw/store": "workspace:*",
+    "ai": "^7.0.99",
     "cheerio": "^1.0.0",
     "fast-xml-parser": "^5.2.0",
-    "zod": "4.6.2",
-    "@cw/llm": "workspace:*"
+    "zod": "4.6.2"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "undici": "^8.10.2"
   }
 }
