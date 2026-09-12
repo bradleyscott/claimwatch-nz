@@ -404,11 +404,6 @@ async function main(): Promise<void> {
         verdictClass = "not_enough_evidence";
         note = `adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question`;
         console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
-        if ((adjudication as { rawOutput?: string }).rawOutput) {
-          console.log(
-            `  raw: ${String((adjudication as { rawOutput?: string }).rawOutput).slice(0, 400)}`,
-          );
-        }
       } else {
       const adj = adjudication.value;
       verdictClass = adj.verdict;

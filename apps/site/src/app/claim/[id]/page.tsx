@@ -6,12 +6,20 @@ import { anchorHref, buildVerdictPageModel } from "@/lib/verdict-page";
 // content and ClaimReview JSON-LD in the initial HTML (SIT-R8), fixed section
 // order (§2.3), register-safe copy (§2.2).
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   return { title: "Verdict" };
 }
 
-export default async function ClaimPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClaimPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
   if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
@@ -95,7 +103,9 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           {data.speaker ? (
             <>
               <b className="font-semibold text-[#3c4654]">{data.speaker}</b>
-              {data.speakerAffiliation ? <>, {data.speakerAffiliation}</> : null}
+              {data.speakerAffiliation ? (
+                <>, {data.speakerAffiliation}</>
+              ) : null}
               <span className="mx-1.5 text-[#c6cad1]">·</span>
               {data.publishedAt.toLocaleDateString("en-NZ", {
                 day: "numeric",
@@ -127,6 +137,20 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         <p className="mt-2 text-[12.5px] text-[#a58a55]">
           Confidence: {Math.round(data.confidence * 100)}%
         </p>
+        {data.justifications.length > 0 ? (
+          <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">
+            {data.justifications
+              .filter((j) => !j.startsWith("Deep research checked"))
+              .map((j, i) => (
+                <p
+                  key={i}
+                  className="text-[16px] leading-relaxed text-[#2c3644]"
+                >
+                  {j}
+                </p>
+              ))}
+          </div>
+        ) : null}
       </section>
 
       {/* Hear it / watch it — rendered iff anchor present (SIT-R3) */}
@@ -143,14 +167,14 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
               ▶
             </span>
             <span className="text-[13.5px] text-[#dfe6ee]">
-              <b className="text-[14.5px] text-white">Hear the claim</b> — jumps to the moment it
-              was said
+              <b className="text-[14.5px] text-white">Hear the claim</b> — jumps
+              to the moment it was said
             </span>
           </a>
           {data.transcriptTier === "publisher-auto" ? (
             <p className="mt-3 text-[12.5px] text-mut">
-              The wording above comes from an automatically generated transcript, which can contain
-              errors.
+              The wording above comes from an automatically generated
+              transcript, which can contain errors.
             </p>
           ) : null}
         </section>
@@ -164,17 +188,6 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         <div className="mb-4 text-[11px] font-extrabold uppercase tracking-[.12em] text-faint">
           What we checked it against
         </div>
-        {data.justifications.length > 0 ? (
-          <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">
-            {data.justifications
-              .filter((j) => !j.startsWith("Deep research checked"))
-              .map((j, i) => (
-                <p key={i} className="text-[16px] leading-relaxed text-[#2c3644]">
-                  {j}
-                </p>
-              ))}
-          </div>
-        ) : null}
         {data.evidence.length === 0 ? (
           <p className="text-[15px] text-mut">
             {data.verdictClass === "not_enough_evidence"
@@ -211,7 +224,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
                       {e.plainReason}
                     </p>
                   ) : null}
-                  <p className="mt-1 font-calc text-[12px] text-[#b3b9c0]">
+                  <p className="font-calc text-[12px] text-[#b3b9c0]">
                     as measured at {e.vintageDate}
                   </p>
                 </div>
@@ -238,7 +251,10 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           {data.searchRefs.length > 0
             ? ` · Search queries recorded: ${data.searchRefs.length}`
             : ""}
-          {data.transcriptTier ? ` · transcript tier: ${data.transcriptTier}` : ""}.
+          {data.transcriptTier
+            ? ` · transcript tier: ${data.transcriptTier}`
+            : ""}
+          .
         </p>
       </details>
 
@@ -255,13 +271,17 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           })}
         </span>
         <span>·</span>
-        <a href="/methodology" className="text-[#155cc4] no-underline hover:underline">
+        <a
+          href="/methodology"
+          className="text-[#155cc4] no-underline hover:underline"
+        >
           How we check claims
         </a>
       </div>
       <p className="mt-3 border-l border-dashed border-line pl-4 text-[12px] text-[#8a919b]">
-        <b>How this verdict was made:</b> produced by our automated pipeline ({data.pipelineVersion}
-        ) and quality-audited. Data tables, prompt versions and audit results are logged and public.
+        <b>How this verdict was made:</b> produced by our automated pipeline (
+        {data.pipelineVersion}) and quality-audited. Data tables, prompt
+        versions and audit results are logged and public.
       </p>
       <p className="mt-4 text-[15px]">
         <b className="font-extrabold">Think we&apos;ve got this wrong?</b>{" "}
@@ -271,8 +291,8 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         >
           Tell us
         </a>{" "}
-        — with a source we should have used. Contests are public, and when one checks out we change
-        the verdict and show the change history.
+        — with a source we should have used. Contests are public, and when one
+        checks out we change the verdict and show the change history.
       </p>
     </main>
   );
