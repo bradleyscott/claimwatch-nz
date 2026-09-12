@@ -124,7 +124,7 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           schema: providerCall.schema,
           system: providerCall.system,
           prompt: providerCall.user,
-          maxOutputTokens: providerCall.maxOutputTokens ?? 1024,
+          maxOutputTokens: providerCall.maxOutputTokens ?? 2048,
         });
         return {
           ok: true,
@@ -139,10 +139,12 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
         const err = e as { name?: string; message?: string };
         const isSchema =
           err.name === "AI_NoObjectGeneratedError" || /schema|parse|json/i.test(err.message ?? "");
+        const rawText =
+          (err as { text?: string }).text ?? (err as { cause?: { text?: string } }).cause?.text ?? "";
         return {
           ok: false,
           failureClass: isSchema ? "schema-validation" : "llm-refusal",
-          raw: (err.message ?? "").slice(0, 500),
+          raw: [(err.message ?? ""), rawText].filter(Boolean).join(" | ").slice(0, 1500),
         };
       }
     },

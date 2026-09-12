@@ -163,9 +163,6 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
       >
         <div className="mb-4 text-[11px] font-extrabold uppercase tracking-[.12em] text-faint">
           What we checked it against
-          <span className="ml-2.5 font-semibold normal-case tracking-normal text-[#b3b9c0]">
-            public · re-runnable
-          </span>
         </div>
         {data.justifications.length > 0 ? (
           <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">

@@ -165,11 +165,11 @@ const PROMPTS: Record<string, string> = {
   "citation-compare":
     `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).
 Decide the verdict, then EXPLAIN it in plain language. Write for someone with no statistics training — short sentences, no jargon.
-Reply with ONLY JSON:
+Reply with ONLY JSON (types matter: paragraphs is an ARRAY of strings; tier is a NUMBER):
 {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking",
  "bindingStrictness": "direct"|"decorative",
  "mismatch": string,
- "narrative": {"lead": string, "paragraphs": string[], "pull": string},
+ "narrative": {"lead": string, "paragraphs": [string], "pull": string},
  "sourceFindings": [{"link": string, "tier": number, "finding": string}]}
 Rules for "narrative":
 - lead: one sentence a reader could quote. Say what the evidence ACTUALLY shows vs the claim.
@@ -404,6 +404,11 @@ async function main(): Promise<void> {
         verdictClass = "not_enough_evidence";
         note = `adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question`;
         console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
+        if ((adjudication as { rawOutput?: string }).rawOutput) {
+          console.log(
+            `  raw: ${String((adjudication as { rawOutput?: string }).rawOutput).slice(0, 400)}`,
+          );
+        }
       } else {
       const adj = adjudication.value;
       verdictClass = adj.verdict;

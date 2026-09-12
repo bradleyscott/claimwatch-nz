@@ -345,6 +345,28 @@ const CitationOutput = z.object({
   bindingStrictness: z.enum(["direct", "decorative"]).optional(),
   quotedClaimOnly: z.boolean().optional(),
   mismatch: z.string().optional(),
+  // Deep-research additions (user direction, Sept 2026): the adjudicator also
+  // explains its verdict in plain language and reports what each source said.
+  narrative: z
+    .object({
+      lead: z.string(),
+      // LLMs sometimes emit a single paragraph as a string — accept and wrap.
+      paragraphs: z
+        .union([z.array(z.string()), z.string().transform((s) => [s])])
+        .default([]),
+      pull: z.string(),
+    })
+    .optional(),
+  sourceFindings: z
+    .array(
+      z.object({
+        link: z.string(),
+        // LLMs emit tier as a numeric string ('1') as often as a number.
+        tier: z.union([z.number(), z.string().transform((s) => Number(s))]),
+        finding: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 export async function citationCheck(
