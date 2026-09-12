@@ -44,7 +44,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
       },
     );
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain("covid-mortality");
+    expect(calls[0]).toContain("covid mortality");
     expect(calls[0]).toContain("official");
     expect(calls[0]).not.toContain("225,000"); // claim text never enters the query
   });

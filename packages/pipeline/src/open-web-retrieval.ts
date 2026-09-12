@@ -57,7 +57,14 @@ export async function runOpenWebRetrieval(
   if (input.fingerprint.core) parts.push(input.fingerprint.core);
   else if (input.fingerprint.domain) parts.push(input.fingerprint.domain.replace(/-/g, " "));
   if (input.fingerprint.temporal) parts.push(input.fingerprint.temporal);
-  let query = `${parts.join(" ")} statistics official New Zealand`.trim();
+  // Locale-aware suffix: NZ keywords → NZ bias; otherwise a neutral
+  // "official statistics" suffix. The pipeline verifies any claim — a
+  // Nigeria-GDP claim must search Nigerian sources, not NZ ones.
+  const text = `${input.fingerprint.core} ${input.fingerprint.domain ?? ""}`.toLowerCase();
+  const suffix = /\b(nz|new zealand)\b/.test(text)
+    ? "statistics official New Zealand"
+    : "official statistics";
+  let query = `${parts.join(" ")} ${suffix}`.trim();
 
   let round = 0;
   let confidence = 0;

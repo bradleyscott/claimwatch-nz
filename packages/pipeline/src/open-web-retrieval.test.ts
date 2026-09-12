@@ -60,7 +60,7 @@ describe("open-web retrieval loop — fingerprint-conditioned, capped (VER-R3)",
 
   it("returns evidence with the cap binding recorded", async () => {
     const { search } = stubSearch({
-      "225,000 covid deaths statistics official New Zealand": [
+      "225,000 covid deaths official statistics": [
         {
           title: "MoH covid data",
           link: "https://www.health.govt.nz/covid",
@@ -91,10 +91,10 @@ describe("open-web retrieval loop — fingerprint-conditioned, capped (VER-R3)",
 
   it("iterates multi-hop rounds when the LLM says more retrieval is needed", async () => {
     const { calls, search } = stubSearch({
-      "225,000 covid deaths statistics official New Zealand": [
+      "225,000 covid deaths official statistics": [
         { title: "MoH portal", link: "https://www.health.govt.nz/covid", snippet: "data portal" },
       ],
-      "covid mortality excess deaths 2020 New Zealand": [
+      "covid mortality excess deaths 2020 official statistics": [
         {
           title: "Stats NZ excess deaths",
           link: "https://www.stats.govt.nz/excess",
@@ -110,7 +110,7 @@ describe("open-web retrieval loop — fingerprint-conditioned, capped (VER-R3)",
         return {
           done: false,
           nextRound: 1,
-          refinedQuery: "covid mortality excess deaths 2020 New Zealand",
+          refinedQuery: "covid mortality excess deaths 2020 official statistics",
         };
       }
       return { done: true, confidence: 0.9 };

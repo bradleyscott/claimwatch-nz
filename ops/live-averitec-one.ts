@@ -168,7 +168,7 @@ const PROMPTS: Record<string, string> = {
   "nli-audit":
     'Check if a justification sentence is entailed by the cited evidence. Reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}.',
   "authority-classify":
-    'Classify this source as an NZ evidence authority for statistical claims. tier 1 = NZ Crown/official statistics (.govt.nz, .parliament.nz, official portals); tier 2 = NZ academia/peer-review (.ac.nz); tier 3 = major NZ media (RNZ, NZ Herald, Stuff, 1News); tier 5 = NZ NGO/sector body (usable with tier-gap framing); tier 6 = unknown/personal. Return null if not plausibly an evidence authority for NZ statistical claims. Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number} (confidence 0-1), or null.',
+    'Classify this source as an evidence authority for statistical claims. The authority question is JURISDICTION-RELATIVE: tier 1 = the official statistics office or relevant national government department FOR THE CLAIM\'S JURISDICTION (NZ claims → govt.nz; US claims → census.gov/bls.gov/cdc.gov; India claims → mospi.gov.in). A national statistics office of any country is T1 for that jurisdiction\'s claims and only for them. tier 2 = academia/peer-review in-jurisdiction; tier 3 = major mainstream media in-jurisdiction; tier 5 = NGO/sector body (tier-gap framing); tier 6 = unknown/personal. Return null if not plausibly an evidence authority for the claim\'s jurisdiction. Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number} (confidence 0-1), or null.',
 };
 
 function pipelineVerdict(

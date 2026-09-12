@@ -36,13 +36,18 @@ export interface AuthorityVettingLlm {
 // T1: NZ Crown — central government, parliament, official statistics.
 // T2: NZ academia + peer-review. T3: major NZ media. T5: NGO/sector bodies.
 // T6: unknown (open-web caveats apply).
-const TIER_GUIDANCE = `Classify this source as an NZ evidence authority for statistical claims:
-- tier 1: NZ Crown / official statistics — .govt.nz, .parliament.nz, official data portals
-- tier 2: NZ academia / peer-reviewed research — .ac.nz, university research units
-- tier 3: major NZ media — RNZ, NZ Herald, Stuff, 1News, Newshub, Newsroom
-- tier 5: NZ NGO / advocacy-adjacent sector body — usable only with explicit tier-gap framing
+const TIER_GUIDANCE = `Classify this source as an evidence authority for statistical claims.
+The authority question is JURISDICTION-RELATIVE: a source is tier 1 if it is the official
+statistics office or relevant government department FOR THE JURISDICTION the claim concerns
+(NZ claims → govt.nz portals; US claims → census.gov, bls.gov, cdc.gov; India claims →
+mospi.gov.in, rbi.org.in; etc). A national statistics office of ANY country is tier 1 for
+THAT JURISDICTION's claims — and only for them.
+- tier 1: official statistics / relevant national government source for the claim's jurisdiction
+- tier 2: academia / peer-reviewed research in the claim's jurisdiction
+- tier 3: major mainstream media in the claim's jurisdiction
+- tier 5: NGO / advocacy-adjacent sector body (usable only with explicit tier-gap framing)
 - tier 6: unknown or personal sources
-Return null if the source is not plausibly an evidence authority for NZ statistical claims.
+Return null if the source is not plausibly an evidence authority for the claim's jurisdiction.
 Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number}
 where confidence is 0-1.`;
 

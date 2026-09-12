@@ -36,7 +36,11 @@ export interface DiscoveryDeps {
 // (it is the canonical identity; un-hyphenating re-opens phrasing drift) and
 // the query still reads naturally with the official-source bias appended.
 function discoveryQuery(domain: string): string {
-  return `${domain} statistics official New Zealand`;
+  // Locale-aware: the domain key itself may name a non-NZ jurisdiction.
+  const suffix = /\b(nz|new-zealand)\b/.test(domain)
+    ? "statistics official New Zealand"
+    : "official statistics";
+  return `${domain.replace(/-/g, " ")} ${suffix}`;
 }
 
 export async function discoverAuthority(
