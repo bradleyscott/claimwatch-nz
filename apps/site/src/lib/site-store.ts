@@ -35,6 +35,11 @@ export const VerdictPageData = z.object({
   ),
   pipelineVersion: z.string(),
   promptVersions: z.record(z.string(), z.string()),
+  // The pack's human-readable justifications — the "how it was refuted"
+  // commentary (evidence_pack.justifications). Absent → empty array.
+  justifications: z.array(z.string()).default([]),
+  modelVersions: z.record(z.string(), z.string()).default({}),
+  searchRefs: z.array(z.string()).default([]),
 });
 export type VerdictPageData = z.infer<typeof VerdictPageData>;
 
@@ -83,41 +88,58 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
       const result = await pool.query(
         `SELECT c.claim_id, c.utterance_text AS claim_text,
                 c.discourse_context->>'attachedProposal' AS attached_proposal,
-                c.transcript_tier, c.pipeline_version, c.prompt_versions,
+                c.transcript_tier,
                 v.verdict_class, v.confidence::float8 AS confidence,
-                v.created_at AS published_at
+                v.created_at AS published_at,
+                p.pipeline_version, p.prompt_versions, p.model_versions, p.search_refs
          FROM claim c
          JOIN verdict_version v ON v.claim_id = c.claim_id AND v.version =
               (SELECT MAX(version) FROM verdict_version WHERE claim_id = c.claim_id)
-         WHERE c.claim_id = $1::uuid AND v.status IN ('DRAFT','PUBLISHED')`,
+         LEFT JOIN verdict_provenance p ON p.provenance_id = v.provenance_id
+        WHERE c.claim_id = $1::uuid AND v.status IN ('DRAFT','PUBLISHED')`,
         [claimId],
       );
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
+      // The pack carries the human-readable justifications (the "how it was
+      // refuted" commentary); the items carry the source rows.
       const evidence = await pool.query(
-        `SELECT authority_ref, series_identity, vintage_date
-         FROM evidence_item WHERE claim_id = $1::uuid`,
+        `SELECT e.authority_ref, e.series_identity, e.vintage_date, e.url,
+                ep.justifications
+         FROM evidence_pack ep
+         LEFT JOIN evidence_item e ON e.claim_id = ep.claim_id
+         WHERE ep.claim_id = $1::uuid
+         ORDER BY ep.pack_id`,
         [claimId],
       );
+      const justifications =
+        evidence.rows.find((r) => r.justifications?.length)?.justifications ?? [];
       return VerdictPageData.parse({
         claimId: row.claim_id,
         claimText: row.claim_text,
         speaker: null, // attribution lands with the entity slice
         speakerAffiliation: null,
+        transcriptTier: row.transcript_tier ?? null,
         publishedAt: row.published_at,
         verdictClass: row.verdict_class,
         confidence: row.confidence ?? 0.5,
-        attachedProposal: row.attached_proposal,
         mediaAnchor: null, // caption lanes land with the YouTube slice
-        transcriptTier: row.transcript_tier,
-        evidence: evidence.rows.map((e) => ({
-          authorityRef: e.authority_ref,
-          seriesIdentity: e.series_identity,
-          vintageDate: e.vintage_date,
-          plainReason: "",
-        })),
+        attachedProposal: row.attached_proposal,
+        // The pack LEFT JOIN means claims with a pack but no items produce
+        // null-padded rows — evidence exists as justifications only.
+        evidence: evidence.rows
+          .filter((e) => e.authority_ref != null)
+          .map((e) => ({
+            authorityRef: e.authority_ref,
+            seriesIdentity: e.series_identity,
+            vintageDate: e.vintage_date,
+            plainReason: "",
+          })),
+        justifications,
         pipelineVersion: row.pipeline_version ?? "unknown",
         promptVersions: row.prompt_versions ?? {},
+        modelVersions: row.model_versions ?? {},
+        searchRefs: row.search_refs ?? [],
       });
     },
     async getFeed(

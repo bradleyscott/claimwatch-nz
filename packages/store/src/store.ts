@@ -281,6 +281,15 @@ export class PgStore implements Store {
         transition.at ?? new Date(),
       ],
     );
+    // The transition IS the status change. The append-only guard on
+    // verdict_version exempts status-only updates (lifecycle, not history);
+    // the log row above records every change (STO-R14). Without this the
+    // verdict stayed DRAFT forever — the site reader's status filter never
+    // saw published verdicts, and no lifecycle ever advanced.
+    await this.pool.query(`UPDATE verdict_version SET status = $2 WHERE verdict_id = $1`, [
+      verdictId,
+      transition.to,
+    ]);
   }
 
   async transitions(
@@ -812,6 +821,13 @@ function authoritySeed(): string {
 
 export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
   for (const table of APPEND_ONLY_TABLES) {
+    // verdict_version's STATUS column is lifecycle, not history: transitions
+    // (DRAFT → PUBLISHED → …) must update it, and the transition log records
+    // every change (STO-R14). The append-only guard on that table therefore
+    // fires only when any column OTHER than status changes — the row itself
+    // stays append-only.
+    const whenClause =
+      table === "verdict_version" ? "WHEN (OLD.status IS NOT DISTINCT FROM NEW.status)" : "";
     await pool.query(`
       CREATE OR REPLACE FUNCTION ${table}_append_only_guard() RETURNS trigger AS $$
       BEGIN
@@ -820,8 +836,23 @@ export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {
       $$ LANGUAGE plpgsql;
     `);
     await pool.query(`DROP TRIGGER IF EXISTS ${table}_append_only ON ${table}`);
-    await pool.query(
-      `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION ${table}_append_only_guard()`,
-    );
+    if (table === "verdict_version") {
+      // UPDATE: allowed only when nothing but status changed. DELETE: always
+      // forbidden (no WHEN clause — it cannot reference NEW).
+      await pool.query(
+        `CREATE TRIGGER ${table}_append_only_update BEFORE UPDATE ON ${table} FOR EACH ROW
+         WHEN (OLD.status IS NOT DISTINCT FROM NEW.status)
+         EXECUTE FUNCTION ${table}_append_only_guard()`,
+      );
+      await pool.query(
+        `CREATE TRIGGER ${table}_append_only_delete BEFORE DELETE ON ${table} FOR EACH ROW
+         EXECUTE FUNCTION ${table}_append_only_guard()`,
+      );
+    } else {
+      await pool.query(
+        `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW
+         EXECUTE FUNCTION ${table}_append_only_guard()`,
+      );
+    }
   }
 }

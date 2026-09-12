@@ -157,6 +157,15 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[.12em] text-faint">
           The data
         </div>
+        {data.justifications.length > 0 ? (
+          <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">
+            {data.justifications.map((j, i) => (
+              <p key={i} className="text-[15.5px] font-semibold leading-relaxed text-[#33270f]">
+                {j}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {data.evidence.length === 0 ? (
           <p className="text-[15px] text-mut">
             {data.verdictClass === "not_enough_evidence"
@@ -183,7 +192,6 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           ))
         )}
       </section>
-
       {/* Provenance — collapsed by default, the one place technical vocabulary is permitted */}
       <details className="mt-4 rounded-2xl border border-line bg-card px-7 py-4 text-[12px] text-[#8a919b]">
         <summary className="cursor-pointer text-[11px] font-extrabold uppercase tracking-[.08em] text-faint">
@@ -194,6 +202,14 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           {Object.entries(data.promptVersions)
             .map(([k, v]) => `${k}@${v}`)
             .join(", ")}
+          {Object.keys(data.modelVersions).length > 0
+            ? ` · Models: ${Object.entries(data.modelVersions)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(", ")}`
+            : ""}
+          {data.searchRefs.length > 0
+            ? ` · Search queries recorded: ${data.searchRefs.length}`
+            : ""}
           {data.transcriptTier ? ` · transcript tier: ${data.transcriptTier}` : ""}.
         </p>
       </details>

@@ -40,6 +40,9 @@ const pageData = {
   ],
   pipelineVersion: "0.1.0",
   promptVersions: { adjudication: "adjudication@1" },
+  justifications: ["The cited window shows +11.6%, per-capita +1.9%."],
+  modelVersions: { adjudication: "claude-sonnet-5" },
+  searchRefs: [],
 } as const satisfies VerdictPageData;
 
 async function renderVerdictPage(
