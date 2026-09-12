@@ -73,7 +73,14 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         // malformed payload here must fail the build, not silently vanish.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(claimReview) }}
       />
-      {/* Claim card */}
+      {/* Breadcrumbs (mockup: Live feed › Topic › Claims by speaker) — topic
+          facets land with the entity slice; the feed link is live now. */}
+      <div className="pb-2 pt-1 text-[12.5px] text-mut">
+        <a href="/" className="hover:text-ink">
+          Live feed
+        </a>{" "}
+        › Verdict
+      </div>
       <section
         className="mt-4 rounded-2xl border border-line bg-card px-7 py-7"
         aria-label="The claim"
@@ -154,8 +161,11 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         className="mt-4 rounded-2xl border border-line bg-card px-7 py-7"
         aria-label="The evidence"
       >
-        <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[.12em] text-faint">
-          The data
+        <div className="mb-4 text-[11px] font-extrabold uppercase tracking-[.12em] text-faint">
+          What we checked it against
+          <span className="ml-2.5 font-semibold normal-case tracking-normal text-[#b3b9c0]">
+            public · re-runnable
+          </span>
         </div>
         {data.justifications.length > 0 ? (
           <div className="mb-3 space-y-2 border-l-[3px] border-line pl-4">
@@ -182,7 +192,20 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
                 {e.authorityRef}
               </div>
               <div>
-                <b className="text-[15.5px] font-bold">{e.seriesIdentity}</b>
+                <b className="text-[15.5px] font-bold">
+                  {e.url ? (
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#155cc4] hover:underline"
+                    >
+                      {e.seriesIdentity}
+                    </a>
+                  ) : (
+                    e.seriesIdentity
+                  )}
+                </b>
                 <p className="mt-1 text-[13.5px] leading-relaxed text-mut">{e.plainReason}</p>
                 <p className="mt-1 font-calc text-[12px] text-[#b3b9c0]">
                   as measured at {e.vintageDate}
@@ -213,6 +236,39 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           {data.transcriptTier ? ` · transcript tier: ${data.transcriptTier}` : ""}.
         </p>
       </details>
+
+      {/* Metarow + contest (mockup footer material). The contest flow names
+          the future contestation slice without building it (SITE-MVP
+          out-of-scope note). */}
+      <div className="mt-4 flex flex-wrap gap-4 px-2 text-[12.5px] text-mut">
+        <span>
+          Checked{" "}
+          {data.publishedAt.toLocaleDateString("en-NZ", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+        </span>
+        <span>·</span>
+        <a href="/methodology" className="text-[#155cc4] no-underline hover:underline">
+          How we check claims
+        </a>
+      </div>
+      <p className="mt-3 border-l border-dashed border-line pl-4 text-[12px] text-[#8a919b]">
+        <b>How this verdict was made:</b> produced by our automated pipeline ({data.pipelineVersion}
+        ) and quality-audited. Data tables, prompt versions and audit results are logged and public.
+      </p>
+      <p className="mt-4 text-[15px]">
+        <b className="font-extrabold">Think we&apos;ve got this wrong?</b>{" "}
+        <a
+          href="/methodology"
+          className="font-semibold text-[#155cc4] no-underline hover:underline"
+        >
+          Tell us
+        </a>{" "}
+        — with a source we should have used. Contests are public, and when one checks out we change
+        the verdict and show the change history.
+      </p>
     </main>
   );
 }

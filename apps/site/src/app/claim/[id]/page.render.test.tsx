@@ -36,6 +36,7 @@ const pageData = {
       seriesIdentity: "victimisations-monthly",
       vintageDate: "2026-06-30",
       plainReason: "The cited window shows +11.6%, per-capita +1.9%.",
+      url: "https://www.policedata.nz/victimisations",
     },
   ],
   pipelineVersion: "0.1.0",

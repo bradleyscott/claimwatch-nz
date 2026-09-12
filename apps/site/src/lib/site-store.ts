@@ -31,6 +31,9 @@ export const VerdictPageData = z.object({
       seriesIdentity: z.string(),
       vintageDate: z.string(),
       plainReason: z.string(),
+      // Source link-out (evidence_item.url) — the mockup renders every
+      // evidence row's source as a link; absent → text-only row.
+      url: z.string().default(""),
     }),
   ),
   pipelineVersion: z.string(),
@@ -137,6 +140,7 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
                 ? e.vintage_date.toISOString().slice(0, 10)
                 : String(e.vintage_date),
             plainReason: "",
+            url: e.url ?? "",
           })),
         justifications,
         pipelineVersion: row.pipeline_version ?? "unknown",

@@ -24,6 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 How this works
               </a>
             </nav>
+            <div className="ml-auto hidden rounded-lg border border-[#3a4a5f] bg-[#223146] px-3 py-1.5 text-[13px] text-[#9aa5b1] sm:block">
+              🔍&nbsp; Search a claim, person, or topic…
+            </div>
           </div>
         </header>
         {children}
