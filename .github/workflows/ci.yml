@@ -12,13 +12,20 @@ concurrency:
 jobs:
   typecheck-test:
     runs-on: ubuntu-latest
+    env:
+      # Ephemeral per-run password — nothing committed, no secret management.
+      # The service container, psql steps, and test env all derive from this.
+      PG_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      PG_USER: claimwatch
+      PG_HOST: localhost
+      PG_MAIN_DB: claimwatch_test
     services:
       # Pinned Postgres + pgvector, same image as compose (CRO-R15 parity).
       postgres:
         image: pgvector/pgvector:pg18
         env:
           POSTGRES_USER: claimwatch
-          POSTGRES_PASSWORD: claimwatch
+          POSTGRES_PASSWORD: ${{ env.PG_PASSWORD }}
           POSTGRES_DB: claimwatch_test
         ports:
           - 5432:5432
@@ -28,8 +35,8 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://claimwatch:claimwatch@localhost:5432/claimwatch_test
-      LABELS_DATABASE_URL: postgres://claimwatch:claimwatch@localhost:5432/claimwatch_labels_test
+      DATABASE_URL: postgres://claimwatch:${{ env.PG_PASSWORD }}@${{ env.PG_HOST }}:5432/${{ env.PG_MAIN_DB }}
+      LABELS_DATABASE_URL: postgres://claimwatch:${{ env.PG_PASSWORD }}@${{ env.PG_HOST }}:5432/claimwatch_labels_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -41,8 +48,8 @@ jobs:
       # but pre-creation keeps CI independent of runtime CREATEDB privileges).
       - name: Create scratch databases
         run: |
-          PGPASSWORD=claimwatch psql -h localhost -U claimwatch -d claimwatch_test -c "CREATE DATABASE claimwatch_test_flow" || true
-          PGPASSWORD=claimwatch psql -h localhost -U claimwatch -d claimwatch_test -c "CREATE DATABASE claimwatch_labels_test" || true
+          PGPASSWORD=${{ env.PG_PASSWORD }} psql -h ${{ env.PG_HOST }} -U ${{ env.PG_USER }} -d ${{ env.PG_MAIN_DB }} -c "CREATE DATABASE claimwatch_test_flow" || true
+          PGPASSWORD=${{ env.PG_PASSWORD }} psql -h ${{ env.PG_HOST }} -U ${{ env.PG_USER }} -d ${{ env.PG_MAIN_DB }} -c "CREATE DATABASE claimwatch_labels_test" || true
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
