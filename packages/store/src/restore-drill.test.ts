@@ -1,0 +1,100 @@
+// Restore drill L1 (STORE §5.2, STO-R7): seed a real store → export a drill
+// dump → apply the migration chain to a scratch restore target → replay data →
+// integrity assertions pass. The negative case proves the drill DETECTS
+// corruption: an extra injected row must fail the row-count assertion and the
+// drill check must throw naming it.
+
+import { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  assertRestoreIntegrity,
+  drillFailures,
+  exportDrillDump,
+  replayDrillDump,
+  runRestoreDrillCheck,
+} from "./restore-drill.ts";
+import { createTestStore } from "./store.ts";
+import type { Store } from "./store-api.ts";
+
+const DATABASE_URL =
+  process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch";
+const RESTORED_URL = `${DATABASE_URL}_restore_drill`;
+
+// Own scratch source: vitest forks run suites concurrently, and another
+// suite's from-zero wipe on a shared DB corrupts the drill mid-flight.
+let store: Store;
+
+beforeAll(async () => {
+  store = await createTestStore(DATABASE_URL, { scratchSuffix: "_drill" });
+});
+
+afterAll(async () => {
+  await store.close();
+});
+
+async function seedSource(): Promise<void> {
+  await store.recordPublication(store.fixtures.beehiveRelease());
+  await store.recordPublication(store.fixtures.rnzArticle());
+  const claim = await store.recordClaim(store.fixtures.statClaim());
+  await store.recordEvidenceItem({ ...store.fixtures.statsNzSeries(), claimId: claim.claimId });
+  const pack = await store.appendEvidencePack(claim.claimId, store.fixtures.evidencePack());
+  const v1 = await store.writeVerdict(claim.claimId, pack.packId, {
+    provenance: store.fixtures.fullProvenance(),
+    verdictClass: "conflicting_cherry_picking",
+    confidence: 0.72,
+  });
+  await store.logTransition(v1.verdictId, { from: "DRAFT", to: "PUBLISHED", reason: "verified" });
+}
+
+describe("restore drill (STO-R7)", () => {
+  it("exports, replays into a schema-applied scratch target, and passes every integrity assertion", async () => {
+    await seedSource();
+
+    const dump = await exportDrillDump(process.env.DATABASE_URL + "_drill");
+    expect(dump).toContain("INSERT INTO publication");
+    expect(dump).toContain("GRANT INSERT, SELECT ON publication TO pipeline");
+
+    // Target: schema applied via the SAME migration chain (createTestStore =
+    // wipe + migrate + roles + guards), then data replay — the drill only
+    // INSERTs, which append-only guards permit.
+    const targetStore = await createTestStore(DATABASE_URL, { scratchSuffix: "_restore_drill" });
+    await targetStore.close();
+    await replayDrillDump(RESTORED_URL, dump);
+
+    const assertions = await assertRestoreIntegrity(
+      process.env.DATABASE_URL + "_drill",
+      RESTORED_URL,
+    );
+    runRestoreDrillCheck(assertions);
+  });
+
+  it("detects corruption: an extra injected row fails the drill check naming it", async () => {
+    await seedSource();
+    const dump = await exportDrillDump(process.env.DATABASE_URL + "_drill");
+
+    const targetStore = await createTestStore(DATABASE_URL, { scratchSuffix: "_restore_drill" });
+    await targetStore.close();
+    await replayDrillDump(RESTORED_URL, dump);
+
+    // Inject corruption into the restored copy: an extra publication row the
+    // source never had (INSERT is permitted; the drill's job is to notice).
+    const pool = new Pool({ connectionString: RESTORED_URL });
+    try {
+      await pool.query(
+        `INSERT INTO publication (source_id, canonical_url, content_hash, retrieved_at, retrieval_method, pipeline_version, raw_ref, text)
+         VALUES ('tamper', 'https://tampered.example/x', 'tampered-hash', now(), 'drill', '0.1.0', 'raw', 'tampered')`,
+      );
+    } finally {
+      await pool.end();
+    }
+
+    const assertions = await assertRestoreIntegrity(
+      process.env.DATABASE_URL + "_drill",
+      RESTORED_URL,
+    );
+    expect(drillFailures(assertions).some((a) => a.name === "row counts: publication")).toBe(true);
+    expect(() => runRestoreDrillCheck(assertions)).toThrow(
+      /restore drill FAILED.*row counts: publication/,
+    );
+  });
+});
