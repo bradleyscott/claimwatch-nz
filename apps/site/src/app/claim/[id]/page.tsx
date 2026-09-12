@@ -1,3 +1,4 @@
+import { claimReviewFromVerdict } from "@cw/store";
 import { VerdictRule } from "@/components/verdict-rule";
 import { anchorHref, buildVerdictPageModel } from "@/lib/verdict-page";
 
@@ -14,10 +15,8 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   // Live store reader lands with the deployment slice; the page shape is
   // pinned by lib/verdict-page L1 tests and rendered below.
-  const { fixtureSiteStore } = await import("@/lib/site-store");
-  const store = fixtureSiteStore([]);
-  const data = await store.getVerdictPage(id);
-
+  const { getSiteStore } = await import("@/lib/site-store");
+  const data = await getSiteStore().getVerdictPage(id);
   if (!data) {
     return (
       <main className="mx-auto max-w-[820px] px-5 py-10">
@@ -50,8 +49,27 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
     promptVersions: data.promptVersions,
   });
 
+  // The discovery channel (SIT-R1): one ClaimReview per verdict page, rendered
+  // server-side in the initial HTML — Google Fact Check Explorer reads this.
+  const claimReview = claimReviewFromVerdict({
+    verdictUrl: `https://claimwatch.nz/claim/${data.claimId}`,
+    claimText: data.claimText,
+    verdictClass: data.verdictClass,
+    publishedAt: data.publishedAt.toISOString(),
+    claimPublishedAt: data.publishedAt.toISOString(),
+    claimantName: data.speaker ?? "Unknown",
+    claimantKind: data.speaker ? "person" : "unknown",
+    ...(data.mediaAnchor ? { mediaAnchor: data.mediaAnchor } : {}),
+  });
+
   return (
     <main className="mx-auto max-w-[820px] px-5 py-6">
+      <script
+        type="application/ld+json"
+        // SIT-R1: the serializer is validated by the shared corpus tests; a
+        // malformed payload here must fail the build, not silently vanish.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(claimReview) }}
+      />
       {/* Claim card */}
       <section
         className="mt-4 rounded-2xl border border-line bg-card px-7 py-7"

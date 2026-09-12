@@ -72,3 +72,15 @@ export function fixtureSiteStore(
     },
   };
 }
+
+// Test seam (DI boundary): L4a render tests swap the store before invoking the
+// page component; production wiring assigns the live reader here.
+let activeSiteStore: SiteStore = fixtureSiteStore([]);
+
+export function getSiteStore(): SiteStore {
+  return activeSiteStore;
+}
+
+export function setSiteStore(store: SiteStore): void {
+  activeSiteStore = store;
+}
