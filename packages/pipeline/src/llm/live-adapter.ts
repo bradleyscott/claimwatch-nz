@@ -27,7 +27,8 @@ export type PortRole =
   | "citation-compare"
   | "quote-fidelity"
   | "nli-audit"
-  | "open-web";
+  | "open-web"
+  | "authority-classify";
 
 export interface ProviderCall {
   role: PortRole;
@@ -65,6 +66,7 @@ export const DEFAULT_ROUTING: Record<
   "quote-fidelity": { provider: "anthropic", model: "claude-sonnet-5" },
   "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
   "open-web": { provider: "anthropic", model: "claude-sonnet-5" },
+  "authority-classify": { provider: "anthropic", model: "claude-sonnet-5" },
 };
 
 const PROVIDER_ENV: Record<"anthropic" | "openai", string> = {

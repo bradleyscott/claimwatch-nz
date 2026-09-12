@@ -4,6 +4,8 @@
 
 import { Pool } from "pg";
 import type {
+  AuthorityFixture,
+  AuthorityRecord,
   ClaimFixture,
   EvidenceItemFixture,
   EvidencePackFixture,
@@ -19,6 +21,7 @@ const APPEND_ONLY_TABLES = [
   "evidence_item",
   "evidence_pack",
   "verdict_version",
+  "authority",
 ] as const;
 export const FREEZE_START = "2026-11-05T00:00:00Z";
 export const FREEZE_END = "2026-11-27T23:59:59Z";
@@ -308,6 +311,63 @@ export class PgStore implements Store {
     );
   }
 
+  async recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord> {
+    const rows = await this.pool.query(
+      `INSERT INTO authority (domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+       RETURNING authority_id, discovered_at`,
+      [
+        fixture.domain,
+        fixture.authorityRef,
+        fixture.sourceUrl,
+        fixture.tier,
+        fixture.rationale,
+        fixture.confidence,
+        fixture.discoveredBy,
+        JSON.stringify(fixture.searchRefs),
+      ],
+    );
+    const r = rows.rows[0];
+    return {
+      authorityId: r.authority_id,
+      domain: fixture.domain,
+      sourceUrl: fixture.sourceUrl,
+      authorityRef: fixture.authorityRef,
+      tier: fixture.tier,
+      rationale: fixture.rationale,
+      confidence: fixture.confidence,
+      discoveredBy: fixture.discoveredBy,
+      searchRefs: fixture.searchRefs,
+      discoveredAt: r.discovered_at,
+    };
+  }
+
+  async resolveAuthority(domain: string): Promise<AuthorityRecord | null> {
+    // Active only — retired rows never resolve. Best candidate: highest tier,
+    // then latest discovery (a newer T1 with a fresher vintage beats an older
+    // equal-tier row).
+    const rows = await this.pool.query(
+      `SELECT authority_id, domain, source_url, authority_ref, tier, rationale, confidence, discovered_by, search_refs, discovered_at
+       FROM authority WHERE domain = $1 AND status = 'active'
+       ORDER BY tier ASC, discovered_at DESC LIMIT 1`,
+      [domain],
+    );
+    if (rows.rows.length === 0) return null;
+    const r = rows.rows[0];
+    return {
+      authorityId: r.authority_id,
+      domain: r.domain,
+      sourceUrl: r.source_url,
+      authorityRef: r.authority_ref,
+      tier: r.tier,
+      rationale: r.rationale,
+      confidence: Number(r.confidence),
+      discoveredBy: r.discovered_by,
+      searchRefs: r.search_refs,
+      discoveredAt: r.discovered_at,
+    };
+  }
+
   async fallbackRateByLane(): Promise<Array<{ lane: string; count: number }>> {
     const rows = await this.pool.query(
       `SELECT lane, COUNT(*)::int AS count FROM fallback_log GROUP BY lane ORDER BY lane`,
@@ -377,6 +437,7 @@ const ID_COLUMN_BY_TABLE: Record<string, string> = {
   evidence_item: "item_id",
   evidence_pack: "pack_id",
   verdict_version: "verdict_id",
+  authority: "authority_id",
 };
 
 function idColumn(table: string): string {
@@ -513,6 +574,7 @@ async function ensureRoles(pool: Pool): Promise<void> {
     "verdict_transition_log",
     "fallback_log",
     "verdict_provenance",
+    "authority",
   ];
   for (const table of pipelineTables) {
     await pool.query(`GRANT INSERT, SELECT ON ${table} TO pipeline`);
@@ -541,6 +603,8 @@ export async function migrate(pool: Pool): Promise<string[]> {
   await run("010-verdict-version", verdictVersionDdl());
   await run("011-verdict-transition-log", verdictTransitionLogDdl());
   await run("012-fallback-log", fallbackLogDdl());
+  await run("013-authority", authorityDdl());
+  await run("014-authority-seed", authoritySeed());
   return applied;
 }
 
@@ -697,6 +761,39 @@ function fallbackLogDdl(): string {
     reason text NOT NULL,
     at timestamptz NOT NULL DEFAULT now()
   )`;
+}
+// Authority registry (user direction, Sept 2026): no pre-declared gate —
+// authorities are discovered over time, classified by the declared tier model,
+// and persisted with discovery provenance. Append-only: what we believed at
+// discovery time is a recorded fact; retirement supersedes, never rewrites.
+function authorityDdl(): string {
+  return `
+  CREATE TABLE IF NOT EXISTS authority (
+    authority_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain text NOT NULL,
+    authority_ref text NOT NULL,
+    source_url text NOT NULL,
+    tier integer NOT NULL CHECK (tier BETWEEN 1 AND 6),
+    rationale text NOT NULL,
+    confidence numeric NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    discovered_by text NOT NULL,
+    search_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+    status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
+    discovered_at timestamptz NOT NULL DEFAULT now()
+  )`;
+}
+
+// Seeds sit on the same footing as discoveries — 'seed' provenance, tier
+// declared by the initial design (all T1 NZ Crown).
+function authoritySeed(): string {
+  return `
+  INSERT INTO authority (domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
+  SELECT * FROM (VALUES
+    ('crime-statistics', 'policedata.nz', 'https://www.policedata.nz', 1, 'NZ Police official crime data portal (initial design seed)', 1.0, 'seed', '[]'::jsonb),
+    ('economic-forecasts', 'treasury.govt.nz', 'https://www.treasury.govt.nz', 1, 'NZ Treasury official forecasts (initial design seed)', 1.0, 'seed', '[]'::jsonb),
+    ('population-estimates', 'stats.govt.nz', 'https://www.stats.govt.nz', 1, 'Stats NZ official population estimates (initial design seed)', 1.0, 'seed', '[]'::jsonb)
+  ) AS seed(domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, search_refs)
+  WHERE NOT EXISTS (SELECT 1 FROM authority WHERE discovered_by = 'seed')`;
 }
 
 export async function ensureAppendOnlyGuards(pool: Pool): Promise<void> {

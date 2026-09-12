@@ -10,8 +10,8 @@
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
 
 import { describe, expect, it } from "vitest";
-import { vetCandidate, type AuthorityVettingLlm, type VettedCandidate } from "./vetting.ts";
 import type { SearchResult } from "./serper-adapter.ts";
+import { type AuthorityVettingLlm, type VettedCandidate, vetCandidate } from "./vetting.ts";
 
 const result = (link: string, title = "Title", snippet = ""): SearchResult => ({
   link,
@@ -59,7 +59,9 @@ describe("authority vetting — stage 1 guardrails (deterministic, VER-R14)", ()
     const llm = stubLlm(() => ({ tier: 1, rationale: "x", confidence: 0.9 }));
     expect((await vetCandidate(result("https://www.ons.gov.uk/economy"), llm)).rejected).toBe(true);
     expect((await vetCandidate(result("https://data.census.gov/table"), llm)).rejected).toBe(true);
-    expect((await vetCandidate(result("https://www.police.govt.nz/stats"), llm)).rejected).toBe(false);
+    expect((await vetCandidate(result("https://www.police.govt.nz/stats"), llm)).rejected).toBe(
+      false,
+    );
   });
 });
 
@@ -67,7 +69,11 @@ describe("authority vetting — stage 2 LLM tier classification", () => {
   it("classifies an official statistics page T1 with recorded rationale", async () => {
     const llm = stubLlm((c) =>
       c.link.includes("police.govt.nz")
-        ? { tier: 1, rationale: "official NZ Police statistics portal on a govt.nz domain", confidence: 0.95 }
+        ? {
+            tier: 1,
+            rationale: "official NZ Police statistics portal on a govt.nz domain",
+            confidence: 0.95,
+          }
         : null,
     );
     const out = await vetCandidate(result("https://www.police.govt.nz/about-us/statistics"), llm);
@@ -79,12 +85,16 @@ describe("authority vetting — stage 2 LLM tier classification", () => {
 
   it("classifies media T3 and NGO T5 — not everything is official", async () => {
     const llm = stubLlm((c) => {
-      if (c.link.includes("rnz.co.nz")) return { tier: 3, rationale: "major NZ broadcaster", confidence: 0.9 };
-      if (c.link.includes("salvationarmy")) return { tier: 5, rationale: "NGO social-policy unit", confidence: 0.85 };
+      if (c.link.includes("rnz.co.nz"))
+        return { tier: 3, rationale: "major NZ broadcaster", confidence: 0.9 };
+      if (c.link.includes("salvationarmy"))
+        return { tier: 5, rationale: "NGO social-policy unit", confidence: 0.85 };
       return null;
     });
     expect((await vetCandidate(result("https://www.rnz.co.nz/news"), llm)).tier).toBe(3);
-    expect((await vetCandidate(result("https://www.salvationarmy.org.nz/social"), llm)).tier).toBe(5);
+    expect((await vetCandidate(result("https://www.salvationarmy.org.nz/social"), llm)).tier).toBe(
+      5,
+    );
   });
 
   it("LLM refusal to classify (null) rejects with the recorded reason — no silent accept", async () => {
@@ -96,8 +106,10 @@ describe("authority vetting — stage 2 LLM tier classification", () => {
 
   it("candidate ranking: lowest tier wins among vetted survivors", async () => {
     const llm = stubLlm((c) => {
-      if (c.link.includes("police.govt.nz")) return { tier: 1, rationale: "official", confidence: 0.95 };
-      if (c.link.includes("otago.ac.nz")) return { tier: 2, rationale: "university", confidence: 0.9 };
+      if (c.link.includes("police.govt.nz"))
+        return { tier: 1, rationale: "official", confidence: 0.95 };
+      if (c.link.includes("otago.ac.nz"))
+        return { tier: 2, rationale: "university", confidence: 0.9 };
       if (c.link.includes("nzherald")) return { tier: 3, rationale: "media", confidence: 0.9 };
       return null;
     });
@@ -106,9 +118,9 @@ describe("authority vetting — stage 2 LLM tier classification", () => {
       result("https://www.police.govt.nz/statistics"),
       result("https://www.otago.ac.nz/study"),
     ];
-    const vetted = (
-      await Promise.all(candidates.map((c) => vetCandidate(c, llm)))
-    ).filter((c): c is VettedCandidate => !c.rejected);
+    const vetted = (await Promise.all(candidates.map((c) => vetCandidate(c, llm)))).filter(
+      (c): c is VettedCandidate => !c.rejected,
+    );
     const best = vetted.sort((a, b) => (a.tier ?? 9) - (b.tier ?? 9))[0];
     expect(best?.tier).toBe(1);
     expect(best?.link).toBe("https://www.police.govt.nz/statistics");

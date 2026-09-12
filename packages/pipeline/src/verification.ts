@@ -465,6 +465,15 @@ const OpenWebOutput = z.object({
   nextRound: z.number().optional(),
 });
 
+// Authority classification (user direction, Sept 2026): the LLM tier
+// classifier — the only judgement step in authority vetting. Rationale +
+// confidence are recorded on the authority row as provenance.
+export const AuthorityClassifyOutput = z.object({
+  tier: z.number().int().min(1).max(6),
+  rationale: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+
 export async function openWebLoop(
   llm: VerificationLlm,
   input: { claim: string; depthCap: number; mockRounds: number },
@@ -680,4 +689,5 @@ export const VERIFICATION_SCHEMAS: Record<string, z.ZodTypeAny> = {
   "quote-fidelity": QuoteFidelityOutput,
   "nli-audit": NliCheckOutput,
   "open-web": OpenWebOutput,
+  "authority-classify": AuthorityClassifyOutput,
 };

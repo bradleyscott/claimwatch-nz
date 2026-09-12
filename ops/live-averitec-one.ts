@@ -7,14 +7,25 @@
 // Usage: bun run ops/live-averitec-one.ts [claimIndex?]
 
 import { setDefaultResultOrder } from "node:dns";
+
 setDefaultResultOrder("ipv4first");
 
 import { readFileSync } from "node:fs";
 import { createLiveAdapter } from "../packages/pipeline/src/llm/live-adapter.ts";
+import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
+import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
+import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
+import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import { triageDocument } from "../packages/pipeline/src/triage.ts";
-import { computeStatGrid, citationCheck, quoteFidelityCheck, nliAudit } from "../packages/pipeline/src/verification.ts";
-import { createTestStore } from "../packages/store/src/store.ts";
+import {
+  citationCheck,
+  computeStatGrid,
+  nliAudit,
+  quoteFidelityCheck,
+} from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
+import { canonicalDomain } from "../packages/store/src/domain.ts";
+import { createTestStore } from "../packages/store/src/store.ts";
 
 interface AveritecClaim {
   claim: string;
@@ -23,7 +34,10 @@ interface AveritecClaim {
   claim_date: string;
   speaker: string | null;
   claim_types: string[];
-  questions: Array<{ question: string; answers: Array<{ answer: string; answer_type: string; source_url?: string }> }>;
+  questions: Array<{
+    question: string;
+    answers: Array<{ answer: string; answer_type: string; source_url?: string }>;
+  }>;
 }
 
 function requireEnv(name: string): string {
@@ -51,10 +65,7 @@ const VERIFICATION_SCHEMAS: Record<string, z.ZodTypeAny> = {};
 }
 
 function promptFor(role: string): string {
-  return (
-    PROMPTS[role] ??
-    'Reply with ONLY a JSON object matching the requested schema.'
-  );
+  return PROMPTS[role] ?? "Reply with ONLY a JSON object matching the requested schema.";
 }
 
 const triageLlm = {
@@ -89,25 +100,40 @@ const PROMPTS: Record<string, string> = {
     'Compare a claim against a cited document: does the document say what the claim says (numbers, period, population, direction)? Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "bindingStrictness": "direct"|"decorative", "mismatch": string}.',
   "nli-audit":
     'Check if a justification sentence is entailed by the cited evidence. Reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}.',
+  "authority-classify":
+    'Classify this source as an NZ evidence authority for statistical claims. tier 1 = NZ Crown/official statistics (.govt.nz, .parliament.nz, official portals); tier 2 = NZ academia/peer-review (.ac.nz); tier 3 = major NZ media (RNZ, NZ Herald, Stuff, 1News); tier 5 = NZ NGO/sector body (usable with tier-gap framing); tier 6 = unknown/personal. Return null if not plausibly an evidence authority for NZ statistical claims. Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number} (confidence 0-1), or null.',
 };
 
-function pipelineVerdict(averitecLabel: string): "supported" | "refuted" | "not_enough_evidence" | "conflicting_cherry_picking" {
+function pipelineVerdict(
+  averitecLabel: string,
+): "supported" | "refuted" | "not_enough_evidence" | "conflicting_cherry_picking" {
   switch (averitecLabel) {
-    case "Supported": return "supported";
-    case "Refuted": return "refuted";
-    case "Not Enough Evidence": return "not_enough_evidence";
-    case "Conflicting Evidence/Cherrypicking": return "conflicting_cherry_picking";
+    case "Supported":
+      return "supported";
+    case "Refuted":
+      return "refuted";
+    case "Not Enough Evidence":
+      return "not_enough_evidence";
+    case "Conflicting Evidence/Cherrypicking":
+      return "conflicting_cherry_picking";
   }
   throw new Error(`unknown AVeriTeC label: ${averitecLabel}`);
 }
 
 async function main(): Promise<void> {
-  const devSet: AveritecClaim[] = JSON.parse(readFileSync("packages/harness/data/dev.json", "utf8"));
+  const devSet: AveritecClaim[] = JSON.parse(
+    readFileSync("packages/harness/data/dev.json", "utf8"),
+  );
   const index = Number(process.argv[2] ?? "0");
 
   // The numerical-claim-with-QAs subset routes to modes the pipeline exercises
   // without a live series fetch; pick by index within that filter.
-  const pool = devSet.filter((d) => (d.claim_types ?? []).includes("Numerical Claim") && (d.questions?.length ?? 0) > 0 && d.speaker);
+  const pool = devSet.filter(
+    (d) =>
+      (d.claim_types ?? []).includes("Numerical Claim") &&
+      (d.questions?.length ?? 0) > 0 &&
+      d.speaker,
+  );
   const target = pool[0];
   if (!target) {
     throw new Error("no numerical claim with QAs found in the dev set");
@@ -116,7 +142,9 @@ async function main(): Promise<void> {
 
   console.log("── one-claim AVeriTeC dev-set slice ──");
   console.log(`claim [pool index 0 of ${pool.length}]: "${target.claim.slice(0, 120)}"`);
-  console.log(`ground-truth label: ${target.label} | speaker: ${target.speaker} | date: ${target.claim_date}`);
+  console.log(
+    `ground-truth label: ${target.label} | speaker: ${target.speaker} | date: ${target.claim_date}`,
+  );
   console.log(`evidence QAs available: ${target.questions.length}`);
 
   // 1. Triage (live LLM).
@@ -127,34 +155,68 @@ async function main(): Promise<void> {
   };
   const triage = await triageDocument(doc, triageLlm as never);
   if (triage.claims.length === 0) {
-    console.log("  no claim survived triage — dropped:", triage.dropLog.map((d) => d.rejectionClass).join(", "));
+    console.log(
+      "  no claim survived triage — dropped:",
+      triage.dropLog.map((d) => d.rejectionClass).join(", "),
+    );
     return;
   }
   const claim = triage.claims[0];
   console.log(`  → ${claim.claimType} → mode ${claim.mode}`);
 
-  // 2. Verify: route per mode. The stat-grid uses the QA-pair evidence as the
-  // "field" — the benchmark's own questions/answers stand in for official series.
+  // 2. Verify — registry-aware routing (user direction, Sept 2026): open-web
+  // is the default; stat-grid only when the registry holds a vetted authority
+  // for the claim's canonical domain. On a miss, discovery runs NON-BLOCKING
+  // (the claim gets its open-web verdict now; later claims in the category
+  // upgrade to stat-grid).
   console.log("\n[2/5] verification…");
   let verdictClass: string | null = null;
   let note = "";
-  if (claim.mode === "stat-grid") {
-    // Build a pseudo-series from the benchmark QA answers: the dev set's own
-    // evidence stand-in, clearly labelled as benchmark data (not official).
+
+  const store = await createTestStore(DATABASE_URL, { scratchSuffix: "" });
+  const registry = {
+    resolveAuthority: (domain: string) => store.resolveAuthority(domain),
+  };
+
+  // The registry probe decides stat-grid vs open-web for statistical claims.
+  const routedMode = await routeMode(
+    { claimType: claim.claimType, domain: claim.fingerprintAttempt?.domain ?? null },
+    registry,
+  );
+  console.log(`  registry routing: ${claim.claimType} → ${routedMode}`);
+
+  if (routedMode === "stat-grid") {
+    const authority = await store.resolveAuthority(
+      canonicalDomain(claim.fingerprintAttempt?.domain ?? ""),
+    );
+    console.log(
+      `  authority: ${authority?.authorityRef} (T${authority?.tier}, discovered ${authority?.discoveredBy})`,
+    );
+    // NOTE: series fetching is per-source plumbing (not built for this
+    // authority yet) — the grid still runs against benchmark QA stand-ins,
+    // clearly labelled.
     const series = {
-      authorityRef: "averitec-benchmark-qa",
-      authorityTier: 6 as const,
+      authorityRef: authority?.authorityRef ?? "averitec-benchmark-qa",
+      authorityTier: (authority?.tier ?? 6) as const,
       seriesIdentity: `averitec-${devSet.indexOf(target)}`,
       unit: "qa-pair",
       vintageDate: target.claim_date,
       retrievedAt: new Date().toISOString(),
       archiveSnapshotUrl: "",
-      points: target.questions.slice(0, 6).flatMap((q) =>
-        q.answers.map((a) => ({ period: a.answer, value: Number(a.answer) || 0 })),
-      ).filter((p) => p.value > 0),
+      points: target.questions
+        .slice(0, 6)
+        .flatMap((q) => q.answers.map((a) => ({ period: a.answer, value: Number(a.answer) || 0 })))
+        .filter((p) => p.value > 0),
     };
     const grid = await computeStatGrid(verificationLlm as never, {
-      fingerprint: claim.fingerprintAttempt ?? { core: claim.text, claimant: null, domain: null, temporal: null, quantity: null, source: null },
+      fingerprint: claim.fingerprintAttempt ?? {
+        core: claim.text,
+        claimant: null,
+        domain: null,
+        temporal: null,
+        quantity: null,
+        source: null,
+      },
       series,
       discourseContext: {},
     });
@@ -162,34 +224,92 @@ async function main(): Promise<void> {
     note = grid.reason;
     console.log(`  stat-grid → ${verdictClass}`);
     console.log(`  ${note}`);
-  } else if (claim.mode === "open-web") {
-    // The benchmark QAs are the retrieved evidence for this slice — no live
-    // search yet; the loop runs with the evidence it has and abstains honestly.
-    const llm = verificationLlm as never;
-    const result = await (llm as { generateObject(role: string, input: unknown, schema: { parse(v: unknown): unknown }): Promise<{ ok: boolean; value?: { done: boolean; confidence: number } }> })
-      .generateObject("open-web", { claim: target.claim, evidence: target.questions.slice(0, 3) }, { parse: (v: unknown) => v as { done: boolean; confidence: number } });
-    verdictClass = result.value?.done ? "supported" : "not_enough_evidence";
-    note = `open-web confidence ${result.value?.confidence ?? 0} (benchmark QAs as stand-in evidence)`;
-    console.log(`  open-web → ${verdictClass}`);
   } else {
-    // citation-check / quote-fidelity / provenance: the cited source is the
-    // benchmark QA pairs; compare the claim against them.
-    const citedDocument = {
-      source: "AVeriTeC benchmark QAs",
-      authorityTier: 6,
-      text: target.questions.map((q) => `${q.question} → ${q.answers.map((a) => a.answer).join("; ")}`).join("\n"),
+    // REAL retrieval: fingerprint-conditioned query → Serper → capped rounds.
+    const fingerprint = claim.fingerprintAttempt ?? {
+      core: claim.text,
+      claimant: null,
+      domain: null,
+      temporal: null,
+      quantity: null,
+      source: null,
     };
-    const out = await citationCheck(verificationLlm as never, { claim: target.claim, citedDocument });
-    verdictClass = out.verdict;
-    note = `binding: ${out.bindingStrictness}${out.mismatch ? ` · mismatch: ${out.mismatch}` : ""}`;
-    console.log(`  citation-check → ${verdictClass} (${out.bindingStrictness})`);
+    const retrieval = await runOpenWebRetrieval(
+      { claim: target.claim, fingerprint },
+      {
+        search: createSerperSearch(requireEnv("SERPER_API_KEY")).search,
+        llm: verificationLlm as never,
+        depthCap: 2,
+      },
+    );
+    console.log(
+      `  open-web: ${retrieval.evidence.length} evidence URLs across ${retrieval.roundsUsed} round(s), confidence ${retrieval.confidence}${retrieval.cappedRun ? " (CAP BOUND)" : ""}`,
+    );
+    for (const e of retrieval.evidence.slice(0, 3)) {
+      console.log(`    · ${e.title.slice(0, 60)} — ${e.link}`);
+    }
+
+    // Evidence-grounded verdict: the LLM adjudicates the claim against the
+    // retrieved sources; no evidence → honest open question.
+    if (retrieval.evidence.length === 0) {
+      verdictClass = "not_enough_evidence";
+      note = "open-web retrieval found no evidence — published as an open question";
+    } else {
+      const adjudication = await verificationLlm.generateObject(
+        "citation-compare",
+        {
+          claim: target.claim,
+          sources: retrieval.evidence
+            .slice(0, 5)
+            .map((e) => ({ title: e.title, link: e.link, snippet: e.snippet })),
+        },
+        {
+          parse: (v: unknown) =>
+            v as { verdict: string; bindingStrictness: string; mismatch: string },
+        },
+      );
+      verdictClass = (adjudication as { value: { verdict: string } }).value.verdict;
+      note = `open-web (cap ${retrieval.capBinding}, ${retrieval.roundsUsed} rounds, confidence ${retrieval.confidence})`;
+    }
+    console.log(`  open-web → ${verdictClass}`);
+
+    // Non-blocking discovery: registry miss → search + vet + persist for the
+    // next claim. The triage fingerprint's domain may be null for claims
+    // triage didn't domain-classify — fall back to the fingerprint core so
+    // discovery still populates the registry for this category. Failures
+    // never block the current verdict.
+    const domainKey = canonicalDomain(fingerprint.domain ?? fingerprint.core ?? target.claim);
+    if (domainKey) {
+      try {
+        const outcome = await discoverAuthority(
+          { domain: domainKey, claimText: target.claim },
+          {
+            search: createSerperSearch(requireEnv("SERPER_API_KEY")).search,
+            classifyAuthority: async (candidate) => {
+              const call = await verificationLlm.generateObject("authority-classify", candidate, {
+                parse: (v: unknown) => v as { tier: number; rationale: string; confidence: number },
+              });
+              return (call as { value: { tier: number; rationale: string; confidence: number } })
+                .value;
+            },
+            recordAuthority: (fixture) => store.recordAuthority(fixture),
+          },
+        );
+        console.log(`  discovery: ${outcome.persisted ? outcome.reason : outcome.reason}`);
+      } catch (err) {
+        console.log(`  discovery failed (non-blocking): ${(err as Error).message}`);
+      }
+    }
   }
 
   // 3. NLI gate on the benchmark justification (live LLM).
   console.log("\n[3/5] NLI audit (live LLM)…");
   const nli = await nliAudit(verificationLlm as never, {
     justification: target.justification || claim.text,
-    citedSpan: target.questions.map((q) => `${q.question} → ${q.answers.map((a) => a.answer).join("; ")}`).join(" | ").slice(0, 800),
+    citedSpan: target.questions
+      .map((q) => `${q.question} → ${q.answers.map((a) => a.answer).join("; ")}`)
+      .join(" | ")
+      .slice(0, 800),
   });
   console.log(`  NLI: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`);
 
@@ -204,14 +324,19 @@ async function main(): Promise<void> {
     justification: target.justification,
     questions: target.questions.map((q) => ({
       question: q.question,
-      answers: q.answers.map((a) => ({ answer: a.answer, answer_type: a.answer_type, source_url: a.source_url ?? "" })),
+      answers: q.answers.map((a) => ({
+        answer: a.answer,
+        answer_type: a.answer_type,
+        source_url: a.source_url ?? "",
+      })),
     })),
   };
-  console.log(`  ground truth: ${target.label} | pipeline: ${verdictClass} | match: ${prediction.match}`);
+  console.log(
+    `  ground truth: ${target.label} | pipeline: ${verdictClass} | match: ${prediction.match}`,
+  );
 
   // 5. ClaimReview markup (site rendering).
   console.log("\n[5/5] ClaimReview markup…");
-  const store = await createTestStore(DATABASE_URL);
   try {
     const claimRecord = await store.recordClaim({
       utteranceText: target.claim,
@@ -235,7 +360,11 @@ async function main(): Promise<void> {
       verdictClass: verdictClass as never,
       confidence: 0.7,
     });
-    await store.logTransition(verdict.verdictId, { from: "DRAFT", to: "PUBLISHED", reason: "averitec one-claim slice" });
+    await store.logTransition(verdict.verdictId, {
+      from: "DRAFT",
+      to: "PUBLISHED",
+      reason: "averitec one-claim slice",
+    });
     const review = claimReviewFromVerdict({
       verdictUrl: `https://claimwatch.nz/claim/${claimRecord.claimId}`,
       claimText: target.claim,

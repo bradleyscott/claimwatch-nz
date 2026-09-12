@@ -42,8 +42,10 @@ export function createSerperSearch(
       }
       const body = (await response.json()) as { organic?: SerperOrganicItem[] };
       return (body.organic ?? [])
-        .filter((item): item is { title: string; link: string; snippet: string } =>
-          typeof item.link === "string" && item.link.length > 0)
+        .filter(
+          (item): item is { title: string; link: string; snippet: string } =>
+            typeof item.link === "string" && item.link.length > 0,
+        )
         .map((item) => ({
           title: item.title ?? "",
           link: item.link,

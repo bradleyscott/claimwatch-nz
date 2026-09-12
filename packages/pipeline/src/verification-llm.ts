@@ -19,7 +19,13 @@ export type LlmCallResult<T> =
 
 export interface VerificationLlm {
   generateObject<T>(
-    role: "grid-materiality" | "citation-compare" | "quote-fidelity" | "nli-audit" | "open-web",
+    role:
+      | "grid-materiality"
+      | "citation-compare"
+      | "quote-fidelity"
+      | "nli-audit"
+      | "open-web"
+      | "authority-classify",
     input: unknown,
     schema: { parse(value: unknown): T },
   ): Promise<LlmCallResult<T>>;
@@ -34,7 +40,13 @@ export class MockVerificationLlm implements VerificationLlm {
   ) {}
 
   async generateObject<T>(
-    role: "grid-materiality" | "citation-compare" | "quote-fidelity" | "nli-audit" | "open-web",
+    role:
+      | "grid-materiality"
+      | "citation-compare"
+      | "quote-fidelity"
+      | "nli-audit"
+      | "open-web"
+      | "authority-classify",
     input: unknown,
     schema: { parse(value: unknown): T },
   ): Promise<LlmCallResult<T>> {

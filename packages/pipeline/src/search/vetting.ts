@@ -47,7 +47,14 @@ Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number
 where confidence is 0-1.`;
 
 // ADR-0018 advocacy markers — claim sources, never evidence authorities.
-const ADVOCACY_MARKERS = ["taxpayers.org.nz", "taxpayersunion", "curia", "nzinitiative", "nzier", "thekaka"];
+const ADVOCACY_MARKERS = [
+  "taxpayers.org.nz",
+  "taxpayersunion",
+  "curia",
+  "nzinitiative",
+  "nzier",
+  "thekaka",
+];
 
 // Foreign-official: authoritative elsewhere, out of NZ jurisdiction — never
 // promoted to NZ evidence authorities. Suffix/host matching only.
@@ -83,10 +90,7 @@ export async function vetCandidate(
   if (ADVOCACY_MARKERS.some((marker) => host.includes(marker))) {
     return reject("advocacy source (ADR-0018: claim source, never evidence)");
   }
-  if (
-    FOREIGN_SUFFIXES.some((suffix) => host.endsWith(suffix)) ||
-    FOREIGN_HOSTS.includes(host)
-  ) {
+  if (FOREIGN_SUFFIXES.some((suffix) => host.endsWith(suffix)) || FOREIGN_HOSTS.includes(host)) {
     return reject("foreign official domain — not an NZ authority");
   }
 

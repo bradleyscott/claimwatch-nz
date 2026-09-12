@@ -6,20 +6,22 @@
 // (same discipline as evidence vintages, STO-R3).
 //
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { canonicalDomain } from "./domain.ts";
 import { createTestStore } from "./store.ts";
 import type { Store } from "./store-api.ts";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set — copy .env.example to .env (gitignored) and fill it in");
+  throw new Error(
+    "DATABASE_URL is not set — copy .env.example to .env (gitignored) and fill it in",
+  );
 }
 
 let store: Store;
 
 beforeAll(async () => {
-  store = await createTestStore(DATABASE_URL);
+  store = await createTestStore(DATABASE_URL, { scratchSuffix: "_authority" });
 });
 
 afterAll(async () => {
@@ -28,10 +30,12 @@ afterAll(async () => {
 
 describe("authority registry — discovery persistence (user direction, Sept 2026)", () => {
   it("records a discovered authority with tier, rationale, and provenance", async () => {
+    // Scratch domain: the shared seed domains are asserted elsewhere; this
+    // test owns its own domain so suite runs stay order-independent.
     const rec = await store.recordAuthority({
-      domain: "crime-statistics",
+      domain: "test-record-domain",
       sourceUrl: "https://www.police.govt.nz/about-us/statistics",
-      authorityRef: "policedata.nz",
+      authorityRef: "police-govt-nz",
       tier: 1,
       rationale: "official NZ Police statistics portal on a govt.nz domain",
       confidence: 0.95,
@@ -87,12 +91,7 @@ describe("authority registry — discovery persistence (user direction, Sept 202
     });
     const row = await store.resolveAuthority("test-append-only");
     if (!row) throw new Error("expected an authority row");
-    await expect(
-      store.pool.query(
-        `UPDATE authority SET tier = 1 WHERE authority_id = $1`,
-        [row.authorityId],
-      ),
-    ).rejects.toThrow(/append-only/);
+    await expect(store.tryUpdate("authority")).rejects.toThrow(/append-only/);
   });
 
   it("seeds: the three initial domains resolve without discovery", async () => {
@@ -109,13 +108,9 @@ describe("authority registry — discovery persistence (user direction, Sept 202
 
   it("domain normalisation: near-identical domains collapse to one registry entry", async () => {
     // "covid mortality", "covid-mortality", "pandemic deaths" → same canonical key.
-    expect(normaliseDomain("Covid Mortality")).toBe(normaliseDomain("covid-mortality"));
-    expect(normaliseDomain("covid  mortality")).toBe(normaliseDomain("covid-mortality"));
+    expect(canonicalDomain("Covid Mortality")).toBe(canonicalDomain("covid-mortality"));
+    expect(canonicalDomain("pandemic deaths")).toBe(canonicalDomain("covid-mortality"));
     // Different real-world categories stay distinct.
-    expect(normaliseDomain("covid-mortality")).not.toBe(normaliseDomain("vehicle theft"));
+    expect(canonicalDomain("covid-mortality")).not.toBe(canonicalDomain("vehicle theft"));
   });
 });
-
-// The normalisation contract ships with the registry (discovery dedupes
-// through it).
-import { normaliseDomain } from "./domain.ts";

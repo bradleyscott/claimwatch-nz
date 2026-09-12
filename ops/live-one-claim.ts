@@ -6,23 +6,32 @@
 // Cost estimate: a handful of generateObject calls, well under $0.05.
 
 import { setDefaultResultOrder } from "node:dns";
+
 setDefaultResultOrder("ipv4first");
 
 import { createLiveAdapter, DEFAULT_ROUTING } from "../packages/pipeline/src/llm/live-adapter.ts";
-import { triageDocument } from "../packages/pipeline/src/triage.ts";
-import { computeStatGrid as computeGrid } from "../packages/pipeline/src/verification.ts";
-import { createTestStore } from "../packages/store/src/store.ts";
-import { TRIAGE_SCHEMAS } from "../packages/pipeline/src/triage.ts";
-import { VERIFICATION_SCHEMAS } from "../packages/pipeline/src/verification.ts";
-import type { VerdictClass } from "../packages/store/src/store-api.ts";
+import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
+import {
+  computeStatGrid as computeGrid,
+  VERIFICATION_SCHEMAS,
+} from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
+import { createTestStore } from "../packages/store/src/store.ts";
+import type { VerdictClass } from "../packages/store/src/store-api.ts";
 
 type TriageLlmPort = {
   generateObject<T>(
     role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
     input: unknown,
     schema: { parse(value: unknown): T },
-  ): Promise<{ ok: boolean; value?: T; usage?: { tokensIn: number; tokensOut: number }; model?: string; failureClass?: "schema-validation" | "llm-refusal" | "timeout"; rawOutput?: string }>;
+  ): Promise<{
+    ok: boolean;
+    value?: T;
+    usage?: { tokensIn: number; tokensOut: number };
+    model?: string;
+    failureClass?: "schema-validation" | "llm-refusal" | "timeout";
+    rawOutput?: string;
+  }>;
 };
 
 type VerificationLlmPort = {
@@ -30,7 +39,14 @@ type VerificationLlmPort = {
     role: "grid-materiality" | "citation-compare" | "quote-fidelity" | "nli-audit" | "open-web",
     input: unknown,
     schema: { parse(value: unknown): T },
-  ): Promise<{ ok: boolean; value?: T; usage?: { tokensIn: number; tokensOut: number }; model?: string; failureClass?: "schema-validation" | "llm-refusal" | "timeout"; rawOutput?: string }>;
+  ): Promise<{
+    ok: boolean;
+    value?: T;
+    usage?: { tokensIn: number; tokensOut: number };
+    model?: string;
+    failureClass?: "schema-validation" | "llm-refusal" | "timeout";
+    rawOutput?: string;
+  }>;
 };
 
 function requireEnv(name: string): string {
@@ -103,14 +119,23 @@ async function main(): Promise<void> {
   // only selects material rows, which is also live).
   console.log("\n[2/4] verification (stat grid, materiality via live LLM)…");
   const grid = await computeGrid(verificationLlm as never, {
-    fingerprint: (claim.fingerprintAttempt ?? { core: claim.text, claimant: null, domain: "crime", temporal: "since 2017", quantity: "30%", source: null }),
+    fingerprint: claim.fingerprintAttempt ?? {
+      core: claim.text,
+      claimant: null,
+      domain: "crime",
+      temporal: "since 2017",
+      quantity: "30%",
+      source: null,
+    },
     series: fixtureSeries(),
     discourseContext: { attachedProposal: "tougher sentencing package" },
   });
   console.log(`  verdict: ${grid.verdictClass}`);
   console.log(`  matched row: ${grid.matchedRow ?? "none"}`);
   console.log(`  reason: ${grid.reason}`);
-  console.log(`  grid rows computed: ${grid.grid.rows.length}, material: ${grid.grid.materialRows.length}`);
+  console.log(
+    `  grid rows computed: ${grid.grid.rows.length}, material: ${grid.grid.materialRows.length}`,
+  );
 
   // 3. NLI gate + store write.
   console.log("\n[3/4] publication (NLI gate + verdict write)…");
@@ -120,13 +145,26 @@ async function main(): Promise<void> {
       utteranceText: CLAIM_TEXT,
       text: CLAIM_TEXT,
       claimType: "statistical",
-      fingerprint: { indicator: "crime", population: "all", geography: "NZ", timeWindow: "2017-2026", baseline: "2017", unit: "percent-change" },
-      discourseContext: { window: "post-Cabinet press conference", attachedProposal: "tougher sentencing", argumentDirection: "problem" },
+      fingerprint: {
+        indicator: "crime",
+        population: "all",
+        geography: "NZ",
+        timeWindow: "2017-2026",
+        baseline: "2017",
+        unit: "percent-change",
+      },
+      discourseContext: {
+        window: "post-Cabinet press conference",
+        attachedProposal: "tougher sentencing",
+        argumentDirection: "problem",
+      },
     });
     const pack = await store.appendEvidencePack(claimRecord.claimId, {
       itemRefs: [],
       gridResult: grid.grid,
-      justifications: [`The cited window shows ${grid.grid.rows[0]?.percentChange ?? 0}% change, not 30%.`],
+      justifications: [
+        `The cited window shows ${grid.grid.rows[0]?.percentChange ?? 0}% change, not 30%.`,
+      ],
       nliOutcome: "pass",
     });
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
@@ -139,8 +177,14 @@ async function main(): Promise<void> {
       verdictClass: grid.verdictClass,
       confidence: 0.72,
     });
-    await store.logTransition(verdict.verdictId, { from: "DRAFT", to: "PUBLISHED", reason: "live one-claim run" });
-    console.log(`  verdict v${verdict.version} (${verdict.status}) written: ${verdict.verdictClass}`);
+    await store.logTransition(verdict.verdictId, {
+      from: "DRAFT",
+      to: "PUBLISHED",
+      reason: "live one-claim run",
+    });
+    console.log(
+      `  verdict v${verdict.version} (${verdict.status}) written: ${verdict.verdictClass}`,
+    );
 
     // 4. ClaimReview markup (what the site renders).
     console.log("\n[4/4] ClaimReview markup…");
@@ -154,7 +198,9 @@ async function main(): Promise<void> {
       claimantKind: "person",
     });
     validateClaimReview(review);
-    console.log(`  ClaimReview valid: ${review.reviewRating.ratingName} (${review.reviewRating.ratingValue}/4)`);
+    console.log(
+      `  ClaimReview valid: ${review.reviewRating.ratingName} (${review.reviewRating.ratingValue}/4)`,
+    );
     console.log(`  site URL: http://localhost:3456/claim/${claimRecord.claimId}`);
     console.log("\n── done — view at http://localhost:3456/claim/" + claimRecord.claimId + " ──");
   } finally {

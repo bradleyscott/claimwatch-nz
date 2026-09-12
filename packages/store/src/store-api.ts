@@ -159,10 +159,10 @@ export interface Store {
 
   // Append-only enforcement probes (STO-R1)
   tryUpdate(
-    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version",
+    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version" | "authority",
   ): Promise<unknown>;
   tryDelete(
-    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version",
+    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version" | "authority",
   ): Promise<unknown>;
   roleCanInsert(role: string, table: string): Promise<boolean>;
   roleCanUpdate(role: string, table: string): Promise<boolean>;

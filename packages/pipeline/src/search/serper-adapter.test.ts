@@ -7,15 +7,14 @@
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
 
 import { describe, expect, it } from "vitest";
-import {
-  createSerperSearch,
-  type SearchProvider,
-  type SearchResult,
-} from "./serper-adapter.ts";
+import { createSerperSearch, type SearchProvider, type SearchResult } from "./serper-adapter.ts";
 
 // Mock transport: the adapter's own logic (request shape, response parsing,
 // error mapping) is what L1 tests — not the network.
-function mockProvider(results: SearchResult[], failures = 0): { provider: SearchProvider; calls: string[] } {
+function mockProvider(
+  results: SearchResult[],
+  failures = 0,
+): { provider: SearchProvider; calls: string[] } {
   const calls: string[] = [];
   let failureCount = 0;
   return {
@@ -38,8 +37,16 @@ describe("serper adapter (VER-R3 retrieval surface)", () => {
     // parse path runs against a canned response via the injected fetch.
     const canned = {
       organic: [
-        { title: "Vehicle theft stats", link: "https://www.police.govt.nz/about-us/statistics", snippet: "Recorded crime…" },
-        { title: "Someone's blog", link: "https://example.blogspot.com/theft", snippet: "Opinions…" },
+        {
+          title: "Vehicle theft stats",
+          link: "https://www.police.govt.nz/about-us/statistics",
+          snippet: "Recorded crime…",
+        },
+        {
+          title: "Someone's blog",
+          link: "https://example.blogspot.com/theft",
+          snippet: "Opinions…",
+        },
       ],
     };
     const fakeFetch: typeof fetch = async () =>
@@ -65,16 +72,16 @@ describe("serper adapter (VER-R3 retrieval surface)", () => {
   });
 
   it("sends the API key header and JSON query body", async () => {
-    let captured: { url: string; init: RequestInit } | null = null;
+    const captured: { url: string; init: RequestInit }[] = [];
     const fakeFetch: typeof fetch = async (url, init) => {
-      captured = { url: String(url), init: (init ?? {}) as RequestInit };
+      captured.push({ url: String(url), init: (init ?? {}) as RequestInit });
       return new Response(JSON.stringify({ organic: [] }), { status: 200 });
     };
     const provider = createSerperSearch("k-test", fakeFetch);
     await provider.search("crime stats");
-    expect(captured?.url).toBe("https://google.serper.dev/search");
-    expect((captured?.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k-test");
-    expect(JSON.parse(String(captured?.init.body)).q).toBe("crime stats");
+    expect(captured[0]?.url).toBe("https://google.serper.dev/search");
+    expect((captured[0]?.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k-test");
+    expect(JSON.parse(String(captured[0]?.init.body)).q).toBe("crime stats");
   });
 });
 
