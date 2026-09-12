@@ -17,10 +17,19 @@ import { createTestStore } from "./store.ts";
 //     logTransition, logFallback, FREEZE_WINDOW }
 import type { Store } from "./store-api.ts";
 
-// Local default = the compose DB (claimwatch); CI sets DATABASE_URL to its
-// own scratch (claimwatch_test). The DB name is infra wiring, not a
-// requirement — createTestStore wipes whichever database it gets.
-const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch";
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set — copy .env.example to .env (gitignored) and fill it in`);
+  }
+  return value;
+}
+
+// No committed connection strings (Bradley, Sept 2026): credentials come from
+// .env (gitignored — see .env.example) or the CI environment. The database
+// name is infra wiring, not a requirement — createTestStore wipes whichever
+// database it gets.
+const DATABASE_URL = requireEnv("DATABASE_URL");
 
 let store: Store;
 

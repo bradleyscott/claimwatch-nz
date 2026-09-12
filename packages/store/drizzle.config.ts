@@ -5,6 +5,7 @@ export default defineConfig({
   schema: "./src/schema/index.ts",
   out: "./drizzle",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://claimwatch:claimwatch@localhost:5432/claimwatch",
+    // No committed connection strings: set DATABASE_URL in .env (gitignored).
+    url: process.env.DATABASE_URL ?? "",
   },
 });

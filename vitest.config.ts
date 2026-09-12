@@ -1,9 +1,22 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+
+// Load .env (gitignored) into process.env before suites run — no committed
+// credentials anywhere (Bradley, Sept 2026). CI sets env directly; .env is
+// absent there and this is a no-op.
+const envPath = resolve(import.meta.dirname ?? ".", ".env");
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+    if (match && match[1] && process.env[match[1]] === undefined) {
+      process.env[match[1]] = match[2];
+    }
+  }
+}
 
 // Mirrors apps/site/tsconfig.json paths so component tests resolve "@/...".
 const SITE_SRC = resolve(import.meta.dirname ?? ".", "apps/site/src");
-
 export default defineConfig({
   test: {
     include: [

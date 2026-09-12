@@ -1,5 +1,21 @@
-.DS_Store
-*.log
-node_modules/
-__pycache__/
+# Local test-run databases (SQL scratch files) — never committed.
+scratch/
+*.sql
+
+# Environment files (CROSS-CUTTING §4) — .env.example is the template.
 .env
+.env.local
+
+# Node
+node_modules/
+
+# Build
+dist/
+.next/
+
+# Named and tested databases (ADR-0004)
+data/
+
+# Editor
+.idea/
+.vscode/

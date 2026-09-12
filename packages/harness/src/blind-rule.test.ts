@@ -10,9 +10,15 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { applyLabelsMigrations } from "./schema.ts";
 
-const LABELS_URL =
-  process.env.LABELS_DATABASE_URL ??
-  "postgres://claimwatch:claimwatch@localhost:5432/claimwatch_labels";
+const LABELS_URL = requireEnv("LABELS_DATABASE_URL");
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set — copy .env.example to .env (gitignored) and fill it in`);
+  }
+  return value;
+}
 
 const LABELS_TABLES = ["label", "label_set", "double_label", "stratum_assignment"] as const;
 
