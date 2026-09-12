@@ -1,6 +1,9 @@
 # Slice dev stack — Postgres (pgvector) + Graphile Worker.
 # Host-agnostic per CROSS-CUTTING §9: this file is the only hosting commitment.
 #
+# Credentials come from .env (gitignored — see .env.example); compose reads it
+# automatically. Nothing committed.
+#
 # Blind rule (HARNESS §2.4): labels live on a SEPARATE database (claimwatch_labels).
 # Both databases live in one Postgres instance for the slice; separation is by
 # database boundary + role grants, never by trust.
@@ -9,16 +12,16 @@ services:
   db:
     image: pgvector/pgvector:pg18
     environment:
-      POSTGRES_USER: claimwatch
-      POSTGRES_PASSWORD: claimwatch
-      POSTGRES_DB: claimwatch
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-claimwatch}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql
       - ./ops/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U claimwatch -d claimwatch"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -31,7 +34,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://claimwatch:claimwatch@db:5432/claimwatch
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-claimwatch}
     command: ["sleep", "infinity"]
     # Real command arrives with packages/pipeline (Graphile Worker task handlers).
 
