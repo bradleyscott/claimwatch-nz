@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { FeedbackWidget } from "@/components/feedback-widget";
 
 export const metadata: Metadata = {
   title: { default: "ClaimWatch NZ", template: "%s — ClaimWatch NZ" },
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         {children}
+        <FeedbackWidget pageUrl="/" />
         <footer className="px-5 pb-10 pt-8 text-center text-xs text-[#a5abb4]">
           Verdicts are produced by an automated pipeline; data tables, prompt versions and audit
           results are logged and public.
