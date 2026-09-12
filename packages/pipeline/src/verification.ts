@@ -673,3 +673,11 @@ export async function publicationFlow(
     verdictClass: write.verdictClass,
   };
 }
+
+export const VERIFICATION_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  "grid-materiality": MaterialityOutput,
+  "citation-compare": CitationOutput,
+  "quote-fidelity": QuoteFidelityOutput,
+  "nli-audit": NliCheckOutput,
+  "open-web": OpenWebOutput,
+};

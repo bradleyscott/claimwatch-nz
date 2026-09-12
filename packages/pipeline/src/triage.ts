@@ -390,6 +390,15 @@ const DocumentLlmOutput = z.object({
   ),
 });
 
+/** The real Zod schemas per triage role — the live adapter generates with
+ * these directly; the port's {parse} wrapper exists for mock injection. */
+export const TRIAGE_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  "triage-checkability": DocumentLlmOutput,
+  "triage-typing": TypingOutput,
+  "triage-fingerprint": TypingOutput,
+  "triage-context": ContextOutput,
+};
+
 export async function triageDocument(
   doc: TriageDocumentInput,
   llm: TriageLlm,
@@ -405,7 +414,7 @@ export async function triageDocument(
     { parse: (raw: unknown) => DocumentLlmOutput.parse(raw) },
   );
   if (!call.ok) {
-    throw new Error(`triage failed: ${call.failureClass}`);
+    throw new Error(`triage failed: ${call.failureClass} — raw: ${call.rawOutput?.slice(0, 400) ?? "none"}`);
   }
   const provenance: TriageProvenance = {
     promptVersion: PROMPT_VERSIONS["triage-checkability"],
