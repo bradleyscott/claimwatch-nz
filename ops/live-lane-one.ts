@@ -306,16 +306,40 @@ async function main(): Promise<void> {
     // 3. Triage.
     console.log("\n[3/6] triage (live LLM)…");
     const sentences = splitSentences(doc.text);
-    // One checkability call covers the whole document; the window is what the
-    // claim was said in, which for a news article is its own headline/desk.
-    const window = `${item.title} — RNZ Politics, published ${item.publishedAt.toISOString().slice(0, 10)}`;
+    // ADR-0008: the window is the claim's IMMEDIATE context — the containing
+    // paragraph, capped around ±300 words — not the document headline. Triage
+    // reads it to decide whether a proposal is attached (the page's "as
+    // deployed" line), so a headline-only window has no deployment in it to
+    // find: `attached_proposal` came back null on every claim and the section
+    // could never render, even once the context pass itself was wired
+    // (Sept 2026). Windows are per sentence because the pass runs per claim.
+    const paragraphs = doc.text
+      .split("\n")
+      .map((paragraph) => paragraph.trim())
+      .filter((paragraph) => paragraph.length > 0);
+    const WINDOW_WORDS = 300;
+    const windowFor = (sentenceText: string): string => {
+      const paragraph = paragraphs.find((p) => p.includes(sentenceText));
+      if (paragraph == null) {
+        // No containing paragraph found (should not happen for extracted
+        // article text): fall back to the desk line rather than to the sentence
+        // itself, which would make the window a copy of the claim.
+        return `${item.title} — RNZ Politics, ${item.publishedAt.toISOString().slice(0, 10)}`;
+      }
+      const words = paragraph.split(/\s+/);
+      if (words.length <= WINDOW_WORDS) return paragraph;
+      // Cap centred on the sentence, so the claim is always inside its own window.
+      const before = paragraph.slice(0, paragraph.indexOf(sentenceText)).split(/\s+/).length;
+      const start = Math.max(0, before - Math.floor(WINDOW_WORDS / 2));
+      return words.slice(start, start + WINDOW_WORDS).join(" ");
+    };
     const triage = await triageDocument(
       {
         documentId: publication.publicationId,
         sentences: sentences.map((sentence) => ({
           id: sentence.id,
           text: sentence.text,
-          window,
+          window: windowFor(sentence.text),
         })),
       },
       triageLlm as never,
@@ -651,6 +675,21 @@ async function main(): Promise<void> {
 
     const claimRecord = await store.recordClaim({
       publicationId: publication.publicationId,
+      // Content identity (TRI-R13): triage's claim id is derived from the
+      // sentence, so a re-run of the same article finds the claim it already
+      // made instead of inserting a second row for the same sentence. Without
+      // this the write is unconditional and re-runs accumulate duplicates —
+      // each with its own verdict and trail, and nothing pointing at the first.
+      claimKey: claim.claimId,
+      // Deliberately NOT set: `speakershipClass`. The class comes from ingestion's
+      // `attribute` stage (ADR-0019) and this lane has none, so its claims carry a
+      // null class and the reader's gate excludes them from the public record.
+      // That is the correct outcome while the stage is missing — an empty public
+      // record beats one made of verdicts about a journalist's own sentences,
+      // which is what this lane produced before the gate existed. The lane must
+      // not set the class itself: the scope decision belongs to the stage, and a
+      // lane asserting it to make a page render is the anti-pattern the ADR
+      // forbids.
       utteranceText: claim.text,
       text: claim.text,
       claimType: claim.claimType,
@@ -664,10 +703,12 @@ async function main(): Promise<void> {
       // attribution is conservative), so the page omits the "who" line.
       spokenAt: item.publishedAt,
       attributionCandidates: [],
-      discourseContext: {
-        window,
-        ...(fingerprint.domain != null ? { policyTopic: fingerprint.domain } : {}),
-      },
+      // Triage's own discourse-context pass (ADR-0008): the extractor reads the
+      // window, so the lane passes its result through rather than inventing one.
+      // Until this was wired, `attached_proposal` was always null and the verdict
+      // page's "as deployed" section could not render — the stage ran per claim
+      // and its output was discarded here (Sept 2026).
+      discourseContext: claim.discourseContext,
     });
 
     const itemRefs: string[] = [];
