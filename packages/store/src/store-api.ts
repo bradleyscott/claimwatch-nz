@@ -27,6 +27,14 @@ export interface ClaimFixture {
     | "institution-citation"
     | "false-context"
     | "other";
+  /**
+   * The claim's content identity, derived by triage (`TypedClaim.claimId`).
+   * Supplying it makes the write idempotent: re-ingesting the same document
+   * returns the claim that already exists rather than creating a duplicate
+   * (TRI-R13). Absent → the row is inserted unconditionally, which is what a
+   * caller with no triage behind it wants.
+   */
+  claimKey?: string | null;
   fingerprint?: Fingerprint | null;
   /**
    * Which check triage routed this claim to (claim.verification_mode). Decided

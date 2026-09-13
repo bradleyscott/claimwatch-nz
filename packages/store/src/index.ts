@@ -10,4 +10,4 @@ export * from "./store-api.ts";
 export * from "./triage-record.ts";
 
 /** Bumped whenever an exported claim/verdict/evidence shape changes (CRO-R13). */
-export const STORE_SCHEMA_VERSION = "0.4.0";
+export const STORE_SCHEMA_VERSION = "0.5.0";

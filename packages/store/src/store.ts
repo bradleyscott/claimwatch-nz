@@ -130,9 +130,11 @@ export class PgStore implements Store {
   }
 
   async recordClaim(fixture: ClaimFixture): Promise<{ claimId: string } & ClaimFixture> {
+    const claimKey = fixture.claimKey ?? null;
     const [r] = await this.db
       .insert(s.claim)
       .values({
+        claimKey,
         publicationId: fixture.publicationId ?? null,
         utteranceText: fixture.utteranceText,
         text: fixture.text,
@@ -147,9 +149,24 @@ export class PgStore implements Store {
         pipelineVersion: "test",
         attributionCandidates: fixture.attributionCandidates ?? [],
       })
+      // Idempotent on content identity (TRI-R13): a re-ingest of the same
+      // document finds the claim it already made. Without this, a re-triage
+      // whose set-aside boundary moved — which happens, because the checkability
+      // decision is a model judgement — creates a second claim for the same
+      // sentence, with its own verdict and its own trail, and nothing points at
+      // the original. The EXISTING row wins and is never updated: a claim is
+      // written once, so the record on its page stays the run that produced it.
+      .onConflictDoNothing()
       .returning({ claimId: s.claim.claimId });
-    if (r == null) throw new Error("claim insert returned no row");
-    return { claimId: r.claimId, ...fixture };
+    if (r != null) return { claimId: r.claimId, ...fixture };
+    if (claimKey == null) throw new Error("claim insert returned no row");
+    const [existing] = await this.db
+      .select({ claimId: s.claim.claimId })
+      .from(s.claim)
+      .where(eq(s.claim.claimKey, claimKey))
+      .limit(1);
+    if (existing == null) throw new Error("claim upsert produced no row");
+    return { claimId: existing.claimId, ...fixture };
   }
 
   async recordEvidenceItem(fixture: EvidenceItemFixture): Promise<{

@@ -80,6 +80,18 @@ export const claim = pgTable(
     utteranceText: text("utterance_text").notNull(),
     text: text("text").notNull(),
     claimType: text("claim_type").notNull(),
+    // The claim's CONTENT IDENTITY, derived by triage from the sentence text,
+    // the window it was read in and its type (`claimIdFor` in
+    // packages/pipeline/src/triage.ts). Unique, so re-ingesting the same document
+    // finds the claim it already made instead of making a second one.
+    //
+    // This is the key TRIAGE §5's "append-idempotent on fingerprint" actually
+    // needs: a fingerprint exists for statistical claims only, so it cannot
+    // dedupe a quotation or a cited-document claim at all. Nullable because rows
+    // ingested before this column exist and because a caller with no triage
+    // behind it has no key to give — Postgres allows many NULLs in a unique
+    // index, so those rows stay insertable without weakening the constraint.
+    claimKey: text("claim_key"),
     // Which check this claim got, decided by triage's mode routing BEFORE any
     // evidence is fetched — the one decision that cannot be made honestly after
     // the answer is known, and the field the verdict page's mode-aware trail
@@ -126,6 +138,10 @@ export const claim = pgTable(
     index("claim_fingerprint_idx").on(t.fingerprintKey),
     index("claim_publication_idx").on(t.publicationId),
     index("claim_type_idx").on(t.claimType),
+    // Re-ingest idempotency (TRI-R13/STO-R13): one row per content identity, so a
+    // re-triage that reaches the same conclusion about the same sentence cannot
+    // accumulate a duplicate claim with its own verdict and its own trail.
+    uniqueIndex("claim_key_uq").on(t.claimKey),
     check(
       "verification_mode_valid",
       sql`${t.verificationMode} IS NULL OR ${t.verificationMode} IN ('stat-grid','citation-check','quote-fidelity','provenance','open-web')`,

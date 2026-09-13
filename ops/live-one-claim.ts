@@ -182,6 +182,10 @@ async function main(): Promise<void> {
     const claimRecord = await store.recordClaim({
       utteranceText: CLAIM_TEXT,
       text: CLAIM_TEXT,
+      // Content identity from triage — makes the write idempotent, so re-running
+      // the slice does not accumulate a second claim with its own verdict
+      // (TRI-R13).
+      claimKey: triage.claims[0]?.claimId ?? null,
       claimType: "statistical",
       // Which check this claim got, decided by triage before any figure was
       // fetched. Stored because a statistical claim reaches stat-grid only on a

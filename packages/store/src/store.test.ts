@@ -107,6 +107,60 @@ describe("ingest idempotency", () => {
   });
 });
 
+describe("re-ingest idempotency for claims (TRI-R13)", () => {
+  it("re-ingesting the same document returns the claim it already made", async () => {
+    // The failure this prevents, measured: the same 47-sentence article triaged
+    // twice moved eleven sentences across the checkable boundary, so a re-ingest
+    // without a content key creates a SECOND claim for the same sentence, with
+    // its own verdict and its own trail, and nothing points at the first.
+    const key = "claim-key-for-the-same-sentence";
+    const first = await store.recordClaim({
+      ...store.fixtures.statClaim(),
+      claimKey: key,
+    });
+    const second = await store.recordClaim({
+      ...store.fixtures.statClaim(),
+      claimKey: key,
+    });
+    expect(second.claimId).toBe(first.claimId);
+    const { rows } = await reader.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM claim WHERE claim_key = $1",
+      [key],
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+
+  it("keeps the FIRST run's record when a re-ingest reaches the same claim", async () => {
+    // A claim is written once and never updated, so its verdict page keeps
+    // showing the run that produced its verdict — not the newest run's view of
+    // the same sentence. That is the invariant; this pins it.
+    const key = "claim-key-keeps-first-record";
+    const first = await store.recordClaim({
+      ...store.fixtures.statClaim(),
+      claimKey: key,
+      triageRecord: { sentencesRead: 47, checked: 31 },
+    });
+    await store.recordClaim({
+      ...store.fixtures.statClaim(),
+      claimKey: key,
+      triageRecord: { sentencesRead: 47, checked: 42 },
+    });
+    const { rows } = await reader.query<{ checked: number }>(
+      "SELECT (triage_record->>'checked')::int AS checked FROM claim WHERE claim_id = $1",
+      [first.claimId],
+    );
+    expect(rows[0]?.checked).toBe(31);
+  });
+
+  it("still inserts when the caller supplies no key, and never merges two of them", async () => {
+    // A caller with no triage behind it has no content identity, and Postgres
+    // allows many NULLs in a unique index — the two writes must stay two rows.
+    const a = await store.recordClaim(store.fixtures.statClaim());
+    const b = await store.recordClaim(store.fixtures.statClaim());
+    expect(a.claimId).not.toBe(b.claimId);
+  });
+});
+
 describe("the claim's own date (claim.spoken_at, SITE-MVP §2.3)", () => {
   it("round-trips the date the claim was made, distinct from when we recorded it", async () => {
     const spokenAt = new Date("2026-09-08T12:00:00Z");
