@@ -4,10 +4,10 @@
 
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, is, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate as migrateDb } from "drizzle-orm/node-postgres/migrator";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import * as s from "./schema/index.ts";
 import type {
@@ -23,7 +23,10 @@ import type {
   VerdictWrite,
 } from "./store-api.ts";
 
-const APPEND_ONLY_TABLES = [
+// Append-only tables (STORE §2.4, STO-R1). Exported so the store suite can
+// assert it against the guard triggers actually present in the database — the
+// one schema fact that cannot be derived from a column type (Sept 2026).
+export const APPEND_ONLY_TABLES = [
   "publication",
   "evidence_item",
   "evidence_pack",
@@ -423,14 +426,21 @@ export class PgStore implements Store {
     return rows.map((r) => ({ lane: r.lane, count: r.count }));
   }
 
-  // These probes DELIBERATELY use raw SQL: their job is to prove the database
-  // rejects UPDATE/DELETE regardless of the client library. Routing them
-  // through drizzle would test drizzle, not the guards.
+  // These probes DELIBERATELY send a hand-written statement to the raw pool:
+  // their job is to prove the DATABASE rejects UPDATE/DELETE regardless of the
+  // client library, so they must not go through drizzle's typed builder (that
+  // would test drizzle, not the guards).
+
+  // They also stay on `pool.query` rather than `db.execute(sql…)` on purpose:
+  // drizzle wraps driver failures in its own `Failed query: …` error, which
+  // HIDES the guard's message — `"publication" is append-only`, the executable
+  // documentation of STORE §2.4 — from everyone who sees the failure (Sept 2026).
+  // The identifiers are still not hand-typed: `idColumn` reads the primary key
+  // from the schema, so a column rename cannot silently desynchronise them.
   async tryUpdate(table: (typeof APPEND_ONLY_TABLES)[number]): Promise<unknown> {
     await this.seedProbeRow(table);
-    return this.pool.query(
-      `UPDATE ${table} SET ${idColumn(table)} = ${idColumn(table)} WHERE ${idColumn(table)} IS NOT NULL`,
-    );
+    const id = idColumn(table);
+    return this.pool.query(`UPDATE ${table} SET ${id} = ${id} WHERE ${id} IS NOT NULL`);
   }
 
   async tryDelete(table: (typeof APPEND_ONLY_TABLES)[number]): Promise<unknown> {
@@ -473,29 +483,36 @@ export class PgStore implements Store {
     return this.hasPrivilege(role, table, "SELECT");
   }
 
-  // Postgres introspection (has_table_privilege) — not a drizzle use case.
+  // Postgres introspection (has_table_privilege) — not a drizzle query-builder
+  // use case, so the statement is hand-written; the arguments are still bound.
   private async hasPrivilege(role: string, table: string, privilege: string): Promise<boolean> {
-    const r = await this.pool.query(`SELECT has_table_privilege($1, $2, $3) AS allowed`, [
-      role,
-      table,
-      privilege,
-    ]);
-    return r.rows[0].allowed === true;
+    const result = await this.db.execute(
+      sql`SELECT has_table_privilege(${role}, ${table}, ${privilege}) AS allowed`,
+    );
+    return result.rows[0]?.allowed === true;
   }
 }
 
-const ID_COLUMN_BY_TABLE: Record<string, string> = {
-  publication: "publication_id",
-  evidence_item: "item_id",
-  evidence_pack: "pack_id",
-  verdict_version: "verdict_id",
-  authority: "authority_id",
-};
+/**
+ * Primary-key column name per table, read from the Drizzle schema. This was a
+ * hand-written map; a table added without updating it threw only when a probe
+ * happened to touch that table, and the drill's parallel lists had already
+ * drifted by the time anyone noticed (Sept 2026). Deriving it makes the schema
+ * the single place a column name is stated.
+ */
+const ID_COLUMN_BY_TABLE: Record<string, string | undefined> = Object.fromEntries(
+  Object.values(s)
+    .filter((value) => is(value, PgTable))
+    .map((table) => {
+      const config = getTableConfig(table);
+      return [config.name, config.columns.find((column) => column.primary)?.name];
+    }),
+);
 
 function idColumn(table: string): string {
   const column = ID_COLUMN_BY_TABLE[table];
   if (column === undefined) {
-    throw new Error(`no id column mapped for table ${table}`);
+    throw new Error(`no primary-key column found in the schema for table ${table}`);
   }
   return column;
 }

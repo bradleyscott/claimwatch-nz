@@ -11,7 +11,7 @@
 
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createTestStore } from "./store.ts";
+import { APPEND_ONLY_TABLES, createTestStore } from "./store.ts";
 // Contracts under test — implemented in this phase:
 //   { migrate, pool, tables, appendOnlyGuards, recordPublication, recordClaim,
 //     recordEvidenceItem, appendEvidencePack, writeVerdictV1, writeVerdictV2,
@@ -58,16 +58,25 @@ describe("migrations", () => {
   });
 
   it("rejects UPDATE and DELETE on append-only tables (STO-R1)", async () => {
-    const appendOnly = [
-      "publication",
-      "evidence_item",
-      "evidence_pack",
-      "verdict_version",
-    ] as const;
-    for (const table of appendOnly) {
+    for (const table of APPEND_ONLY_TABLES) {
       await expect(store.tryUpdate(table)).rejects.toThrow();
       await expect(store.tryDelete(table)).rejects.toThrow();
     }
+  });
+
+  it("lists exactly the tables the migration chain actually guards (no drift)", async () => {
+    // APPEND_ONLY_TABLES cannot be derived from the schema — append-only-ness
+    // lives in the guard triggers (0002_guards.sql), not in a column type — so
+    // the list is hand-kept. This asserts it against the database in BOTH
+    // directions: a guarded table missing from the list would otherwise never
+    // be probed, and a listed table without a trigger would be a hole.
+    const guarded = await reader.query(
+      `SELECT DISTINCT c.relname AS table_name
+         FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+        WHERE t.tgname LIKE '%append_only%' AND NOT t.tgisinternal
+        ORDER BY c.relname`,
+    );
+    expect(guarded.rows.map((r) => r.table_name)).toEqual([...APPEND_ONLY_TABLES].sort());
   });
 
   it("grants pipeline role INSERT/SELECT only, site role SELECT only (STO-R1)", async () => {
