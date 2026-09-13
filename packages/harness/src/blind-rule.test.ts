@@ -6,11 +6,12 @@
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { applyLabelsMigrations } from "./schema.ts";
+import { applyLabelsMigrations, createTestLabelsPool } from "./migrate.ts";
 
 const LABELS_URL = requireEnv("LABELS_DATABASE_URL");
+const ADMIN_URL = requireEnv("DATABASE_URL");
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -41,31 +42,53 @@ function listTsFiles(dir: string): string[] {
   });
 }
 
+// Every test in this file writes labels, so the suite runs against its OWN
+// database: `createTestLabelsPool` drops and recreates `<labels db>_blind` and
+// migrates it from zero (the labels counterpart of the store's createTestStore).
+// The shared labels database is the future home of real labels — a fixture row
+// left there would contaminate IAA counts and the Dataset A export.
+let pool: Pool;
+
+beforeAll(async () => {
+  pool = await createTestLabelsPool({
+    adminDatabaseUrl: ADMIN_URL,
+    labelsDatabaseUrl: LABELS_URL,
+    scratchSuffix: "_blind",
+  });
+});
+
+afterAll(async () => {
+  await pool.end();
+});
+
 describe("labels database migrations", () => {
-  it("applies the labels chain from zero on the separate labels DB", async () => {
-    const pool = new Pool({ connectionString: LABELS_URL });
-    try {
-      await applyLabelsMigrations(pool);
-      const r = await pool.query("SELECT COUNT(*)::int AS n FROM label");
-      expect(r.rows[0].n).toBe(0);
-    } finally {
-      await pool.end();
-    }
+  it("applies the generated chain from zero on a labels database", async () => {
+    const tables = await pool.query(
+      `SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' ORDER BY table_name`,
+    );
+    expect(tables.rows.map((r) => r.table_name)).toEqual([...LABELS_TABLES].sort());
+    const r = await pool.query("SELECT COUNT(*)::int AS n FROM label");
+    expect(r.rows[0].n).toBe(0);
+  });
+
+  it("re-applies without destroying label history (STO-R17)", async () => {
+    // The previous migrator began with DROP SCHEMA public CASCADE, so this is a
+    // regression pin: bringing the schema up to date must never cost labels.
+    const inserted = await pool.query(
+      `INSERT INTO label (claim_id, verdict, confidence, cited_sources, labeller_reasoning, evidence_availability, source_ecosystem, labeller_id, label_date, schema_version)
+       VALUES (gen_random_uuid(), 'supported', 'high', '[]'::jsonb, 'kept', 'available', 'T1', 'labeller-keep', now(), '0.1.0')
+       RETURNING label_id`,
+    );
+    await applyLabelsMigrations(pool);
+    const kept = await pool.query("SELECT labeller_reasoning FROM label WHERE label_id = $1", [
+      inserted.rows[0].label_id,
+    ]);
+    expect(kept.rows[0]?.labeller_reasoning).toBe("kept");
   });
 });
 
 describe("blind-rule access (real grants)", () => {
-  let pool: Pool;
-
-  beforeAll(async () => {
-    pool = new Pool({ connectionString: LABELS_URL });
-    await applyLabelsMigrations(pool);
-  });
-
-  afterAll(async () => {
-    await pool.end();
-  });
-
   it("denies the pipeline role SELECT on every labels table", async () => {
     const client = await pool.connect();
     try {

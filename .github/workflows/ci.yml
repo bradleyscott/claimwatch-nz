@@ -55,4 +55,6 @@ jobs:
       - run: pnpm typecheck
       # Scratch-Postgres migration chain from zero on every PR (STORE §2.4, CRO-R12).
       - run: pnpm db:migrate
+      # Labels DB (separate database, HARNESS §2.4) — same chain-from-zero check.
+      - run: pnpm db:migrate:labels
       - run: pnpm test

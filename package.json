@@ -17,7 +17,9 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "db:migrate": "pnpm --filter @cw/store db:migrate",
-    "db:generate": "pnpm --filter @cw/store db:generate"
+    "db:migrate:labels": "pnpm --filter @cw/harness db:migrate",
+    "db:generate": "pnpm --filter @cw/store db:generate",
+    "db:generate:labels": "pnpm --filter @cw/harness db:generate"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.13",

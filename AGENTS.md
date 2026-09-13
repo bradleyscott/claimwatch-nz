@@ -59,7 +59,9 @@ pnpm test                    # vitest run at root: all packages + site
 pnpm lint                    # biome check (lint + format)
 pnpm format                  # biome check --write — run before committing
 pnpm db:migrate              # apply packages/store migration chain to DATABASE_URL
-pnpm db:generate             # drizzle-kit generate after a schema edit
+pnpm db:migrate:labels       # apply packages/harness labels chain to LABELS_DATABASE_URL
+pnpm db:generate             # drizzle-kit generate after a store schema edit
+pnpm db:generate:labels      # drizzle-kit generate after a labels schema edit
 ```
 
 - One file / one name: `pnpm exec vitest run packages/pipeline/src/triage.test.ts`,
@@ -80,10 +82,10 @@ pnpm db:generate             # drizzle-kit generate after a schema edit
 | Path | Responsibility | Owning spec |
 |---|---|---|
 | `apps/site/` | Next.js 16 SSR reader over the store: verdict pages, feed, methodology page, ClaimReview JSON-LD, feedback route. Read-only apart from feedback. | `docs/design/SITE-MVP.md` |
-| `packages/store/` | Postgres data plane: Drizzle schema, generated migrations, append-only store API, ClaimReview build/validate, domain helpers, blind-rule grants. | `docs/design/STORE.md` |
+| `packages/store/` | Postgres data plane: Drizzle schema, generated migrations, append-only store API, typed site read model (`site-reader.ts`), ClaimReview build/validate, domain helpers, blind-rule grants. | `docs/design/STORE.md` |
 | `packages/pipeline/` | Ingestion lanes, extraction ladder, triage, verification modes (stat-grid, citation-check, quote-fidelity, provenance, open-web), search adapters, live LLM adapter. | `docs/design/{INGESTION,TRIAGE,VERIFICATION}.md` |
 | `packages/llm/` | Cross-cutting config surface (`GRID_AXES_VERSION`, `FINGERPRINT_NORMALISATION_VERSION`) and provider/prompt plumbing. | `docs/design/CROSS-CUTTING.md` §2–3 |
-| `packages/harness/` | AVeriTeC + NZ label scoring, golden set, regression gate, exports, labels-DB schema, blind-rule tests. | `docs/design/HARNESS.md` |
+| `packages/harness/` | AVeriTeC + NZ label scoring, golden set, regression gate, exports, labels-DB Drizzle schema + generated chain, blind-rule tests. | `docs/design/HARNESS.md` |
 | `tools/averitec-eval/` | Pinned official Python eval script — a scoring step only, never a runtime dependency. | `tools/averitec-eval/averitec-pinned/PIN.md` |
 | `ops/` | Runnable live/acceptance scripts (`tsx`). A workspace project (`@cw/ops`) so `pnpm typecheck` covers it — it reaches into `packages/*/src` by relative path rather than package name. | `docs/VALIDATION-SLICE.md` |
 | `docs/design/` | Component specs with numbered risk IDs, test postures, open questions. | — |
@@ -116,6 +118,11 @@ permission to import pipeline code.
 - Store changes: edit `src/schema/*.ts` → `pnpm db:generate` → review the generated SQL in
   `packages/store/drizzle/` → `pnpm db:migrate`. Never hand-write a migration or edit an applied
   one; add a new one instead. No ad-hoc DDL.
+- Labels-schema changes follow the same loop against the harness package: edit
+  `packages/harness/src/schema/*.ts` → `pnpm db:generate:labels` → review
+  `packages/harness/drizzle/` → `pnpm db:migrate:labels`. The labels chain is applied by Drizzle's
+  migrator and **never drops the schema** — labels are history (STO-R17); suites that write labels
+  use `createTestLabelsPool` for a scratch labels database.
 - Every LLM/search call emits model + token telemetry (`gen_ai.*` spans, ADR-0012). Cost is computed
   at aggregation from the versioned price map — never pinned at call time, never stored per span.
 - Prompts are code and live in the pipeline module that uses them (e.g.
@@ -179,7 +186,8 @@ Four layers (`docs/TEST-STRATEGY.md` §2):
 - One concern per commit; name the risk ID or ADR you satisfy when one applies (e.g. `(STO-R7)`,
   `(CRO-R6)`).
 - Work lands on `main`; CI is the gate and runs `pnpm install --frozen-lockfile` → `pnpm lint` →
-  `pnpm typecheck` → `pnpm db:migrate` → `pnpm test` against a pinned `pgvector/pgvector:pg18`
+  `pnpm typecheck` → `pnpm db:migrate` → `pnpm db:migrate:labels` → `pnpm test` against a pinned
+  `pgvector/pgvector:pg18`
   service. Commit the lockfile with any dependency change.
 - Docs and datasets are CC BY 4.0; code is MIT. Documentation claims cite sources; disagreements
   with a design are welcome as issues or competing ADRs.

@@ -37,7 +37,7 @@ One row per label, typed against the shared objects in `packages/store`:
 | `source_ecosystem` | which NZ sources the label rests on (T1–T6) — accuracy slices by source-access difficulty |
 | `labeller_id` / `label_date` / `schema_version` | provenance |
 
-The label schema does **not** redefine claim or verdict types — it imports them from `packages/store`. Any schema change is a store migration consumed by both sides in the same release.
+The label schema does **not** redefine claim or verdict types — it imports them from `packages/store`, and any change to those shared objects is a store migration consumed by both sides in the same release. The label tables themselves are Drizzle `pgTable`s versioned in the harness's own chain (§2.4).
 
 ### 2.2 Stratum grid
 
@@ -71,7 +71,8 @@ Verdict-mix targets across the gated labels: Supported ~40% (the corrective to A
 - **Role separation**: `pipeline_role` has no grants on the labels DB.
 - **One-way data flow**: `packages/harness` may import `packages/store` (read-only); a lint rule forbids `packages/pipeline` importing `packages/harness` or the labels connection module. Claim objects flow pipeline → harness; nothing flows back except published exports.
 - **No shared secrets**: labels-DB credentials exist only in the labelling operator's and harness job's env; CI greps the pipeline env for the labels credential name.
-- **Drizzle isolation**: label tables in `packages/harness/schema`, generated against `claimwatch_labels`; the pipeline's migration history never touches them.
+- **Drizzle isolation**: label tables are `pgTable`s in `packages/harness/src/schema/`, generated against `claimwatch_labels` by `packages/harness/drizzle.config.ts` into `packages/harness/drizzle/`; the pipeline's migration history never touches them. This is what gives STO-R6/HAR-R5 something to check (`drizzle-kit diff`, cross-package typecheck) — the tables were DDL strings with no definition to compare until Sept 2026.
+- **The labels chain never drops**: `applyLabelsMigrations` runs Drizzle's migrator and re-asserts the grants, but never `DROP SCHEMA` — labels are history (STO-R17). Suites that write labels get a scratch labels database (`createTestLabelsPool`, the labels counterpart of the store's `createTestStore`) rather than wiping or polluting the shared one.
 
 ### 2.5 Scoring-run pipeline
 

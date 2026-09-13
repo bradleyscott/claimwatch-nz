@@ -3,8 +3,10 @@ scratch/
 *.sql
 # ...but the Drizzle migration chain IS the schema's history: drizzle's migrator
 # reads these files, so a clone without them cannot migrate at all (the blanket
-# rule above silently swallowed 0000–0003 until this was caught).
-!packages/store/drizzle/*.sql
+# rule above silently swallowed 0000–0003 until this was caught — and it did it
+# again to the harness labels chain, hence the per-package glob rather than a
+# literal path).
+!packages/*/drizzle/*.sql
 
 # Environment files (CROSS-CUTTING §4) — .env.example is the template.
 .env

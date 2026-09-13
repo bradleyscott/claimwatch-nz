@@ -9,7 +9,9 @@
     "./export": "./src/export.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
     "@cw/pipeline": "workspace:*",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/pg": "^8.11.0",
+    "drizzle-kit": "0.31.10",
     "tsx": "^4.19.0"
   }
 }
