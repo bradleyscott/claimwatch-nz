@@ -466,7 +466,13 @@ export async function triageDocument(
       });
     }
   }
-  return { claims, dropLog, failures, provenance, triageRecord: triageRecordFor(doc, claims, dropLog) };
+  return {
+    claims,
+    dropLog,
+    failures,
+    provenance,
+    triageRecord: triageRecordFor(doc, claims, dropLog),
+  };
 }
 
 /**
