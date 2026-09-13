@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Option D · "The decision log" (depth behind each step)</title>
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4;
+    --v-inc:#c47f1d; --v-inc-soft:#fdf8ef; --v-inc-line:#eddfc2; --v-inc-ink:#8a5a12;
+    --v-sup:#15803d; --v-sup-soft:#f2faf5;
+    --ask:#eef2f9; --askline:#dbe3f0;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:26px;padding:13px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:19px;font-size:14px;color:#c3cad4}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:20px 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin-top:14px}
+  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .quote{font-family:Georgia,"Times New Roman",serif;font-size:27px;line-height:1.27;letter-spacing:-.01em}
+  .who{margin-top:12px;font-size:13.5px;color:var(--mut)}
+  .who b{font-weight:600;color:#3c4654}
+  .vword{font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:var(--v-inc-ink)}
+  .vplain{margin-top:8px;font-size:18px;line-height:1.42;font-weight:600;color:#33270f;max-width:640px}
+  .evline{display:flex;gap:12px;align-items:baseline;font-size:13px;color:var(--mut);padding:7px 0;border-top:1px solid var(--line)}
+  .evline:first-of-type{border-top:0}
+  .evline b{font-size:14px;color:var(--ink);font-weight:700}
+  .evline .vd{margin-left:auto;font-family:"SF Mono",Consolas,monospace;font-size:11.5px;color:var(--faint)}
+
+  /* ================= OPTION D — THE DECISION LOG ================= */
+  .trailcard{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px 20px}
+  .trailhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
+  .trailhead h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .trailhead .meta{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:600}
+  .trailintro{margin-top:9px;font-size:13.5px;color:var(--mut);line-height:1.6;max-width:660px}
+  /* the shape of the check, before any reading */
+  .facts{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;margin-top:15px;overflow:hidden}
+  .fact{padding:11px 13px;border-left:1px solid var(--line)}
+  .fact:first-child{border-left:0}
+  .fact .k{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .fact .v{margin-top:4px;font-size:14px;font-weight:700;line-height:1.35}
+  .fact .s{margin-top:2px;font-size:11.5px;color:var(--mut);line-height:1.4}
+
+  .step{border-top:1px solid var(--line);padding:16px 0 14px}
+  .step:first-of-type{border-top:0;margin-top:6px}
+  .shead{display:grid;grid-template-columns:96px 1fr;gap:22px}
+  .when{font-size:12px;font-weight:700;color:var(--mut);line-height:1.35;padding-top:2px}
+  .when span{display:block;font-family:"SF Mono",Consolas,monospace;font-size:11px;font-weight:500;color:var(--faint)}
+  .what{position:relative;padding-left:16px}
+  .what::before{content:"";position:absolute;left:-5.5px;top:7px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--faint)}
+  .step.ans .what::before{border-color:var(--v-inc);border-width:3px}
+  .st{font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+  .sb{margin-top:5px;font-size:13.5px;color:var(--mut);line-height:1.6;max-width:620px}
+  .sb a{color:var(--blue);text-decoration:none;font-weight:600}
+  .sb b{color:var(--ink)}
+  /* the decision itself, stated in the open */
+  .dec{margin-top:9px;background:#faf8f4;border:1px solid var(--line);border-radius:10px;padding:10px 13px;max-width:660px}
+  .dec .dk{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .dec .dv{margin-top:3px;font-size:13.5px;font-weight:700;color:var(--ink)}
+  .dec .dd{margin-top:3px;font-size:12.5px;color:var(--mut);line-height:1.55}
+  /* per-step depth — a native <details>, in the SSR HTML, no script */
+  details.depth{margin-top:10px;border:1px solid var(--line);border-radius:11px;background:#fdfcfa;max-width:680px}
+  details.depth > summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:baseline;padding:11px 14px;font-size:13.5px;font-weight:700}
+  details.depth > summary::-webkit-details-marker{display:none}
+  details.depth > summary .ch{margin-left:auto;color:var(--faint);font-size:16px;font-weight:400;line-height:1}
+  details.depth[open] > summary .ch::after{content:"–"}
+  details.depth:not([open]) > summary .ch::after{content:"+"}
+  details.depth > summary .n{font-weight:600;color:var(--faint);font-size:12.5px}
+  .dbody{padding:0 14px 14px;font-size:13px;color:var(--mut);line-height:1.6}
+  .dbody p{margin-top:9px;max-width:620px}
+  .dbody b{color:var(--ink)}
+  .dbody a{color:var(--blue);text-decoration:none;font-weight:600}
+
+  /* the parse: the claim's parts, one line each */
+  .parse{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .prow{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:8px 12px;border-top:1px solid var(--line);font-size:12.5px}
+  .prow:first-child{border-top:0}
+  .prow .pk{font-weight:800;color:var(--ink)}
+  .prow .pv{color:var(--mut)}
+  .prow .pv i{font-style:normal;color:var(--faint)}
+  .prow.assume{background:var(--v-inc-soft)}
+  .prow.assume .pk{color:var(--v-inc-ink)}
+  /* the grid: every framing tried, material ones marked */
+  table.grid{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+  table.grid th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 8px 6px;border-bottom:1px solid var(--line)}
+  table.grid td{padding:7px 8px;border-bottom:1px solid var(--line);color:var(--mut);vertical-align:top}
+  table.grid tr.mat td{background:var(--v-inc-soft);color:#33270f}
+  table.grid tr.mat td:first-child{border-left:3px solid var(--v-inc)}
+  table.grid td.num{font-family:"SF Mono",Consolas,monospace;font-size:12px;white-space:nowrap}
+  table.grid td.var{color:var(--ink);font-weight:600}
+  .matkey{margin-top:8px;font-size:12px;color:var(--v-inc-ink);max-width:640px}
+  /* what we set aside — negative results, on purpose */
+  ul.setaside{margin-top:9px;list-style:none;display:grid;gap:6px}
+  ul.setaside li{font-size:12.5px;color:var(--mut);line-height:1.5;padding-left:16px;position:relative}
+  ul.setaside li::before{content:"—";position:absolute;left:0;color:var(--faint)}
+  ul.setaside li .whyTag{font-weight:700;color:#6b747f}
+  .srcs{margin-top:10px;display:grid;gap:7px;max-width:660px}
+  .src{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff}
+  .src .n{font-size:13.5px;font-weight:700}
+  .src .n a{color:var(--blue);text-decoration:none}
+  .src .d{margin-top:2px;font-size:12.5px;color:var(--mut);line-height:1.5}
+  .src .v{margin-top:4px;font-family:"SF Mono",Consolas,monospace;font-size:11px;color:var(--faint)}
+  .src.rej{background:#fbfbfb;border-style:dashed}
+  .src.rej .n{color:var(--mut)}
+  .unsure{margin-top:12px;border:1px solid var(--v-inc-line);background:var(--v-inc-soft);border-radius:11px;padding:12px 14px;max-width:680px}
+  .unsure .uk{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--v-inc-ink)}
+  .unsure ul{margin-top:7px;list-style:none;display:grid;gap:6px}
+  .unsure li{font-size:13px;color:#4a3a1e;line-height:1.55;padding-left:15px;position:relative}
+  .unsure li::before{content:"?";position:absolute;left:0;font-weight:800;color:var(--v-inc)}
+  /* the machine record — unchanged from today's page */
+  .tech{margin-top:9px;font-family:"SF Mono",Consolas,monospace;font-size:11px;line-height:1.7;color:#8a919b;
+        background:#faf8f4;border:1px solid var(--line);border-radius:9px;padding:8px 11px;max-width:660px}
+  .tech b{color:#6b747f;font-weight:700}
+  details.key{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  details.key > summary{list-style:none;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  details.key > summary::-webkit-details-marker{display:none}
+  .keylist{margin-top:12px;display:grid;gap:8px}
+  .krow{display:grid;grid-template-columns:150px 1fr;gap:20px;font-size:13px;color:var(--mut)}
+  .krow dt{font-family:"SF Mono",Consolas,monospace;font-size:11.5px;font-weight:600;color:var(--ink)}
+  .trailfoot{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);margin-top:20px;padding-top:15px;font-size:13px;color:var(--mut)}
+  .trailfoot a{color:var(--blue);text-decoration:none;font-weight:600}
+  .trailfoot .ask{margin-left:auto}
+  .footer{padding:26px 0 44px;color:#a5abb4;font-size:12px;text-align:center;line-height:1.6}
+  .optnote{background:#10192a;color:#c3cad4;font-size:12.5px;padding:10px 0;margin-bottom:8px}
+  .optnote .wrap{display:flex;gap:12px;align-items:baseline}
+  .optnote b{color:#fff}
+</style>
+</head>
+<body>
+
+<div class="optnote"><div class="wrap"><b>Option D — “The decision log”</b> <span>Default view stays as short as today's page; every step gains a decision statement and a one-click depth drawer. Six steps instead of four: the interview read, the classification, and what we set aside are now steps in their own right.</span></div></div>
+
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch<span class="fern">·</span>NZ</div>
+  <nav><span>Live feed</span><span>People</span><span>Parties</span><span>Topics</span><span>How this works</span></nav>
+</div></header>
+
+<div class="wrap">
+  <div class="crumbs">Live feed › Immigration › Claims by Erica Stanford</div>
+
+  <div class="card">
+    <div class="microlabel">The claim</div>
+    <blockquote class="quote">“Since I got the job, net migration's dropped from 135,000 to around 24,000.”</blockquote>
+    <div class="who"><b>Erica Stanford</b>, Immigration Minister <span style="color:#c6cad1">·</span> Newstalk ZB, Mike Hosking Breakfast <span style="color:#c6cad1">·</span> 8 September 2026</div>
+  </div>
+
+  <div class="card" style="background:var(--v-inc-soft);border-color:var(--v-inc-line)">
+    <div class="microlabel" style="color:var(--v-inc-ink)">Our verdict</div>
+    <div class="vword">Accurate but incomplete</div>
+    <p class="vplain">The two numbers are right — but the fall was already underway before this government's changes took effect.</p>
+    <p style="margin-top:11px;font-size:12.5px;color:var(--v-inc-ink)">Checked as support for: the government's 2023 immigration settings changes</p>
+  </div>
+
+  <div class="card">
+    <div class="microlabel">What we checked it against</div>
+    <div class="evline"><b>Stats NZ — international migration, monthly</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Stats NZ — provisional migration estimates, annual</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Newstalk ZB — the interview page</b><span class="vd">checked 9 Sept 2026</span></div>
+  </div>
+
+  <!-- ================================================================
+       OPTION D — THE DECISION LOG
+       ================================================================ -->
+  <div class="trailcard">
+    <div class="trailhead">
+      <h2>How this verdict was made</h2>
+      <div class="meta">Checked <b>9 Sept 2026</b> — the day after the claim</div>
+    </div>
+    <p class="trailintro">Six steps. Each one states the decision it made in the open, and what it set aside to get there — including the sentences from the same interview we did not check, the alternative framings the figures were tested against, and the source we threw away.</p>
+
+    <div class="facts">
+      <div class="fact"><div class="k">Claim read as</div><div class="v">A number and a period</div><div class="s">6 parts identified</div></div>
+      <div class="fact"><div class="k">Check used</div><div class="v">Official figures</div><div class="s">chosen before we knew the answer</div></div>
+      <div class="fact"><div class="k">Compared against</div><div class="v">6 framings tried</div><div class="s">3 changed the picture</div></div>
+      <div class="fact"><div class="k">Set aside</div><div class="v">5 of 7 sentences</div><div class="s">1 source thrown away</div></div>
+    </div>
+
+    <!-- 1 -->
+    <div class="step">
+      <div class="shead">
+        <div class="when">Tue 8 Sept<span>7:42 am</span></div>
+        <div class="what">
+          <div class="st">Claim made</div>
+          <p class="sb">Said in the 7am interview on Newstalk ZB, at 12 minutes 40 seconds in.</p>
+          <div class="tech"><b>exact time</b> 2026-09-07T19:42:00.000Z · <b>clip</b> 12:40–12:52 · <b>publisher</b> Newstalk ZB</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="step">
+      <div class="shead">
+        <div class="when">Wed 9 Sept<span>9:10 am</span></div>
+        <div class="what">
+          <div class="st">The interview was read and split</div>
+          <p class="sb">Seven sentences were looked at. <b>Two</b> make a factual claim we can check. The other five were set aside — not because they were inconvenient, but because no evidence can settle them.</p>
+
+          <div class="dec">
+            <div class="dk">Decision</div>
+            <div class="dv">Check 2 of 7 sentences. Split the interview into two separate claims.</div>
+            <div class="dd">The two claims are tracked as separate pages, because they would be answered by different evidence: one by the migration figures, one by the 2023 coalition agreement.</div>
+          </div>
+
+          <details class="depth" open>
+            <summary>How the claim was read <span class="n">— the 6 parts we had to pin down first</span><span class="ch"></span></summary>
+            <div class="dbody">
+              <p>A claim like this can only be checked once it is broken into the things it asserts. That parse decides which figures are even the right ones to look at, and it happens before any search.</p>
+              <dl class="parse">
+                <div class="prow"><dt class="pk">What it asserts</dt><dd class="pv">Net migration fell from about 135,000 to about 24,000</dd></div>
+                <div class="prow"><dt class="pk">Who is speaking</dt><dd class="pv">Erica Stanford, in her role as Immigration Minister</dd></div>
+                <div class="prow"><dt class="pk">The subject</dt><dd class="pv">Immigration, read as a claim about the government's own performance</dd></div>
+                <div class="prow"><dt class="pk">The period</dt><dd class="pv">“Since I got the job” → read as <i>November 2023 to the latest figures</i> <i>(the date was not stated — we took the month she took office)</i></dd></div>
+                <div class="prow"><dt class="pk">The numbers</dt><dd class="pv">Annual net migration, in people, as a level — not a percentage or a rate</dd></div>
+                <div class="prow"><dt class="pk">The series it leans on</dt><dd class="pv">Stats NZ's published net migration estimates</dd></div>
+                <div class="prow assume"><dt class="pk">Assumed, not said</dt><dd class="pv">That the fall is <b>because of</b> the changes she made. The sentence is also the argument for them — and that implied cause is the part we ended up testing.</dd></div>
+              </dl>
+              <p>One judgement call is worth naming: “since I got the job” has no date in it. We read it as the month she became Minister rather than choosing the window that best suited either side, and the alternative framings below show what happens if you read it differently.</p>
+            </div>
+          </details>
+
+          <details class="depth">
+            <summary>What we did not check, and why <span class="n">— the 5 sentences set aside</span><span class="ch"></span></summary>
+            <div class="dbody">
+              <p>Every sentence in the interview was classified. Five could not be settled by evidence, each for a specific reason:</p>
+              <ul class="setaside">
+                <li>“It's not fair on New Zealanders who are doing it tough.” — <span class="whyTag">opinion</span>: a judgement, not a fact about the world.</li>
+                <li>“This is the most significant reset in a generation.” — <span class="whyTag">rhetoric</span>: a superlative with no agreed measure.</li>
+                <li>“I'll take the question on notice.” — <span class="whyTag">procedure</span>: about the interview, not the subject.</li>
+                <li>“Isn't that what you promised in 2023?” <i>(the host)</i> — <span class="whyTag">question</span>: the answer to it is checked on the other claim's page.</li>
+                <li>“We're committed to getting the settings right.” — <span class="whyTag">a commitment</span>: checkable only when a deadline passes, so it is held rather than graded.</li>
+              </ul>
+              <p>This list is the honest edge of the verdict: what you are reading is a finding about two sentences, not about the interview.</p>
+            </div>
+          </details>
+
+          <div class="tech"><b>recorded</b> 2026-09-08T21:10:00.000Z · <b>check</b> stat-grid · <b>model</b> claude-sonnet-5 · <b>instructions</b> triage-typing@1</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="step">
+      <div class="shead">
+        <div class="when">Wed 9 Sept<span>9:14 am</span></div>
+        <div class="what">
+          <div class="st">The claim was classified</div>
+          <p class="sb">It states a number over a period, so it was sent to the official figures. That choice was made from the claim's wording alone — before any figures were fetched, and before we knew what they would say.</p>
+          <div class="dec">
+            <div class="dk">Decision</div>
+            <div class="dv">Kind of claim: a statistic. Kind of check: the official series.</div>
+            <div class="dd">Not a quotation check (nothing is being quoted), not an open-web search (an official series covers this number exactly), not a context check (the claim's context is the statement itself).</div>
+          </div>
+          <details class="depth">
+            <summary>The four other checks available, and why this one <span class="ch"></span></summary>
+            <div class="dbody">
+              <p><b>Read the source it cites</b> — no source is named in the sentence, so there is nothing to read.</p>
+              <p><b>Compare it to the recording</b> — only for claims about what someone said; this claim is about migration, not about the interview.</p>
+              <p><b>Check the context it carries</b> — used when a claim is true but attached to the wrong event, document or time. The implied cause here is closer to this, and the figures test it directly instead.</p>
+              <p><b>Search the open web</b> — the fallback when no official series covers the number. It is our least reliable check, so it is only used when there is no series. <span style="color:#8a919b">(Here: 1 of the 2 claims took this route — the 2023 commitment has no series behind it.)</span></p>
+              <p>Recording this matters because it is the one decision that cannot be made after seeing the answer: picking the check that agrees with the claim is how a fact-check becomes a press release.</p>
+            </div>
+          </details>
+          <div class="tech"><b>recorded</b> 2026-09-08T21:14:00.000Z · <b>check</b> stat-grid · <b>instructions</b> triage-typing@1</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="step ans">
+      <div class="shead">
+        <div class="when">Wed 9 Sept<span>9:20–9:35 am</span></div>
+        <div class="what">
+          <div class="st">The figures were compared — six ways</div>
+          <p class="sb">The claim's own window checks out: net migration did fall from 135,000 to about 24,000. So the rest of the check is about the part the sentence does not say — whether that fall is because of the changes, or whether it was already happening.</p>
+
+          <div class="dec">
+            <div class="dk">Decision</div>
+            <div class="dv">Both numbers are accurate. Three of the six alternative framings contradict the implication that the changes caused the fall.</div>
+            <div class="dd">That combination is what makes this “accurate but incomplete” rather than “supported”: the arithmetic is not in dispute, the timing is.</div>
+          </div>
+
+          <details class="depth" open>
+            <summary>Every framing we tried, including the ones that failed <span class="n">— 6 rows, 3 material</span><span class="ch"></span></summary>
+            <div class="dbody">
+              <p>One number is rarely one number. The same series was cut six ways; the marked rows are the ones that change what the claim means.</p>
+              <table class="grid">
+                <thead><tr><th>Framing tried</th><th>Period</th><th>Result</th></tr></thead>
+                <tbody>
+                  <tr><td class="var">The window as claimed</td><td>Nov 2023 → Jun 2026</td><td class="num">−82.2%</td></tr>
+                  <tr class="mat"><td class="var">From the peak, not from her start date</td><td>May 2023 → Jun 2026</td><td class="num">−75.4%</td></tr>
+                  <tr class="mat"><td class="var">The year before the changes</td><td>Jan 2023 → Nov 2023</td><td class="num">−18.6%</td></tr>
+                  <tr><td class="var">Per head of population</td><td>Nov 2023 → Jun 2026</td><td class="num">−79.8%</td></tr>
+                  <tr class="mat"><td class="var">Arrivals vs departures, split</td><td>Nov 2023 → Jun 2026</td><td class="num">net −82.2% · departures +6.1%</td></tr>
+                  <tr><td class="var">NZ citizens vs everyone else</td><td>Nov 2023 → Jun 2026</td><td class="num">citizens −12,400 net</td></tr>
+                </tbody>
+              </table>
+              <p class="matkey">The three marked rows are why this is not a clean yes: the fall had already begun before the changes (row 3), and it is a fall in arrivals rather than a rise in departures — a different story from “people are leaving because of the policy”.</p>
+              <p>Row 2 is the honest test of the choice we flagged in step 2: if you start from the peak instead of from the month she took office, the drop is smaller — 75% rather than 82%. The claim's direction survives either reading; the implied cause does not.</p>
+            </div>
+          </details>
+
+          <div class="srcs">
+            <div class="src"><div class="n"><a href="#">Stats NZ — international migration, monthly</a></div><div class="d">The series the claim's number comes from: 135,000 in the year to Nov 2023, 24,000 in the year to Jun 2026.</div><div class="v">dated 13 Feb 2026 · fetched 9 Sept 2026 · official series</div></div>
+            <div class="src"><div class="n"><a href="#">Stats NZ — provisional migration estimates, annual</a></div><div class="d">The same fall, published annually — used to check the monthly series was not a provisional artefact. It agrees.</div><div class="v">dated 13 Feb 2026 · fetched 9 Sept 2026 · official series</div></div>
+            <div class="src rej"><div class="n">Migration Watch NZ — “The reset is working”</div><div class="d">A campaign group's own release, found during the search. Rejected: an advocacy body's framing is not the record, and it restates the claim rather than testing it.</div><div class="v">fetched and discarded 9 Sept 2026</div></div>
+          </div>
+
+          <div class="tech"><b>sources</b> 3 · <b>source types</b> T1, T1, T3 · <b>web searches</b> 4 · <b>instructions</b> claim-decompose@1, grid-materiality@2</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="step">
+      <div class="shead">
+        <div class="when">Wed 9 Sept<span>9:26 am</span></div>
+        <div class="what">
+          <div class="st">The search, and what it threw away</div>
+          <p class="sb">Before any fetching, the claim was broken into the questions that evidence could actually answer — then searched for those, not for the claim. Four searches ran; one of the four was thrown out on sight.</p>
+          <details class="depth">
+            <summary>The 3 questions, and what each search returned <span class="ch"></span></summary>
+            <div class="dbody">
+              <p><b>Asked:</b> what was annual net migration in the year to November 2023? <b>Returned</b> the official series. Kept.</p>
+              <p><b>Asked:</b> when did the current downward trend begin? <b>Returned</b> the same series plus one newsroom summary. Kept, and this is the question that produced the material rows above.</p>
+              <p><b>Asked:</b> did the 2023 changes cause the fall? <b>Returned</b> commentary, one advocacy release and one paywalled op-ed. <b>Nothing usable</b> — see below.</p>
+              <p>The third question is the one the claim's implication needs, and it is the one the evidence could not answer. That is recorded here rather than quietly dropped, because it is the reason the verdict stops where it does.</p>
+            </div>
+          </details>
+          <div class="tech"><b>recorded</b> 2026-09-08T21:26:00.000Z · <b>web searches</b> 4 · <b>rounds</b> 2 of 3 · <b>instructions</b> research-assess@1</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="step ans">
+      <div class="shead">
+        <div class="when">Wed 9 Sept<span>9:40–10:12 am</span></div>
+        <div class="what">
+          <div class="st">Decided, second-passed and published</div>
+          <p class="sb">Against 3 sources: the numbers are right, and the timing the claim implies is not. Before publishing, the reasoning was re-read against those sources by a separate pass.</p>
+          <div class="dec">
+            <div class="dk">Decision</div>
+            <div class="dv">Accurate but incomplete — the arithmetic is not in dispute; the implied cause is not supported.</div>
+            <div class="dd">Not “refuted”, because the numbers are real and the claim's own window works. Not “supported”, because three framings of the same data contradict the reason it is being told.</div>
+          </div>
+          <details class="depth">
+            <summary>What the second pass caught, and how the verdict was reached <span class="ch"></span></summary>
+            <div class="dbody">
+              <p><b>Passed on 3 of 4 statements.</b> One draft sentence — “the fall is the largest on record” — was rejected: the figures did not state it and we had added it ourselves. It was cut before publication, not after.</p>
+              <p><b>What tipped it from “supported” to “accurate but incomplete”:</b> row 3 of the framing table, where the fall is already underway in the year before the changes. The claim is true of the period it names and misleading about the period it implies.</p>
+              <p><b>Nothing has changed since</b> — this is version 1 of the verdict, first published 10:12 am on 9 Sept.</p>
+            </div>
+          </details>
+
+          <div class="unsure">
+            <div class="uk">What this check could not settle</div>
+            <ul>
+              <li><b>Whether the fall continues.</b> The series stops at June 2026; anything after that is not in the record yet.</li>
+              <li><b>What the policy itself did</b>, separately from the trend that was already running. The figures show timing, not cause — and no published evaluation separates the two.</li>
+              <li><b>The 2023 commitment.</b> Tracked on its own page, because the coalition agreement is evidence that has not been published in a form we can read.</li>
+            </ul>
+          </div>
+
+          <div class="tech"><b>ClaimWatch version</b> 0.1.0 · <b>verdict version</b> 1 · <b>state</b> PUBLISHED · <b>never revised</b> · <b>instructions</b> grid-materiality@2, nli-audit@1 · <b>model</b> grid-materiality: claude-sonnet-5, nli-audit: claude-opus-4</div>
+        </div>
+      </div>
+    </div>
+
+    <details class="key">
+      <summary>› What these values mean</summary>
+      <dl class="keylist">
+        <div class="krow"><dt>name@version</dt><dd>which set of instructions a step ran, and which version of them, written the way our system recorded it. The step it sits under is where it belongs in the check.</dd></div>
+        <div class="krow"><dt>source types</dt><dd>a code saying what kind of source each one is — official statistics, academic research, a major newsroom. The plain-language key is on the evidence card above.</dd></div>
+        <div class="krow"><dt>PUBLISHED</dt><dd>the state the verdict is in: CONTESTED once someone has challenged it, FROZEN once it is locked for the election period.</dd></div>
+      </dl>
+    </details>
+
+    <div class="trailfoot">
+      <a href="#">How we check claims</a>
+      <span class="ask"><b>Think we've got this wrong?</b> <a href="#">Tell us</a> with a source we should have used — contests and every change are public.</span>
+    </div>
+  </div>
+
+  <div class="footer">ClaimWatch NZ · verdicts are automated assessments, contestable and never silently edited</div>
+</div>
+</body>
+</html>

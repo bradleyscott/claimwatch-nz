@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — mode-aware trail · the universal skeleton (open-web, the default path)</title>
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4;
+    --v-inc:#c47f1d; --v-inc-soft:#fdf8ef; --v-inc-line:#eddfc2; --v-inc-ink:#8a5a12;
+    --ok:#15803d; --ok-soft:#f2faf5; --ok-line:#cfe8d8;
+    --gap:#a33a5c; --gap-soft:#fdf4f7; --gap-line:#f0d5de;
+    --mono:"SF Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:860px;margin:0 auto;padding:0 22px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:26px;padding:13px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:19px;font-size:14px;color:#c3cad4}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:20px 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin-top:14px}
+  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .quote{font-family:Georgia,"Times New Roman",serif;font-size:27px;line-height:1.27;letter-spacing:-.01em}
+  .who{margin-top:12px;font-size:13.5px;color:var(--mut)}
+  .who b{font-weight:600;color:#3c4654}
+  .vword{font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:var(--v-inc-ink)}
+  .vplain{margin-top:8px;font-size:18px;line-height:1.42;font-weight:600;color:#33270f;max-width:640px}
+  .evline{display:flex;gap:12px;align-items:baseline;font-size:13px;color:var(--mut);padding:7px 0;border-top:1px solid var(--line)}
+  .evline:first-of-type{border-top:0}
+  .evline b{font-size:14px;color:var(--ink);font-weight:700}
+  .evline .vd{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+
+  /* ================= MODE-AWARE TRAIL ================= */
+  .trailcard{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px 24px}
+  .trailhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
+  .trailhead h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .trailhead .meta{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:600}
+  .trailintro{margin-top:9px;font-size:13.5px;color:var(--mut);line-height:1.6;max-width:700px}
+
+  /* which check ran — the thing that decides which sections exist */
+  .modebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:15px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:#fdfcfa}
+  .modebar .mk{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .modebar .mv{font-size:14px;font-weight:700}
+  .modebar .mw{margin-left:auto;font-size:12px;color:var(--mut);max-width:330px;line-height:1.45}
+
+  /* section scaffolding, with the buildability badge */
+  .sec{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+  .sec:first-of-type{border-top:0;padding-top:6px}
+  .sh{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+  .sh .n{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--faint)}
+  .sh h3{font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+  .sh .when{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .badge{margin-left:8px;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;padding:2px 6px;vertical-align:2px;white-space:nowrap}
+  .badge.stored{color:var(--ok);background:var(--ok-soft);border:1px solid var(--ok-line)}
+  .badge.needs{color:var(--v-inc-ink);background:var(--v-inc-soft);border:1px solid var(--v-inc-line)}
+  .badge.mode{color:#5b6b86;background:#eef2f9;border:1px solid #dbe3f0}
+  .sn{margin-top:8px;font-size:13.5px;color:var(--mut);line-height:1.65;max-width:700px}
+  .sn b{color:var(--ink)}
+  .sn a{color:var(--blue);text-decoration:none;font-weight:600}
+  .sn p + p{margin-top:8px}
+  /* a decision, stated in the open */
+  .dec{margin-top:10px;background:var(--v-inc-soft);border:1px solid var(--v-inc-line);border-radius:10px;padding:10px 13px;max-width:700px}
+  .dec .dk{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--v-inc-ink)}
+  .dec .dv{margin-top:3px;font-size:13.5px;font-weight:700;color:#33270f;line-height:1.5}
+  .dec .dd{margin-top:3px;font-size:12.5px;color:#6b5426;line-height:1.55}
+  /* questions asked / answers returned */
+  .qa{margin-top:11px;border:1px solid var(--line);border-radius:11px;overflow:hidden;max-width:720px}
+  .qar{display:grid;grid-template-columns:150px 1fr;gap:0;border-top:1px solid var(--line);font-size:12.5px}
+  .qar:first-child{border-top:0}
+  .qar .qk{padding:9px 12px;background:#faf9f6;font-weight:700;color:var(--ink);line-height:1.45}
+  .qar .qv{padding:9px 12px;color:var(--mut);line-height:1.55}
+  .qar .qv b{color:var(--ink)}
+  .qar .qv .no{color:var(--gap);font-weight:700}
+  /* the reasoning behind a verdict, as a chain */
+  .chain{margin-top:11px;max-width:720px;border-left:3px solid var(--v-inc);padding-left:13px}
+  .chain .cl{font-size:13px;color:var(--mut);line-height:1.65;padding:5px 0}
+  .chain .cl b{color:var(--ink)}
+  .chain .cl .arrow{color:var(--v-inc);font-weight:800;margin-right:6px}
+  /* sources */
+  .srcs{margin-top:11px;display:grid;gap:7px;max-width:720px}
+  .src{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff}
+  .src .n{font-size:13.5px;font-weight:700}
+  .src .n a{color:var(--blue);text-decoration:none}
+  .src .d{margin-top:2px;font-size:12.5px;color:var(--mut);line-height:1.5}
+  .src .v{margin-top:4px;font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .src.rej{background:#fbfbfb;border-style:dashed}
+  .src.rej .n{color:var(--mut)}
+  .src.rej .d b{color:#6b747f}
+  /* the closing block */
+  .stops{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+  @media (max-width:760px){.stops{grid-template-columns:1fr}}
+  .box{border:1px solid var(--v-inc-line);background:var(--v-inc-soft);border-radius:12px;padding:13px 15px}
+  .box.grey{border-color:var(--line);background:#fbfaf7}
+  .box .bk{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--v-inc-ink)}
+  .box.grey .bk{color:var(--faint)}
+  .box ul{margin-top:8px;list-style:none;display:grid;gap:7px}
+  .box li{font-size:12.5px;color:#6b5426;line-height:1.55;padding-left:15px;position:relative}
+  .box li::before{content:"?";position:absolute;left:0;font-weight:800;color:var(--v-inc)}
+  .box.grey li{color:var(--mut)}
+  .box.grey li::before{content:"→";color:var(--faint);font-weight:600}
+  .box li b{color:var(--ink)}
+  /* the machine record + key */
+  .tech{margin-top:10px;font-family:var(--mono);font-size:11px;line-height:1.7;color:#8a919b;background:#faf8f4;border:1px solid var(--line);border-radius:9px;padding:8px 11px;max-width:720px}
+  .tech b{color:#6b747f;font-weight:700}
+  details.key{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+  details.key > summary{list-style:none;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  details.key > summary::-webkit-details-marker{display:none}
+  .keylist{margin-top:12px;display:grid;gap:8px}
+  .krow{display:grid;grid-template-columns:150px 1fr;gap:20px;font-size:13px;color:var(--mut)}
+  .krow dt{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink)}
+  .trailfoot{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);margin-top:20px;padding-top:15px;font-size:13px;color:var(--mut)}
+  .trailfoot a{color:var(--blue);text-decoration:none;font-weight:600}
+  .trailfoot .ask{margin-left:auto}
+  .footer{padding:26px 0 44px;color:#a5abb4;font-size:12px;text-align:center;line-height:1.6}
+  .optnote{background:#10192a;color:#c3cad4;font-size:12.5px;padding:11px 0;margin-bottom:8px}
+  .optnote .wrap{display:flex;gap:12px;align-items:baseline}
+  .optnote b{color:#fff}
+  .optnote .lg{display:block;margin-top:5px;color:#8d97a6;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<div class="optnote"><div class="wrap">
+  <b>Mode-aware trail · the universal skeleton</b>
+  <span>Filled with the <b>default</b> path — open-web — because that is what most claims route to since mode routing changed in Sept 2026. Sections 1, 2, 5, 6, 7 are universal. Section 4 is the mode's own material: five possible bodies, drawn in <em>claim-page-mode-variants.html</em>.</span>
+  <span class="lg">Badges are buildability, not design: <b style="color:#5fbf85">stored</b> = renders from a column the store already holds · <b style="color:#d8a04a">needs persistence</b> = computed today and thrown away, so it needs an append-only column before the page can show it.</span>
+</div></div>
+
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch<span class="fern">·</span>NZ</div>
+  <nav><span>Live feed</span><span>People</span><span>Parties</span><span>Topics</span><span>How this works</span></nav>
+</div></header>
+
+<div class="wrap">
+  <div class="crumbs">Live feed › Justice › Claims by Hon Sample Minister</div>
+
+  <div class="card">
+    <div class="microlabel">The claim</div>
+    <blockquote class="quote">“Gang membership has doubled since 2017.”</blockquote>
+    <div class="who"><b>Hon Sample Minister</b>, Police <span style="color:#c6cad1">·</span> RNZ Checkpoint <span style="color:#c6cad1">·</span> 8 September 2026</div>
+  </div>
+
+  <div class="card" style="background:var(--v-inc-soft);border-color:var(--v-inc-line)">
+    <div class="microlabel" style="color:var(--v-inc-ink)">Our verdict</div>
+    <div class="vword">Not enough evidence</div>
+    <p class="vplain">No published figure counts gang membership in the way this claim needs — so it stays an open question rather than being graded.</p>
+  </div>
+
+  <div class="card">
+    <div class="microlabel">What we checked it against</div>
+    <div class="evline"><b>Police — gang member counts</b><span class="vd">published 2026</span></div>
+    <div class="evline"><b>RNZ — Checkpoint interview page</b><span class="vd">checked 9 Sept 2026</span></div>
+  </div>
+
+  <!-- ================================================================
+       MODE-AWARE TRAIL — UNIVERSAL SKELETON, OPEN-WEB BODY
+       ================================================================ -->
+  <div class="trailcard">
+    <div class="trailhead">
+      <h2>How this verdict was made</h2>
+      <div class="meta">Checked <b>9 Sept 2026</b> — the day after the claim</div>
+    </div>
+    <p class="trailintro">Seven sections; which ones appear depends on the kind of check this claim needed. Every claim gets the first two steps, the sources it used, the second pass, and the record of where the check stops. The middle explains how <em>this</em> kind of check works.</p>
+
+    <div class="modebar">
+      <span class="mk">Check used</span>
+      <span class="mv">Open-web research — our default</span>
+      <span class="mw">Chosen because no official series counts gang membership. Used for 61% of claims we handle, and labelled on the page as our least reliable check.</span>
+    </div>
+
+    <!-- 1 — universal -->
+    <div class="sec">
+      <div class="sh"><span class="n">1</span><h3>The interview was read and split into claims</h3><span class="when">9 Sept · 9:10 am</span><span class="badge needs">needs persistence</span></div>
+      <div class="sn">
+        <p>Eleven sentences were classified. <b>One</b> makes a factual claim; nine could not be settled by evidence and one was held.</p>
+        <p>This section is the same on every verdict page — it is the honest edge of the finding, because it says how much of the source document the verdict actually speaks to.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Checked</div><div class="qv">“Gang membership has doubled since 2017.”</div></div>
+        <div class="qar"><div class="qk">Set aside — opinion</div><div class="qv">“Communities deserve to feel safe in their own streets.”</div></div>
+        <div class="qar"><div class="qk">Set aside — rhetoric</div><div class="qv">“This is a war we intend to win.”</div></div>
+        <div class="qar"><div class="qk">Set aside — question</div><div class="qv">“Why has nothing been done until now?” <i>(the host)</i></div></div>
+        <div class="qar"><div class="qk">Held, not graded</div><div class="qv">“We will have new laws in place this term.” — checkable only once the term ends.</div></div>
+      </div>
+      <p class="sn" style="margin-top:9px">The count appears here rather than as a bare number: a reader can see that a verdict about one sentence is not a verdict about an interview.</p>
+      <div class="tech"><b>recorded</b> 2026-09-08T21:10:00.000Z · <b>sentences</b> 11 · <b>checked</b> 1 · <b>set aside</b> 9 · <b>held</b> 1 · <b>instructions</b> triage-checkability@1 · <b>model</b> claude-sonnet-5</div>
+    </div>
+
+    <!-- 2 — universal -->
+    <div class="sec">
+      <div class="sh"><span class="n">2</span><h3>The check was chosen, and four others were ruled out</h3><span class="when">9 Sept · 9:14 am</span><span class="badge stored">stored</span></div>
+      <div class="sn">
+        <p>Decided from the claim's wording alone, before any evidence was fetched. The rule that decides it is on the page, because a check chosen after seeing the answer is not a check.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Claim read as</div><div class="qv"><b>A statement of fact</b> — not a quotation, not a promise, not a number an official series covers.</div></div>
+        <div class="qar"><div class="qk">Ruled out</div><div class="qv"><b>Official figures</b> — no series counts gang membership. <b>Cited source</b> — none named. <b>Compare to the recording</b> — the claim is about gangs, not about what was said. <b>Context check</b> — the claim carries no attached event or document.</div></div>
+        <div class="qar"><div class="qk">Chosen</div><div class="qv"><b>Open-web research</b> — the fallback, and the only one that applies when nothing official exists.</div></div>
+      </div>
+      <p class="sn" style="margin-top:9px">The ruled-out lines are the useful part: they show the check was not picked to suit the answer, and they name the evidence that <em>would</em> have changed which check ran.</p>
+      <div class="tech"><b>recorded</b> 2026-09-08T21:14:00.000Z · <b>kind</b> other · <b>check</b> open-web · <b>instructions</b> triage-typing@1</div>
+    </div>
+
+    <!-- 4 — MODE-SPECIFIC (open-web) -->
+    <div class="sec">
+      <div class="sh"><span class="n">4</span><h3>How an open-web check works — and what it did here</h3><span class="when">9 Sept · 9:20–9:41 am</span><span class="badge mode">mode: open-web</span><span class="badge needs">needs persistence</span></div>
+      <div class="sn">
+        <p>With no official series, the claim is turned into <b>questions evidence could answer</b> and searched for those, not for the claim. A run is capped at a set number of rounds; whether the cap was reached is recorded, because a capped run has not finished looking.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Questions asked of the record</div><div class="qv">1. Does any agency publish a gang-membership count? → <b>partly</b> — Police publish a count with a definition that excludes associates.<br>2. What was that count in 2017 and now? → <b>no</b> — the series does not go back that far.<br>3. Has any other body estimated the change? → <b>only commentary</b>, no method published.</div></div>
+        <div class="qar"><div class="qk">Searches run</div><div class="qv">7 searches over 2 rounds — <b>the cap was not reached</b>, so the search stopped because it had run out of new questions, not because it ran out of budget.</div></div>
+        <div class="qar"><div class="qk">Why the run ended here</div><div class="qv">The loop stops when an assessment judges the evidence sufficient, or when the cap binds. Here it judged the evidence <b>insufficient and the questions exhausted</b> — the honest reason a verdict says “not enough evidence” rather than guessing.</div></div>
+      </div>
+
+      <p class="sn" style="margin-top:11px"><b>What an open-web check cannot tell you:</b> it can only report what is published. Nothing here can establish a figure that no one has counted — so an absence of evidence is reported as exactly that, and never as evidence the claim is false.</p>
+
+      <div class="tech"><b>questions</b> 3 · <b>searches</b> 7 · <b>rounds</b> 2 of 3 · <b>cap reached</b> no · <b>assessment</b> insufficient, questions exhausted · <b>instructions</b> claim-decompose@1, research-assess@1</div>
+    </div>
+
+    <!-- 5 — universal -->
+    <div class="sec">
+      <div class="sh"><span class="n">5</span><h3>What we compared it against</h3><span class="when">9 Sept · 9:22–9:41 am</span><span class="badge stored">stored</span></div>
+      <div class="sn"><p>Two sources were kept and two were discarded. The discarded ones are listed with the reason, so you can see what the search found and we chose not to use.</p></div>
+      <div class="srcs">
+        <div class="src"><div class="n"><a href="#">Police — gang member counts</a></div><div class="d">Counts members on the Police gang list: <b>4,420 in 2023</b>. It does not go back to 2017 and does not count associates.</div><div class="v">published 2026 · kept · official source</div></div>
+        <div class="src"><div class="n"><a href="#">RNZ — Checkpoint interview page</a></div><div class="d">The interview itself — used to confirm the claim's wording and date, not as evidence for the number.</div><div class="v">checked 9 Sept 2026 · kept · major newsroom</div></div>
+        <div class="src rej"><div class="n">A law firm's blog — “gang numbers up 128%”</div><div class="d">Gives a figure in the range the claim needs.</div><div class="r v"><b>Discarded:</b> no method, no source for the number, and a commercial interest in the conclusion.</div></div>
+        <div class="src rej"><div class="n">A 2019 newsroom piece — “gang list grows”</div><div class="d">Closest thing to a 2017 baseline found.</div><div class="r v"><b>Discarded on age:</b> two years after the claim's period and no series behind it. Kept in the record, shown here because it is the best the search could find for the baseline.</div></div>
+      </div>
+    </div>
+
+    <!-- 6 — universal -->
+    <div class="sec">
+      <div class="sh"><span class="n">6</span><h3>Our own reasoning was re-read against those sources</h3><span class="when">9 Sept · 9:48 am</span><span class="badge stored">stored (pass/fail)</span><span class="badge needs">detail needs persistence</span></div>
+      <div class="sn">
+        <p>Before publishing, every sentence of our reasoning was re-read against the evidence we actually hold by a separate pass whose only job is to find statements we supplied ourselves.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Result</div><div class="qv"><b>Passed</b> on all three statements. Nothing was published that the sources do not support.</div></div>
+        <div class="qar"><div class="qk">One sentence cut</div><div class="qv">A draft said the Police count “shows a sharp rise”. The count is a single year with no baseline, so the trend was our addition. Cut before publication.</div></div>
+      </div>
+      <p class="sn" style="margin-top:9px">Today the page can print the pass/fail outcome but not the cut sentence or its reason: the store records the gate's verdict and not what it rejected. That is the one part of this section needing a new column — and the part that best shows the gate is real rather than decorative.</p>
+      <div class="tech"><b>statements re-read</b> 3 · <b>outcome</b> pass · <b>rejected</b> 1 (before publication) · <b>instructions</b> nli-audit@1 · <b>model</b> claude-opus-4</div>
+    </div>
+
+    <!-- 7 — universal -->
+    <div class="sec">
+      <div class="sh"><span class="n">7</span><h3>Where this check stops</h3><span class="when">9 Sept · 10:02 am</span><span class="badge stored">stored</span></div>
+      <div class="sn"><p>A verdict that says “not enough evidence” has to say what is missing and what would settle it, or it is just a shrug.</p></div>
+      <div class="stops">
+        <div class="box">
+          <div class="bk">What this check could not settle</div>
+          <ul>
+            <li><b>The 2017 baseline.</b> No published count reaches back that far.</li>
+            <li><b>Who counts as a member.</b> Police count list members; the claim's “membership” is undefined, and associates are excluded.</li>
+            <li><b>Whether the rise is real or a change in counting.</b> The Police list's scope has changed since 2017 and no note explains how.</li>
+          </ul>
+        </div>
+        <div class="box grey">
+          <div class="bk">What would change this verdict</div>
+          <ul>
+            <li>A published series with a 2017 baseline and a stated definition — the number would then be checkable and this page would be superseded.</li>
+            <li>A Police note explaining the list's scope changes — that would turn “unknown change” into an arithmetic question.</li>
+            <li>The claim's own definition of membership, if one was given elsewhere.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <details class="key">
+      <summary>› What these values mean</summary>
+      <dl class="keylist">
+        <div class="krow"><dt>name@version</dt><dd>which set of instructions a step ran, and which version of them, written the way our system recorded it.</dd></div>
+        <div class="krow"><dt>rounds / cap</dt><dd>how many passes of searching ran, and the maximum allowed. “Cap reached: yes” means the search stopped because it was not allowed more rounds — not because it had finished.</dd></div>
+        <div class="krow"><dt>assessment</dt><dd>the straighforward judgement of whether the evidence found answers the claim, and if not, whether anything else was left to look for.</dd></div>
+      </dl>
+    </details>
+
+    <div class="trailfoot">
+      <a href="#">How we check claims</a>
+      <span class="ask"><b>Think we've got this wrong?</b> <a href="#">Tell us</a> with a source we should have used — contests and every change are public.</span>
+    </div>
+  </div>
+
+  <div class="footer">ClaimWatch NZ · verdicts are automated assessments, contestable and never silently edited</div>
+</div>
+</body>
+</html>

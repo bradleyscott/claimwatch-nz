@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — the mode section, five ways, plus the two absence cases</title>
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4;
+    --v-inc:#c47f1d; --v-inc-soft:#fdf8ef; --v-inc-line:#eddfc2; --v-inc-ink:#8a5a12;
+    --ok:#15803d; --ok-soft:#f2faf5; --ok-line:#cfe8d8;
+    --gap:#a33a5c; --gap-soft:#fdf4f7; --gap-line:#f0d5de;
+    --mono:"SF Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:900px;margin:0 auto;padding:0 22px}
+  .top{background:#10192a;color:#c3cad4;padding:14px 0 16px}
+  .top b{color:#fff}
+  .top .lg{display:block;margin-top:6px;color:#8d97a6;font-size:12px}
+  .top h1{color:#fff;font-size:20px;font-weight:800;letter-spacing:-.015em}
+  .top p{margin-top:6px;font-size:13px;line-height:1.6;max-width:760px}
+  .jump{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .jump a{font-size:11.5px;font-weight:700;color:#c3cad4;text-decoration:none;border:1px solid #2b3648;border-radius:7px;padding:4px 8px}
+  .jump a.gap{border-color:#6d2740;color:#e8a8bf}
+  .case{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 28px;margin-top:16px}
+  .chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .chead h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .chead .mode{font-family:var(--mono);font-size:11.5px;font-weight:700;color:#5b6b86;background:#eef2f9;border:1px solid #dbe3f0;border-radius:6px;padding:2px 7px}
+  .chead .mode.gap{color:var(--gap);background:var(--gap-soft);border-color:var(--gap-line)}
+  .meta{margin-left:auto;font-size:11.5px;color:var(--faint);text-align:right;line-height:1.5}
+  .meta b{color:var(--mut)}
+  .badge{margin-left:6px;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .badge.stored{color:var(--ok);background:var(--ok-soft);border:1px solid var(--ok-line)}
+  .badge.needs{color:var(--v-inc-ink);background:var(--v-inc-soft);border:1px solid var(--v-inc-line)}
+  /* the rendered section, as it would appear on the page */
+  .render{margin-top:14px;border:1px dashed var(--line);border-radius:12px;padding:16px 18px;background:#fdfcfa}
+  .render .rl{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .sh{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+  .sh h3{font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+  .when{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .sn{margin-top:8px;font-size:13.5px;color:var(--mut);line-height:1.65;max-width:760px}
+  .sn b{color:var(--ink)}
+  .sn p + p{margin-top:8px}
+  .dec{margin-top:10px;background:var(--v-inc-soft);border:1px solid var(--v-inc-line);border-radius:10px;padding:10px 13px;max-width:760px}
+  .dec .dk{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--v-inc-ink)}
+  .dec .dv{margin-top:3px;font-size:13.5px;font-weight:700;color:#33270f;line-height:1.5}
+  .dec .dd{margin-top:3px;font-size:12.5px;color:#6b5426;line-height:1.55}
+  .dec.gap{background:var(--gap-soft);border-color:var(--gap-line)}
+  .dec.gap .dk{color:var(--gap)}
+  .dec.gap .dv{color:#5e2138}
+  .dec.gap .dd{color:#6d2740}
+  .qa{margin-top:11px;border:1px solid var(--line);border-radius:11px;overflow:hidden;max-width:780px;background:#fff}
+  .qar{display:grid;grid-template-columns:170px 1fr;border-top:1px solid var(--line);font-size:12.5px}
+  .qar:first-child{border-top:0}
+  .qar .qk{padding:9px 12px;background:#faf9f6;font-weight:700;color:var(--ink);line-height:1.45}
+  .qar .qv{padding:9px 12px;color:var(--mut);line-height:1.55}
+  .qar .qv b{color:var(--ink)}
+  .qar .qv .no{color:var(--gap);font-weight:700}
+  table.t{width:100%;border-collapse:collapse;margin-top:11px;font-size:12.5px;max-width:780px;background:#fff}
+  table.t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 8px 6px;border-bottom:1px solid var(--line)}
+  table.t td{padding:8px;border-bottom:1px solid var(--line);color:var(--mut);vertical-align:top}
+  table.t td.num{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  table.t td.var{color:var(--ink);font-weight:600}
+  table.t tr.mat td{background:var(--v-inc-soft);color:#33270f}
+  table.t tr.mat td:first-child{border-left:3px solid var(--v-inc)}
+  .mattag{display:inline-block;margin-left:6px;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--v-inc-ink);background:#fff;border:1px solid var(--v-inc-line);border-radius:4px;padding:1px 4px;vertical-align:1px}
+  .tech{margin-top:11px;font-family:var(--mono);font-size:11px;line-height:1.7;color:#8a919b;background:#faf8f4;border:1px solid var(--line);border-radius:9px;padding:8px 11px;max-width:780px}
+  .tech b{color:#6b747f;font-weight:700}
+  /* mode boundaries: what this check can and cannot do */
+  .bounds{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:13px}
+  @media (max-width:760px){.bounds{grid-template-columns:1fr}}
+  .bx{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:#fbfaf7}
+  .bx.warn{border-color:var(--v-inc-line);background:var(--v-inc-soft)}
+  .bx.gap{border-color:var(--gap-line);background:var(--gap-soft)}
+  .bx .bk{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .bx.warn .bk{color:var(--v-inc-ink)}
+  .bx.gap .bk{color:var(--gap)}
+  .bx p{margin-top:6px;font-size:12.5px;color:var(--mut);line-height:1.6}
+  .bx.warn p{color:#6b5426}
+  .bx.gap p{color:#6d2740}
+  .bx p b{color:var(--ink)}
+  .footer{padding:28px 0 46px;color:#a5abb4;font-size:12px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="wrap">
+  <h1>The mode section — five ways, plus two absences</h1>
+  <p>Section 4 of the mode-aware trail is the only part that changes with the check. Everything else on the page — the sentences read, the check chosen, the sources, the second pass, where the check stops — is identical for every claim, because those are the same decisions whatever the evidence turns out to be.</p>
+  <p>A section renders when its mode's <b>material exists</b>, not merely when its mode was chosen. Two cases below show what the page says when a check ran but produced nothing to report: it names the absence. It never substitutes a generic paragraph for a mode's own material, and it never omits the fact that the check did not run.</p>
+  <span class="lg">Badges: <b style="color:#5fbf85">stored</b> = a column the store already holds · <b style="color:#d8a04a">needs persistence</b> = computed today, discarded, needs an append-only column.</span>
+  <div class="jump">
+    <a href="#stat">stat-grid</a><a href="#cit">citation-check</a><a href="#quote">quote-fidelity</a><a href="#prov">provenance</a><a href="#web">open-web</a>
+    <a class="gap" href="#anchor">absence · no anchor found</a><a class="gap" href="#causal">absence · causal claim, no mode</a>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+  <!-- ============ 1 · STAT-GRID ============ -->
+  <div class="case" id="stat">
+    <div class="chead">
+      <h2>The figures were cut several ways</h2>
+      <span class="mode">stat-grid</span>
+      <span class="badge needs">needs persistence</span>
+      <div class="meta"><b>Fires on:</b> statistical claims only, and only when the authority registry holds the domain — 4 domains today<br><b>Corpus:</b> 24% are numerical claims; the registry gates how many reach this section</div>
+    </div>
+    <div class="render">
+      <div class="rl">Section 4 · as it renders</div>
+      <div class="sh"><h3>How a figures check works — and what it did here</h3><span class="when">9 Sept · 9:20–9:35 am</span></div>
+      <div class="sn">
+        <p>The claim names a number and a period, so it is checked against the agency that keeps that record. One number is rarely one number: the same series is cut several ways, and every framing is computed and kept — including the ones that contradict the claim.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">How the claim was read</div><div class="qv">A net migration figure, as an annual level, over Nov 2023 → Jun 2026, leaning on the Stats NZ series. <b>One part is not stated:</b> that the fall is <i>because of</i> the changes — and that implied cause is what the rest of the check tests.</div></div>
+        <div class="qar"><div class="qk">Series used</div><div class="qv">Stats NZ net migration, vintage 13 Feb 2026 — the official record for this number, and the same series the claim's own figure comes from.</div></div>
+      </div>
+      <table class="t">
+        <thead><tr><th>Framing</th><th>Period</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td class="var">The window as claimed</td><td>Nov 2023 → Jun 2026</td><td class="num">−82.2%</td></tr>
+          <tr class="mat"><td class="var">From the peak, not her start date<span class="mattag">material</span></td><td>May 2023 → Jun 2026</td><td class="num">−75.4%</td></tr>
+          <tr class="mat"><td class="var">The year before the changes<span class="mattag">material</span></td><td>Jan 2023 → Nov 2023</td><td class="num">−18.6%</td></tr>
+          <tr><td class="var">Per head of population</td><td>Nov 2023 → Jun 2026</td><td class="num">−79.8%</td></tr>
+          <tr class="mat"><td class="var">Arrivals and departures, split<span class="mattag">material</span></td><td>Nov 2023 → Jun 2026</td><td class="num">net −82.2% · dep +6.1%</td></tr>
+          <tr><td class="var">NZ citizens vs everyone else</td><td>Nov 2023 → Jun 2026</td><td class="num">citizens −12,400 net</td></tr>
+        </tbody>
+      </table>
+      <div class="dec"><div class="dk">Decision</div><div class="dv">Numbers accurate. Implied cause contradicted by 3 of the 6 framings.</div><div class="dd">Marked rows are the ones that changed what the claim means. Row 3 is the decisive one: the fall had already begun before the changes took effect.</div></div>
+      <div class="tech"><b>rows</b> 6 · <b>material</b> 3 · <b>robust</b> false · <b>claim</b> −82.2% · <b>peak-start</b> −75.4% · <b>instructions</b> grid-materiality@2</div>
+    </div>
+    <div class="bounds">
+      <div class="bx warn"><div class="bk">What this check cannot tell you</div><p>Whether the relationship is <b>causal</b>. It shows the timing of a fall relative to a policy — which is the strongest thing a series can say, and still not proof of cause. The verdict copy must not upgrade timing into cause.</p></div>
+      <div class="bx"><div class="bk">Why the framing table is here at all</div><p>A check that only tests the framing the claimant chose has not checked anything. Rows that <b>support</b> the claim are shown too — the table is the whole computation, not the case against it.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ 2 · CITATION-CHECK ============ -->
+  <div class="case" id="cit">
+    <div class="chead">
+      <h2>What the cited document actually says</h2>
+      <span class="mode">citation-check</span>
+      <span class="badge stored">stored</span>
+      <div class="meta"><b>Fires on:</b> claims citing a document or institution — the commonest shape in the corpus (61% of claims are event/property claims)<br><b>Corpus:</b> 37 claims reference a fact-checker source; written evidence is the top strategy at 443/500</div>
+    </div>
+    <div class="render">
+      <div class="rl">Section 4 · as it renders</div>
+      <div class="sh"><h3>How a citation check works — and what it did here</h3><span class="when">9 Sept · 9:18–9:26 am</span></div>
+      <div class="sn">
+        <p>The claim cites something that exists, so the check reads <b>that thing</b> rather than searching around it. The question is not whether the document is real — it is whether the claim uses it the way the document uses it.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">The cited document</div><div class="qv">The 2023 coalition agreement, clause 12(b) — read in full, not from the claim's description of it.</div></div>
+        <div class="qar"><div class="qk">What it says</div><div class="qv">“<i>…to reduce net migration to sustainable levels</i>” — with no figure and no date attached.</div></div>
+        <div class="qar"><div class="qk">What the claim says it says</div><div class="qv">That the agreement “commits to cutting net migration by half”. That figure and that commitment <b>appear nowhere in the document</b>.</div></div>
+        <div class="qar"><div class="qk">Binding or decorative</div><div class="qv"><b>Not binding.</b> The clause commits to a direction (“sustainable levels”), not to a number. A commitment to halve a figure would have been binding; this is not.</div></div>
+      </div>
+      <div class="dec"><div class="dk">Decision</div><div class="dv">The claim misstates the document it relies on.</div><div class="dd">This is the strongest form of finding the pipeline can reach — the claim's own source contradicts it, so nothing outside the document is needed to decide.</div></div>
+      <div class="tech"><b>binding</b> no · <b>mismatch</b> recorded · <b>paywalled</b> no · <b>instructions</b> citation-compare@1</div>
+    </div>
+    <div class="bounds">
+      <div class="bx warn"><div class="bk">Where this check degrades — declared in use</div><p>If the cited document is <b>paywalled or unreachable</b>, the comparison cannot run. The page then says the claim was checked against <b>the quotation alone</b>, and the verdict is labelled as resting on that weaker basis. It does not silently fall back to a search.</p></div>
+      <div class="bx"><div class="bk">Why the document is read in full</div><p>Claims about documents fail in the gap between a summary and its text. Reading the clause the claim leans on is the whole check — and the clause is quoted on the page so you can read it yourself.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ 3 · QUOTE-FIDELITY ============ -->
+  <div class="case" id="quote">
+    <div class="chead">
+      <h2>What the recording actually contains</h2>
+      <span class="mode">quote-fidelity</span>
+      <span class="badge needs">needs persistence</span>
+      <div class="meta"><b>Fires on:</b> claims about what someone said — 14% of corpus claims<br><b>Note:</b> caption-sourced claims are flagged, not silently trusted</div>
+    </div>
+    <div class="render">
+      <div class="rl">Section 4 · as it renders</div>
+      <div class="sh"><h3>How a quotation check works — and what it did here</h3><span class="when">9 Sept · 9:22–9:28 am</span></div>
+      <div class="sn">
+        <p>The claim reports what someone said, so it is checked against the recording itself. The first question is whether the words can be <b>found at all</b>: a quotation that cannot be located is not the same as one that was misreported, and the page distinguishes them.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Anchor</div><div class="qv">Found — 22 March 2026, 14:08, the Minister's reply in the House. The clip link is on this page.</div></div>
+        <div class="qar"><div class="qk">What was said</div><div class="qv">“<i>…we estimate the cost at two billion over four years</i>” — the claim reports “two billion a year”.</div></div>
+        <div class="qar"><div class="qk">How it was transcribed</div><div class="qv"><b>Official transcript</b> (Hansard), not an automatic caption — so the wording is checked against a reviewed record rather than a machine one.</div></div>
+      </div>
+      <div class="dec"><div class="dk">Decision</div><div class="dv">The words are real; the figure's period is wrong.</div><div class="dd">A quote check can settle this exactly, which is why the verdict can be firm here and cannot be firm on a claim that needs a document nobody has published.</div></div>
+      <div class="tech"><b>anchor</b> found · <b>tier</b> publisher-reviewed · <b>caption flag</b> no · <b>instructions</b> quote-fidelity@1</div>
+    </div>
+    <div class="bounds">
+      <div class="bx warn"><div class="bk">Automatic captions are declared</div><p>Where the only record is an automatic caption, the page says the wording <b>came from machine transcription and may contain errors</b>, before it reports any finding. A quote check on a bad transcript is a quote check on the transcriber.</p></div>
+      <div class="bx"><div class="bk">Why the clip is linked</div><p>The claim's own recording is the evidence. Linking to the moment lets you hear it rather than take our transcription on trust — the one check a reader can fully repeat without any of our machinery.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ 4 · PROVENANCE ============ -->
+  <div class="case" id="prov">
+    <div class="chead">
+      <h2>Whether the context the claim carries holds</h2>
+      <span class="mode">provenance</span>
+      <span class="badge needs">needs persistence</span>
+      <div class="meta"><b>Fires on:</b> claims attached to an event, image, document or date that may not be the one they describe<br><b>Note:</b> the only mode whose findings are usually about a mismatch of context, not of fact</div>
+    </div>
+    <div class="render">
+      <div class="rl">Section 4 · as it renders</div>
+      <div class="sh"><h3>How a context check works — and what it did here</h3><span class="when">9 Sept · 9:24–9:31 am</span></div>
+      <div class="sn">
+        <p>Some claims are true of one event and attached to another. So the check asks what the claim is <b>presented as</b>, then tests whether the thing presented actually is that: the same date, place, document and subject. A claim can survive every word of this and still fail, because the attachment is the claim.</p>
+      </div>
+      <div class="qa">
+        <div class="qar"><div class="qk">What it is presented as</div><div class="qv">A photograph of the protest outside Parliament, dated to the day of the vote.</div></div>
+        <div class="qar"><div class="qk">What it is</div><div class="qv">The same photograph, published <b>eleven days earlier</b> at a different event. The image is genuine; the date attached to it is not.</div></div>
+        <div class="qar"><div class="qk">How it was established</div><div class="qv">The image's earliest publication date, from the publisher's own page and an archived copy — the record of when it existed, not an estimate.</div></div>
+      </div>
+      <div class="dec"><div class="dk">Decision</div><div class="dv">The content is real and the attachment is wrong.</div><div class="dd">Verdict copy here must describe the mismatch and the record it rests on — and never speculate about why the wrong date was attached. Reason is not evidence, and intent is not ours to grade.</div></div>
+      <div class="tech"><b>claims as</b> image, dated event · <b>matched</b> no · <b>earliest publication</b> 11 days earlier · <b>instructions</b> provenance-check@1</div>
+    </div>
+    <div class="bounds">
+      <div class="bx warn"><div class="bk">What this check must never say</div><p>That a mis-dated image was mis-dated <b>deliberately</b>. The record supports “this is not the event it is presented as”. It does not support a claim about why, and this is the mode where person-character language would be easiest to slip into.</p></div>
+      <div class="bx"><div class="bk">Why the original is linked</div><p>The earliest publication is the evidence. Linking it lets you verify the date independently, which is the only part of this check a reader can confirm without our tooling.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ 5 · OPEN-WEB (pointer) ============ -->
+  <div class="case" id="web">
+    <div class="chead">
+      <h2>Open-web research — the default path</h2>
+      <span class="mode">open-web</span>
+      <span class="badge needs">needs persistence</span>
+      <div class="meta"><b>Fires on:</b> everything with no official series and no cited document<br><b>This is the commonest path</b> since routing changed in Sept 2026, which is why it is drawn in full in the skeleton mockup</div>
+    </div>
+    <div class="bounds" style="margin-top:2px">
+      <div class="bx warn"><div class="bk">Why it needs the most scaffolding, not the least</div><p>Open-web is labelled on the page as <b>our least reliable check</b> — and it is the one most claims receive. The disclosure burden is therefore highest here: the questions asked, the searches run, whether the round cap bound, and every source the search found and we discarded.</p></div>
+      <div class="bx"><div class="bk">The cap matters to the reader</div><p>“Cap reached: yes” means the search stopped because it was not allowed more rounds — a very different statement from “we looked and there is nothing published”. Conflating the two would let a budget limit read as a finding about the world.</p></div>
+    </div>
+    <p class="sn" style="margin-top:12px">Full rendering: <b>claim-page-mode-aware.html</b> — sections 1–7, with open-web as section 4.</p>
+  </div>
+
+  <!-- ============ 6 · ABSENCE: NO ANCHOR ============ -->
+  <div class="case" id="anchor">
+    <div class="chead">
+      <h2>The check ran and produced nothing to report</h2>
+      <span class="mode gap">quote-fidelity · anchor missing</span>
+      <div class="meta"><b>Design rule:</b> name the absence<br><b>Never:</b> substitute a generic paragraph, or omit the fact that the check did not run</div>
+    </div>
+    <div class="render" style="background:var(--gap-soft);border-color:var(--gap-line)">
+      <div class="rl" style="color:var(--gap)">Section 4 · as it renders when the anchor is missing</div>
+      <div class="sh"><h3>The quotation could not be found</h3><span class="when">9 Sept · 9:22 am</span></div>
+      <div class="sn">
+        <p>The claim reports something said in an interview. <b>No recording or transcript of that interview is published</b>, so the words could not be located in any record — and a quotation check cannot run without the quotation's source.</p>
+        <p>This is not the same finding as “the quote was misreported”. It means the check <b>did not happen</b>, and the page says so instead of reporting a conclusion it cannot support.</p>
+      </div>
+      <div class="dec gap"><div class="dk">Decision</div><div class="dv">No comparison ran. The verdict rests on the claim's own wording and nothing else.</div><div class="dd">Recorded as an absent check rather than a neutral one — a reader must be able to tell “we looked and it checked out” from “we could not look”.</div></div>
+      <div class="tech"><b>anchor</b> missing · <b>comparison</b> did not run · <b>instructions</b> quote-fidelity@1</div>
+    </div>
+    <div class="bounds">
+      <div class="bx gap"><div class="bk">The failure this rules out</div><p>A section that renders its scaffolding with empty values reads as a completed check. Where a check could not run, the page states the <b>absence</b> and what it means for the verdict's basis — the same rule the trail already applies to a step whose date the store does not hold.</p></div>
+      <div class="bx"><div class="bk">Also an absence case</div><p>Same treatment for: a <b>paywalled</b> cited document, an image with <b>no traceable publication date</b>, a series with <b>no vintage</b> for the claimed window, and a claim whose <b>register fingerprint</b> returns nothing usable.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ 7 · ABSENCE: CAUSAL ============ -->
+  <div class="case" id="causal">
+    <div class="chead">
+      <h2>A causal claim, with no check that tests causation</h2>
+      <span class="mode gap">no mode</span>
+      <div class="meta"><b>Corpus:</b> 54 of 500 claims (11%) are causal<br><b>Gap:</b> the five modes test numbers, documents, quotations and context — none tests cause</div>
+    </div>
+    <div class="render" style="background:var(--gap-soft);border-color:var(--gap-line)">
+      <div class="rl" style="color:var(--gap)">Section 4 · as it would render</div>
+      <div class="sh"><h3>What this claim needs, and what we can check</h3><span class="when">9 Sept · 9:16 am</span></div>
+      <div class="sn">
+        <p>This claim is about <b>cause</b>: it says one thing made another happen. The checks we have can establish that two things happened in a certain order, or that a document says one thing and a claim says another — <b>none of them can establish that one thing caused another</b>.</p>
+        <p>So this page reports what is checkable in the claim and is explicit about the part that is not. The timing evidence is reported as timing, and the causal claim inside the sentence is left open rather than graded on a check that cannot reach it.</p>
+      </div>
+      <div class="dec gap"><div class="dk">Decision</div><div class="dv">Report the checkable components. Do not grade the causal claim.</div><div class="dd">The verdict addresses the verifiable parts of the sentence and names the causal part as unassessed. It is not reported as “supported”, and not as “refuted” — either would claim a finding no check produced.</div></div>
+      <div class="qa">
+        <div class="qar"><div class="qk">Checkable here</div><div class="qv">That the two events occurred in the stated order, and that a stated quantity changed between them — the timing rows a figures check would compute.</div></div>
+        <div class="qar"><div class="qk">Not checkable with what we have</div><div class="qv">That the change was <b>because of</b> the first event. Testing that needs a comparison that was not affected by it, and no published evaluation provides one.</div></div>
+      </div>
+      <div class="tech"><b>claim kind</b> causal · <b>mode</b> none able to test the causal claim · <b>components reported</b> timing, quantity · <b>causal claim</b> unassessed</div>
+    </div>
+    <div class="bounds">
+      <div class="bx gap"><div class="bk">Why publish the gap rather than hide it</div><p>Roughly one claim in nine is causal, and the honest handling is to say which part of the sentence the check reaches. A page that grades the causal claim using timing evidence tells a reader something the record does not support — and does it silently.</p></div>
+      <div class="bx gap"><div class="bk">What closing it would take</div><p>A sixth mode for causal claims — pre-trend tests, comparison groups, difference-in-differences against a series that was not affected — with its own section. Until then, the gap is stated on the verdict page and on <b>/methodology</b>, and it is a named gap in the spec rather than an untested assumption.</p></div>
+    </div>
+  </div>
+
+  <div class="footer">ClaimWatch NZ · mockup only — not built. Sections 1, 2, 5, 6, 7 are mode-independent; section 4 is one of five bodies, or one of the two absences above.</div>
+</div>
+</body>
+</html>
