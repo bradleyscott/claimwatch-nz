@@ -189,7 +189,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(bareSourceCode(publicCopyOf(html))).toBeNull();
     // Whereas provenance still carries the codes, for anyone auditing against
     // the published classifier. An uncoded row contributes no code.
-    expect(html).toContain("source codes: T1, T6");
+    expect(html).toContain("source types T1, T6");
   });
 
   it("renders the trail — every step, its date and its audit line — in the initial HTML (SITE-MVP §2.3)", async () => {
@@ -219,15 +219,17 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // ...carries the sources themselves, dated...
     expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
     expect(html).toContain("The cited window shows +11.6%, per-capita +1.9%.");
-    // ...and the key that explains every value in those audit lines is in the
+    // ...and the key that explains the values those audit lines print — the
+    // labels are plain words, so only the opaque forms need defining — is in the
     // same server-rendered response, not behind a script.
-    expect(html).toContain("What the technical record means");
-    expect(html).toContain("the version of each set of instructions the check used");
+    expect(html).toContain("What these values mean");
+    expect(html).toContain("which set of instructions a step ran");
     expect(html).toContain("locked for the election period");
     // ...and the audit line is in the reader's default view: no control to
     // reveal it, nothing collapsed, nothing fetched client-side.
-    expect(html).toContain("source codes: T1, T6");
-    expect(html).toContain("revisions 0");
+    expect(html).toContain("source types T1, T6");
+    expect(html).toContain("never revised");
+    expect(html).toContain("ClaimWatch version 0.1.0");
     expect(html).not.toContain("Show the technical record");
     expect(html).not.toContain('type="checkbox"');
   });

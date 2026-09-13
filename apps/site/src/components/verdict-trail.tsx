@@ -31,9 +31,9 @@ import {
 //   vocabulary (SIT-R4, see `publicCopyOf` in the render test). Move the line and
 //   the attribute moves with it.
 //
-// `TECHNICAL_RECORD_KEY` (in lib/verdict-page.ts) defines every label and opaque
-// value those lines can contain, and is register-scanned like any other public
-// copy.
+// `TECHNICAL_RECORD_KEY` (in lib/verdict-page.ts) defines the opaque values
+// those lines can print — the lines label their own parts in plain words — and
+// is register-scanned like any other public copy.
 
 /** The rail marker: filled on the step that reached the verdict. */
 function StepDot({ step }: { step: TrailStep }) {
@@ -143,7 +143,7 @@ export function VerdictTrail({ trail }: { trail: Trail }) {
           ))}
         </div>
 
-        {/* The key to the lines above. A native <details> for the same reason the
+        {/* The key to the values above. A native <details> for the same reason the
             evidence card's source key is one: the explanation stays in the
             server-rendered HTML for no-JS readers and crawlers, needs no client
             JavaScript, and is reachable by keyboard, touch and screen readers. */}
@@ -155,7 +155,7 @@ export function VerdictTrail({ trail }: { trail: Trail }) {
             >
               ›
             </span>
-            What the technical record means
+            What these values mean
           </summary>
           <dl className="mt-3 space-y-2 text-[13px] leading-relaxed text-muted-foreground">
             {TECHNICAL_RECORD_KEY.map((entry) => (

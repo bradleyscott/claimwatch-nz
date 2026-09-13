@@ -199,6 +199,16 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
 // toggle, no collapsed content, nothing to click to see how a check was made.
 // The reasoning behind that: an audit record a reader has to ask for is one most
 // readers never see, and this block exists precisely to be seen.
+//
+// The audit lines carry plain labels around verbatim values (`ClaimWatch version
+// 0.1.0 · state PUBLISHED · instructions triage-typing@1`), so a reader can read
+// the line where it stands instead of holding six definitions in their head while
+// they scroll down to a key. The labels are drawn from `AUDIT_LABELS`; the VALUES
+// stay exactly as the check recorded them, because they are what ties this page to
+// the run that produced it — a gloss can drift from the store, a stored value
+// cannot. `TECHNICAL_RECORD_KEY` is now only what a reader genuinely cannot
+// guess: the opaque value forms. Both live here so the register check can scan
+// them.
 
 /** The trail's four steps, in order. */
 export type TrailStepId = "made" | "logged" | "compared" | "decided";
@@ -214,71 +224,85 @@ export interface TrailSource {
 }
 
 /**
- * The key to the technical record, rendered under the trail (Sept 2026). Every
- * label and every opaque value those lines can contain is defined here, in plain
- * words, because a record nobody can read is not a disclosure. Kept as data
- * rather than prose in the component so the register check can scan it: the key
- * is public copy like any other, and it must not smuggle in the vocabulary it
- * exists to explain.
+ * The labels an audit line may carry (SITE-MVP §2.2 rule 4, revised Sept 2026).
+ * The audit lines are the one region the register scan cannot police — they
+ * exist to print the raw values — so this list is what replaces it:
+ * `assertAuditLabelsKnown` fails the build on a label nobody reviewed, rather
+ * than letting prose ride onto a public page inside the exempt region. Adding a
+ * label here means adding its definition to `TECHNICAL_RECORD_KEY`. Values are
+ * deliberately NOT checked: a stored value is the record.
+ */
+export const AUDIT_LABELS: readonly string[] = [
+  "exact time",
+  "clip",
+  "publisher",
+  "recorded",
+  "check",
+  "model",
+  "instructions",
+  "sources",
+  "source types",
+  "web searches",
+  "ClaimWatch version",
+  "verdict version",
+  "state",
+  "never revised",
+  "revised",
+  "not recorded",
+];
+
+/**
+ * Every part of an audit line must open with a reviewed label, or be a reviewed
+ * phrase that carries its own meaning (`never revised`). A label may not be a
+ * prefix of another label, so `sources 3` and `source types T1` cannot be
+ * confused for each other — the test pins that. Called on every rendered audit
+ * line by the builder.
+ */
+export function assertAuditLabelsKnown(auditLine: string): void {
+  for (const part of auditLine.split(" · ")) {
+    const known = AUDIT_LABELS.some((label) => part === label || part.startsWith(`${label} `));
+    if (!known) {
+      throw new Error(
+        `audit line part "${part}" carries no reviewed label (SITE-MVP §2.2 rule 4) — add it to AUDIT_LABELS and define its value in TECHNICAL_RECORD_KEY, or state it in the step's facts instead`,
+      );
+    }
+  }
+}
+
+/**
+ * The key under the trail (SITE-MVP §2.3, revised Sept 2026). The audit lines
+ * label their own parts in plain words now, so this no longer decodes the line's
+ * syntax — it defines the four things a plain label cannot carry: the form of a
+ * prompt version, the source-type codes, the verdict states this page is not
+ * currently printing, and the sentinel the page uses when the store held nothing.
+ * Kept as data rather than prose in the component so the register check can scan
+ * it: the key is public copy like any other, and it must not smuggle in the
+ * vocabulary it exists to explain.
+ *
+ * A method code (`stat-grid`, `citation-check`) is deliberately absent: the
+ * facts line directly above the audit line already states that check in plain
+ * words, and the code sits underneath it as the record of which one ran.
  */
 export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string }> = [
   {
-    term: "spoken",
-    meaning: "when the claim was made, taken from the source's own date.",
-  },
-  {
-    term: "recorded",
+    term: "name@version",
     meaning:
-      "when our system logged that step, to the second. The page shows times in New Zealand time.",
+      "which set of instructions a step ran, and which version of them, written the way our system recorded it. A new number means the instructions changed; the version before it is kept, so a verdict can always be re-checked against the instructions that produced it. The step it sits under is where it belongs in the check.",
   },
   {
-    term: "clip",
-    meaning: "where in the recording the claim appears.",
-  },
-  {
-    term: "method",
+    term: "source type codes",
     meaning:
-      "which kind of check ran — chosen from the claim itself, before we know the answer. “stat-grid” compares a number against the official figures over several time windows; “citation-check” reads the source the claim cites; “quote-fidelity” compares the words against the recording; “provenance” checks the context a claim carries; “open-web” means no official record covers it, so we searched online — our least reliable method.",
-  },
-  {
-    term: "model / models",
-    meaning: "which model answered a step's question, recorded per step.",
-  },
-  {
-    term: "prompts",
-    meaning:
-      "the version of each set of instructions the check used, written name@version. A new number means the instructions changed; both are kept, so a verdict can always be re-checked against the instructions that produced it.",
-  },
-  {
-    term: "pipeline",
-    meaning: "the version of the whole ClaimWatch system that produced this verdict.",
-  },
-  {
-    term: "verdict v1",
-    meaning:
-      "this page's version. v2 or higher means the verdict changed after it was first published; the earlier version stays visible.",
-  },
-  {
-    term: "revisions",
-    meaning: "how many times it has changed since first publication.",
+      "a one-letter code saying what kind of source each one is — official statistics, academic research, a major newsroom. The plain-language key to these codes is on the evidence card above; the codes themselves are what the check wrote down.",
   },
   {
     term: "PUBLISHED",
     meaning:
-      "the verdict's state. DRAFT means still being checked and not public; CONTESTED means someone has challenged it; FROZEN means locked for the election period, from 5 Nov 2026 until the results are declared.",
+      "the state the verdict is in. This page says PUBLISHED once it is live and public, CONTESTED once someone has challenged it, and FROZEN once it is locked for the election period — from 5 Nov 2026 until the results are declared.",
   },
   {
-    term: "items",
-    meaning: "how many pieces of evidence the check stored for this claim.",
-  },
-  {
-    term: "source codes",
+    term: "not recorded",
     meaning:
-      "what kind of source each one is — official figures, research, a newsroom. The plain-words key to those codes is on the evidence card above; the codes themselves are what the check wrote down.",
-  },
-  {
-    term: "search queries",
-    meaning: "how many web searches the check ran while gathering evidence.",
+      "we hold nothing for that field, so the record says so rather than filling the gap with a guess — what a step shows when nothing was written down for it.",
   },
 ];
 
@@ -545,11 +569,11 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
       sources: [],
       note: null,
       technical: line([
-        `spoken ${input.claimMadeAt.toISOString()}`,
+        `exact time ${input.claimMadeAt.toISOString()}`,
         input.mediaAnchor
           ? `clip ${clipOffset(input.mediaAnchor.startS)}–${clipOffset(input.mediaAnchor.endS)}`
           : null,
-        input.publisher,
+        input.publisher ? `publisher ${input.publisher}` : null,
       ]),
       mark: "none",
     });
@@ -572,9 +596,9 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
           : null,
       technical: line([
         `recorded ${loggedSpan.from.toISOString()}`,
-        `method ${method.mode}`,
+        `check ${method.mode}`,
         input.claimModelVersion ? `model ${input.claimModelVersion}` : null,
-        `prompts ${promptVersionsFor("logged", promptVersions).join(", ") || "none recorded"}`,
+        `instructions ${promptVersionsFor("logged", promptVersions).join(", ") || "not recorded"}`,
       ]),
       mark: "none",
     });
@@ -609,10 +633,10 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
       })),
       note: "A claim can hold up against old figures and fail against new ones.",
       technical: line([
-        `items: ${count}`,
-        input.sourceCodes ? `source codes: ${input.sourceCodes}` : null,
-        `search queries: ${input.searchRefs.length}`,
-        `prompts: ${promptVersionsFor("compared", promptVersions).join(", ") || "none recorded"}`,
+        `sources ${count}`,
+        input.sourceCodes ? `source types ${input.sourceCodes}` : null,
+        `web searches ${input.searchRefs.length}`,
+        `instructions ${promptVersionsFor("compared", promptVersions).join(", ") || "not recorded"}`,
       ]),
       mark: "none",
     });
@@ -630,10 +654,18 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
         ? "No usable source found: it stays an open question."
         : "This check rested on the record above.",
   ];
+  // The publication gate (VERIFICATION §2.7): the reasoning is re-read against
+  // the sources before anything publishes, and a failure is supposed to BLOCK the
+  // verdict. So a published page carrying `fail` is a defect in whatever wrote it
+  // — two slice scripts used to publish past a failed audit, one of them
+  // recording "pass" without running the audit at all (Sept 2026, both fixed).
+  // The line below still renders the stored outcome rather than hiding it: a page
+  // whose record says one thing and whose trail says another is worse than a page
+  // that admits its second pass did not pass.
   if (input.nliOutcome === "pass") {
     facts.push("A second pass re-read the sources and agreed.");
   } else if (input.nliOutcome) {
-    facts.push("A second pass re-read the sources and did not agree.");
+    facts.push("The second pass on the reasoning did not pass.");
   }
   facts.push(
     revisions === 0
@@ -649,17 +681,23 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
     sources: [],
     note: null,
     technical: line([
-      `pipeline ${input.pipelineVersion}`,
-      `verdict v${input.verdictVersion}`,
-      input.verdictStatus,
-      `revisions ${revisions}`,
-      `prompts ${promptVersionsFor("decided", promptVersions).join(", ") || "none recorded"}`,
+      `ClaimWatch version ${input.pipelineVersion}`,
+      `verdict version ${input.verdictVersion}`,
+      `state ${input.verdictStatus}`,
+      revisions === 0 ? "never revised" : `revised ${revisions} time${revisions === 1 ? "" : "s"}`,
+      `instructions ${promptVersionsFor("decided", promptVersions).join(", ") || "not recorded"}`,
       modelVersionsFor("decided", input.modelVersions).length > 0
-        ? `models ${modelVersionsFor("decided", input.modelVersions).join(", ")}`
+        ? `model ${modelVersionsFor("decided", input.modelVersions).join(", ")}`
         : null,
     ]),
     mark: "answer",
   });
+
+  // The audit lines are the one region the register scan cannot police (§2.2
+  // rule 4), so their labels are checked against a reviewed allow-list instead:
+  // an unreviewed label fails the build rather than riding into a public page
+  // inside the exempt region.
+  for (const step of steps) assertAuditLabelsKnown(step.technical);
 
   const publicCopy = [
     ...steps.flatMap((step) => [

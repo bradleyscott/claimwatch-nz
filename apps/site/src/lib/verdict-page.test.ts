@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorHref,
+  assertAuditLabelsKnown,
   assertRegisterSafe,
   buildVerdictPageModel,
   TECHNICAL_RECORD_KEY,
@@ -262,41 +263,29 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     expect(source?.dates).toBe("dated 31 Jan 2026 · fetched 9 Sept 2026");
   });
 
-  it("defines every value the technical lines can print, in plain words", () => {
-    // The key exists so the audit lines are readable, not just present: every
-    // label the builder emits must be defined, or the record is a riddle.
+  it("defines every value a reader cannot read off a plain label", () => {
+    // The labels are English now, so the key no longer restates them — it
+    // carries only the opaque value forms. Every one of those must be defined,
+    // or the record is a riddle.
     const terms = TECHNICAL_RECORD_KEY.map((entry) => entry.term);
-    for (const label of [
-      "spoken",
-      "recorded",
-      "clip",
-      "method",
-      "model / models",
-      "prompts",
-      "pipeline",
-      "verdict v1",
-      "revisions",
-      "PUBLISHED",
-      "items",
-      "source codes",
-      "search queries",
-    ]) {
-      expect(terms).toContain(label);
+    for (const valueForm of ["name@version", "source type codes", "PUBLISHED", "not recorded"]) {
+      expect(terms).toContain(valueForm);
     }
-    // Every meaning is a sentence, and the ones naming internal values explain
-    // them rather than repeating them.
+    // The key is scannable public copy, so it may not print a source code itself
+    // — the code stays in the exempt audit line, and the key only says where to
+    // read it. The render test's bare-code check is what enforces this; this is
+    // the L1 half of the same rule.
+    expect(JSON.stringify(TECHNICAL_RECORD_KEY)).not.toMatch(/T[1-6]\b/);
+    // The four verdict states are all named, even though a page prints one: a
+    // reader who meets a FROZEN verdict on an election-eve page should not have
+    // to find out elsewhere that the record stopped moving on purpose.
+    const states = TECHNICAL_RECORD_KEY.find((entry) => entry.term === "PUBLISHED");
+    for (const state of ["CONTESTED", "FROZEN"]) {
+      expect(states?.meaning).toContain(state);
+    }
+    // Every meaning is a sentence.
     for (const entry of TECHNICAL_RECORD_KEY) {
       expect(entry.meaning.length).toBeGreaterThan(20);
-    }
-    const method = TECHNICAL_RECORD_KEY.find((entry) => entry.term === "method");
-    for (const value of [
-      "stat-grid",
-      "citation-check",
-      "quote-fidelity",
-      "provenance",
-      "open-web",
-    ]) {
-      expect(method?.meaning).toContain(value);
     }
     // The key is public copy: it goes through the same register check as the
     // trail, so it cannot smuggle in the vocabulary it exists to explain.
@@ -307,17 +296,40 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     ).not.toThrow();
   });
 
+  it("labels every part of an audit line with a reviewed word (SITE-MVP §2.2 rule 4)", () => {
+    // The labels are what replaced the key as the register guard: the audit lines
+    // are exempt from the scan, so an unreviewed label must fail loudly rather
+    // than let prose onto a public page inside the exempt region.
+    const { trail } = recorded({ verdictClass: "supported" });
+    for (const step of trail.steps) {
+      expect(() => assertAuditLabelsKnown(step.technical)).not.toThrow();
+    }
+    expect(() => assertAuditLabelsKnown("remarks our grid liked the framing")).toThrow(
+      /no reviewed label/,
+    );
+    // A value may not masquerade as a label, and a label may not be a prefix of
+    // another label, or the two-source-type lines would be indistinguishable.
+    expect(() => assertAuditLabelsKnown("source values T1, T6")).toThrow(/no reviewed label/);
+    expect(() => assertAuditLabelsKnown("sources 3")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("source types T1, T6")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("revised 3 times")).not.toThrow();
+    // The guard polices labels only — a stored value is the record and is printed
+    // as it was written, internal vocabulary and all (HAR-R7).
+    expect(() => assertAuditLabelsKnown("check stat-grid")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("instructions nli-audit@1")).not.toThrow();
+  });
+
   it("attributes the recorded prompt roles to the step they belong to (HAR-R7)", () => {
     const { trail } = recorded({ verdictClass: "supported" });
     const logged = trail.steps[1]?.technical ?? "";
     const declared = trail.steps[3]?.technical ?? "";
-    expect(logged).toContain("method stat-grid");
+    expect(logged).toContain("check stat-grid");
     expect(logged).toContain("model claude-sonnet-5");
     expect(logged).toContain("triage-typing@1");
     expect(logged).not.toContain("grid-materiality@2");
-    expect(declared).toContain("pipeline 0.1.0");
-    expect(declared).toContain("verdict v1");
-    expect(declared).toContain("revisions 0");
+    expect(declared).toContain("ClaimWatch version 0.1.0");
+    expect(declared).toContain("verdict version 1");
+    expect(declared).toContain("never revised");
     expect(declared).toContain("grid-materiality@2");
     expect(declared).toContain("nli-audit@1");
     // A role this page has never heard of is printed, not dropped: provenance
