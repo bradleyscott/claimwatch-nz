@@ -20,6 +20,7 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 | [0007](0007-broadcast-and-context-scope.md) | Broadcast/podcast interviews and the context scope boundary | Proposed |
 | [0008](0008-claim-context-and-document-hierarchy.md) | Claim context — discourse window, publication/segment hierarchy, on-demand depth | Proposed |
 | [0009](0009-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure | Proposed |
+| [0019](0019-speakership-attribution-and-claim-scope.md) | Speakership attribution and claim scope — newsroom narration is not a claim | Proposed |
 
 ## Measurement and providers
 

@@ -1,6 +1,6 @@
 # Claim detection & triage design
 
-*Proposed. ADRs: 0004, 0005, 0008, 0010, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*Proposed. ADRs: 0004, 0005, 0008, 0010, 0014, 0019. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
@@ -13,7 +13,9 @@ Triage turns document records (INGESTION §3.1) into **claim records** and decid
 5. **Publication/segment references** — the claim carries `publication_id` + `segment_id?` FKs; triage references the hierarchy, never duplicates it.
 6. **Drop logging** — every rejected sentence logged with window and rejection context. Triage recall is **measured, not assumed** (§2.5).
 
-Slice scope: triage runs on every ingested document. The false-context set skips checkability triage (pre-typed provenance items) but exercises typing and context extraction. Triage never verifies anything, never sees claimant identity as a decision input (ADR-0002), never authors verdicts.
+Slice scope: triage runs on every ingested document. The false-context set skips checkability triage (pre-typed provenance items) but exercises typing and context extraction. Triage never verifies anything, never authors verdicts, and never sees claimant identity as a decision input (ADR-0002).
+
+**The eligibility/reading boundary (ADR-0019).** "Never sees claimant identity as a decision input" governs how a claim is *read*, not which sentences arrive. **Eligibility** — whether a sentence is ours to check at all — is decided upstream at ingestion by speakership attribution (INGESTION §2.9), and reaches triage as a flag: outlet narration and unresolvable attribution are already excluded, and a quoted actor arrives as an attribution candidate, not as a person to reason about. **Reading** — checkability, typing, fingerprint, discourse context — then proceeds without the claimant influencing any of it (ADR-0008, AGENTS rule 5). Identity decides *whether* a sentence is checked; it never decides *what the check finds*.
 
 ## 2. Design
 
@@ -31,7 +33,7 @@ Model routing per ADR-0011: triage/typing/fingerprint is the high-volume structu
 
 ### 2.2 Checkability
 
-Sentence-level; the window conditions but never makes a non-claim checkable. Classes: checkable / not-checkable (opinion, rhetoric, procedure, satire — satire is triaged *out*, never "checked") / pledge-conditional (→ "pledge — not yet checkable", checkable only as consistency claims). Output is decision + retained evidence (sentence, window span, rejection class). The prompt is a versioned artefact.
+Sentence-level; the window conditions but never makes a non-claim checkable. **Eligibility is already settled** by the time a sentence reaches this stage: speakership attribution (ADR-0019, INGESTION §2.9) has excluded outlet narration and unresolvable attribution upstream, so triage is never asked whether a statement is *ours to check* — only whether it is checkable. Classes: checkable / not-checkable (opinion, rhetoric, procedure, satire — satire is triaged *out*, never "checked") / pledge-conditional (→ "pledge — not yet checkable", checkable only as consistency claims). Output is decision + retained evidence (sentence, window span, rejection class). The prompt is a versioned artefact.
 
 **Call bound (TRI-R12, Sept 2026).** The call returns one result per sentence, so its response grows with the document while the adapter's output budget is fixed — an unbounded request is a truncation waiting for the first long article. The document is therefore split into chunks of at most **20 sentences or 6000 characters** (whichever binds first), and a chunk whose response fails schema validation is retried at **half size** before the document is failed. A document that fits in one chunk still makes exactly one call with the unchanged payload. Consequences worth stating:
 

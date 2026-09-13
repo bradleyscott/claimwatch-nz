@@ -54,6 +54,8 @@ The label schema does **not** redefine claim or verdict types — it imports the
 | Provenance | 10 | Curated set only | By construction | **Advisory** (n<20) |
 | **Total** | **110** | | | 95 gated |
 
+**Claim volume is not a constant (ADR-0019).** The per-lane label budgets above were derived as though every sentence of a document yields candidate claims. Speakership scoping removes outlet narration and unresolvable attribution before a claim exists, so a news report now yields only its quoted in-scope actors — on the single article measured live, 15 of 46 sentences were potential outlet prose. These budgets must therefore be **re-derived from measured in-scope yields per lane** before the L3 run, and the sampler must record the pre-stratification natural distribution as usual so the shrinkage is visible rather than absorbed. The gate axis (mode, not lane) is unaffected.
+
 Verdict-mix targets across the gated labels: Supported ~40% (the corrective to AVeriTeC's 62%-Refuted skew) · Conflicting/Cherry-picking ~25% (the flagship class, deliberately oversampled) · NEI ~20% (abstention is a measured capability) · Refuted ~15%. If labelling yields fewer than 100 usable labels, provenance is cut first, then citation-check goes advisory — never the three core strata.
 
 ### 2.3 Labelling workflow + IAA
