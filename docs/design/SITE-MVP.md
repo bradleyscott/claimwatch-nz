@@ -16,7 +16,7 @@ The "sufficient to publicise and get feedback" surface from VALIDATION-SLICE: th
 | 4 | Entity pages | person / party / institution pages with verdict distributions |
 | 5 | Methodology page | four-verdict schema + AVeriTeC mapping + pipeline description + the **accuracy table generated from the harness output file** |
 | 6 | Feedback widget | thumbs + free text + optional email; feedback *about the site*, not claim intake |
-| 7 | Per-claim provenance block | pipeline version, prompt version, transcript tier |
+| 7 | Per-claim trail | the dated, sourced account of how the verdict was made — four steps (claim made → logged and sorted → what we compared it against → the verdict, second pass and publication), each with its sources and dates; prompt/pipeline versions behind one control |
 
 **Out of scope** (follow-on slices): contestation UI · submissions · argument-chain views · debate-night live tracker · newsletters · reliability profiles. Concretely: no contest form or "disagree?" flow (the methodology page may *name* that contestation exists post-slice), no argument graphs, no real-time views, no scorecard aggregates beyond verdict-distribution counts.
 
@@ -42,10 +42,10 @@ Anything else visible in the mockups is out of scope (§1) or an open question (
 
 Two registers are a hard rule: **public layperson pages** vs **internal technical docs**. The MVP must not leak the technical register onto public pages. The methodology page is the one public page whose job is explaining the machinery — plain-English descriptions allowed, unexplained jargon and untranslated internal vocabulary not.
 
-1. **Verdict-first hierarchy, fixed order on every verdict page:** verbatim claim + attribution → verdict mark (band + pin, not a smiley meter) → one-sentence plain verdict → "as deployed" tag (one line) → hear-it control → evidence pack → provenance → related claims last.
+1. **Verdict-first hierarchy, fixed order on every verdict page:** verbatim claim + attribution → verdict mark (band + pin, not a smiley meter) → one-sentence plain verdict → "as deployed" tag (one line) → hear-it control → evidence pack → trail → related claims last.
 2. **Confidence is not published yet:** the store carries a confidence field (ADR-0004) and keeps carrying it, but nothing in the pipeline computes one — every value written so far is a placeholder in the `ops/` slice scripts — and no calibration backs it, so it renders nowhere on public pages. It returns as small metadata text only, never a meter/bar/star rating/headline, once ADR-0011's adjudication step exists *and* the harness measures it (`EVALUATION.md` §3). Design says it; the tests enforce it (SIT-R6).
 3. **Claims, not persons (ADR-0002):** character statements structurally impossible in generated copy and banned in template strings. Verdict language is the ADR-0004 mapping; no degree-slider language anywhere.
-4. **Layperson language:** no "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2 caption", "stratum" on public pages. The methodology page translates each; technical terms appear only in the provenance block, visually secondary. This covers source quality too: on the evidence card, an item's stored source code renders as a plain-language label ("Official statistics") with a "What these labels mean" key in the same card; the raw codes stay in the provenance block, as above.
+4. **Layperson language:** no "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2 caption", "stratum" on public pages. The methodology page translates each; technical terms appear only in the trail's technical record, visually secondary. This covers source quality too: on the evidence card, an item's stored source code renders as a plain-language label ("Official statistics") with a "What these labels mean" key in the same card; the raw codes stay in the technical record, as above.
 5. **Gaps named, not hidden:** coverage limits (audio-only sources out of scope; caption claims flagged) stated in the same plain register.
 
 ### 2.3 Verdict-page anatomy (data → section)
@@ -57,8 +57,8 @@ Two registers are a hard rule: **public layperson pages** vs **internal technica
 | One-sentence plain verdict | `verdict.plain_summary` — must pass register checks |
 | "As deployed" tag | `claim.deployment_context` (ADR-0008) |
 | Hear it / watch it | `claim.media_anchor` — rendered only when present (§3.3) |
-| Evidence pack | items with source link + plain-language description of the source (the stored code stays in the provenance block) + plain reasoning; rendered strongest source first, with rows no check has classified last |
-| Provenance block | pipeline/prompt versions, transcript tier |
+| Evidence pack | items with source link + plain-language description of the source (the stored code stays in the trail's technical record) + plain reasoning; rendered strongest source first, with rows no check has classified last |
+| Trail ("How this verdict was made") | `claim.spoken_at`, `publication.retrieved_at`, `claim.created_at`, `claim.claim_type`, `evidence_item.vintage_date` + `retrieved_at`, `evidence_pack.created_at`/`nli_outcome`, `verdict_version.created_at`/`version`/`status`, provenance versions — rendered as four dated steps, each with a plain "why it matters" line; the versions sit behind one control (Sept 2026) |
 | Related claims | fingerprint/pgvector adjacency — last; chains de-scoped |
 
 Ordering is a design invariant, not a suggestion: verdict visible without scrolling (UX finding 1); show-your-work after the answer (finding 6). The §5 register/snapshot tests assert section order, not just presence.
@@ -84,7 +84,7 @@ pipeline ──writes──▶ Postgres (packages/store)
 - **Feed**: recency-ranked; facets filter server-side via URL params (shareable, crawlable). Pagination, not infinite scroll — every card URL-addressable.
 - **Entity pages**: header + verdict distribution (counts per class — a bar of segments, not a score) + claim list. Publisher-level framing avoided to stay within claims-not-persons.
 - **Methodology page**: what ClaimWatch is and isn't → four-verdict schema with the AVeriTeC mapping stated verbatim → how verification works per mode, plainly → the generated accuracy table → known gaps (audio-only out of scope; caption claims flagged; Māori-language out of scope).
-- **Provenance block**: small, collapsed by default, visually secondary — the one place technical vocabulary is permitted.
+- **Trail (replaces the provenance block, Sept 2026)**: the dated account of this claim's check — four collapsed steps, each stating what happened, when, against what, and why it matters; every step carries its own sources with the date of the figures they hold. The technical record (prompt/model/pipeline versions, source codes, hashes) is present in the HTML but shown only when the reader ticks one control, so the technical register stays visually secondary. A step whose date the store does not hold is **omitted**, never guessed; the block is server-rendered and the drawers work without JavaScript (`<noscript>` reveals them), because an audit record behind a script is not an audit record.
 
 ### 2.6 SEO and crawlability
 
@@ -157,7 +157,7 @@ The site's failure modes are disproportionately **silent** (JSON-LD dropped by t
 | SIT-R1 | Extract `<script type="application/ld+json">` from every rendered verdict page; validate against schema.org `ClaimReview`; fail the build loudly. Serializer unit-tested incl. pledge states | L1 + L4a |
 | SIT-R2 | Render the table from the artifact in CI; assert numeric equality; build fails if the artifact is missing/malformed | L1 + L4a |
 | SIT-R3 | For every fixture broadcast claim: control rendered iff anchor present; href matches the stored anchor; URL 200s to the expected item. Builder unit-tested | L1 + L4a (live URLs at L4b) |
-| SIT-R4 | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); source labels rendered as descriptions with raw codes confined to provenance; methodology page checked separately for sanctioned sections | L2 + L4a |
+| SIT-R4 | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); source labels rendered as descriptions with raw codes confined to the technical record; methodology page checked separately for sanctioned sections | L2 + L4a |
 | SIT-R5 | Banned-pattern check over generated verdict text + rendered pages: character statements, slider vocabulary, label-set == ADR-0004 rendering | L1 + L4a |
 | SIT-R6 | No confidence value renders on any public page (render-model + SSR-HTML assertion). The rule relaxes to "metadata text only" when an adjudicator + calibration land | L1 + L4a |
 | SIT-R7 | Fixture mutation → revalidation → page (and ClaimReview `datePublished`) reflects the new verdict; webhook fires for claim/entity/topic routes | L1 + L4a |

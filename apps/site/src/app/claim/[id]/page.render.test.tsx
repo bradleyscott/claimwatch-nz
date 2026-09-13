@@ -19,7 +19,7 @@ const pageData = {
   claimText: "Crime is up 30% since 2017.",
   speaker: "Hon Sample Minister",
   speakerAffiliation: "National",
-  publishedAt: new Date("2026-09-08"),
+  publishedAt: new Date("2026-09-09T10:12:00+12:00"),
   verdictClass: "conflicting_cherry_picking" as const,
   confidence: 0.72,
   attachedProposal: "tougher sentencing package",
@@ -41,6 +41,7 @@ const pageData = {
       plainReason: "No source classification came back with this finding.",
       url: "",
       tier: null,
+      retrievedAt: new Date("2026-09-09T09:35:00+12:00"),
     },
     {
       authorityRef: "rnz.co.nz",
@@ -49,6 +50,7 @@ const pageData = {
       plainReason: "Reports the same waitlist figure without publishing the series.",
       url: "",
       tier: 6,
+      retrievedAt: null,
     },
     {
       authorityRef: "policedata.nz",
@@ -57,6 +59,7 @@ const pageData = {
       plainReason: "The cited window shows +11.6%, per-capita +1.9%.",
       url: "https://www.policedata.nz/victimisations",
       tier: 1,
+      retrievedAt: new Date("2026-09-09T09:35:00+12:00"),
     },
   ],
   pipelineVersion: "0.1.0",
@@ -64,6 +67,19 @@ const pageData = {
   justifications: ["The cited window shows +11.6%, per-capita +1.9%."],
   modelVersions: { "citation-compare": "claude-sonnet-5" },
   searchRefs: [],
+  // Trail inputs (SITE-MVP §2.3): a claim recorded end-to-end, with its own
+  // date, so the rendered trail is the fully-populated one.
+  claimMadeAt: new Date("2026-09-08T07:42:00+12:00"),
+  claimRecordedAt: new Date("2026-09-09T09:26:00+12:00"),
+  sourceRetrievedAt: new Date("2026-09-09T09:10:00+12:00"),
+  claimType: "statistical",
+  publisher: "Newstalk ZB",
+  checkedAt: new Date("2026-09-09T09:40:00+12:00"),
+  nliOutcome: "pass",
+  verdictVersion: 1,
+  verdictStatus: "PUBLISHED",
+  claimPromptVersions: { "triage-typing": "triage-typing@1" },
+  claimModelVersion: "claude-sonnet-5",
 } as const satisfies VerdictPageData;
 
 async function renderVerdictPage(id: string): Promise<string> {
@@ -73,21 +89,27 @@ async function renderVerdictPage(id: string): Promise<string> {
 }
 
 /**
- * The page's public copy: everything EXCEPT the provenance block, which is the
- * one slot allowed technical vocabulary (SITE-MVP §2.2 rule 4). Cut out by the
- * provenance paragraph's own opening text rather than by the accordion trigger,
- * because the trigger comes first and the footer paragraphs come after the
- * block — slicing at the trigger would leave the footer unscanned, silently
- * exempting real public copy from the register rules (SIT-R4).
+ * The page's public copy: everything EXCEPT the trail's technical record, which
+ * is the one slot allowed internal vocabulary (SITE-MVP §2.2 rule 4).
+ *
+ * The technical lines are cut by their own marker (`data-provenance-line`)
+ * rather than by a heading or by position. That matters: the record now sits
+ * inside each drawer, after the drawer's public copy, so slicing at any single
+ * heading would leave later public copy unscanned — silently exempting real
+ * copy from the register rules (SIT-R4).
+ *
+ * They are `<p>` elements, so a non-greedy element match cannot straddle two of
+ * them; a line that fails to render is a loud failure, not a quiet exemption.
  */
 function publicCopyOf(html: string): string {
-  const provenanceStart = html.indexOf("Pipeline version");
-  if (provenanceStart < 0) return html;
-  const paragraphEnd = html.indexOf("</p>", provenanceStart);
-  return (
-    html.slice(0, provenanceStart) +
-    html.slice(paragraphEnd < 0 ? provenanceStart : paragraphEnd + "</p>".length)
-  );
+  // `<noscript>` carries a style block, not copy — removed for the same reason
+  // the technical lines are: it is machinery, not something a reader reads.
+  const withoutNoscript = html.replace(/<noscript>[\s\S]*?<\/noscript>/g, " ");
+  const stripped = withoutNoscript.replace(/<p[^>]*data-provenance-line[^>]*>[\s\S]*?<\/p>/g, " ");
+  if (stripped === withoutNoscript && withoutNoscript.includes("data-provenance-line")) {
+    throw new Error("publicCopyOf: technical-record lines matched the page but not the stripper");
+  }
+  return stripped;
 }
 
 /**
@@ -170,6 +192,58 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("evidence source codes: T1, T6");
   });
 
+  it("renders the trail — every step, its date and its audit line — in the initial HTML (SITE-MVP §2.3)", async () => {
+    const html = await renderVerdictPage(claimId);
+    // The block that replaced the provenance accordion states the checked date
+    // against the claim's own date...
+    expect(html).toContain("How this verdict was made");
+    expect(html).toContain("Checked 9 Sept 2026 — the day after the claim");
+    // ...carries all four dated steps...
+    for (const step of [
+      "The claim was made",
+      "We logged it, and worked out what to check it against",
+      "What we compared it against — 3 sources",
+      "The verdict, a second pass on the reasoning, and publishing",
+    ]) {
+      expect(html).toContain(step);
+    }
+    expect(html).toContain("Tue 8 Sept");
+    expect(html).toContain("7:42 am");
+    // ...keeps the whole audit record in the response for no-JS readers and
+    // unfurlers, even though the drawers are... (Radix unmounts closed content,
+    // so `forceMount` is what makes this true)
+    expect(html).toContain("evidence source codes: T1, T6");
+    expect(html).toContain("revisions 0");
+    // ...and closes the loop a reader came for: why each source has a date.
+    expect(html).toContain("Each source carries the date of the figures it holds");
+    expect(html).toContain("Second pass, before publishing");
+  });
+
+  it("states the explained-away duplication exactly once (the old footer paragraph is gone)", async () => {
+    const html = await renderVerdictPage(claimId);
+    // The paragraph that restated the accordion's own heading, and the metarow
+    // that repeated the methodology link, were removed with the redesign: one
+    // "How we check claims" link remains, and no copy restates the block.
+    expect(html).not.toContain("produced by our automated pipeline");
+    const howWeCheck = html.match(/How we check claims/g) ?? [];
+    expect(howWeCheck).toHaveLength(1);
+    const contest = html.match(/got this wrong\?/g) ?? [];
+    expect(contest).toHaveLength(1);
+  });
+
+  it("keeps the technical record out of the reader's default view, with no JavaScript needed to reveal it", async () => {
+    const html = await renderVerdictPage(claimId);
+    // The toggle is a real checkbox, and the CSS rule that reveals the record is
+    // keyed on its checked state — so it works with scripts disabled.
+    expect(html).toContain('id="trail-tech-record"');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain("Show the technical record");
+    // Every technical line carries the marker that hidden-until-checked CSS (and
+    // the register scan) keys on.
+    const lines = html.match(/data-provenance-line/g) ?? [];
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("renders the evidence strongest source first, unclassified last (SITE-MVP §2.3)", async () => {
     const html = await renderVerdictPage(claimId);
     // The fixture is authored in the pack's research order (uncoded, T6, T1),
@@ -188,6 +262,12 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     const html = await renderVerdictPage(claimId);
     expect(html).toContain("citation-compare@1");
     expect(html).not.toContain("citation-compare@citation-compare@1");
+    // Roles recorded on the claim itself reach the trail's "we logged it" step
+    // (with the model that typed the claim), and the claim's own date governs
+    // the claim card — not the day the verdict was published.
+    expect(html).toContain("triage-typing@1");
+    expect(html).toContain("model claude-sonnet-5");
+    expect(html).toContain("8 September 2026");
   });
 
   it("the bare-code matcher is not vacuous, and ignores markup noise (SIT-R4)", () => {
@@ -211,11 +291,12 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     const html = await renderVerdictPage(claimId);
     const publicCopy = publicCopyOf(html);
     // The region this test claims to scan really does include the footer copy
-    // that follows the provenance block, and really does exclude the block —
-    // otherwise "we scanned the public copy" becomes unfalsifiable.
-    expect(publicCopy).toContain("quality-audited");
-    expect(publicCopy).not.toContain("Pipeline version");
+    // that follows the trail's technical lines, and really does exclude those
+    // lines — otherwise "we scanned the public copy" becomes unfalsifiable.
+    expect(publicCopy).toContain("Think we");
+    expect(publicCopy).not.toContain("data-provenance-line");
     expect(publicCopy).not.toContain("evidence source codes");
+    expect(publicCopy).not.toContain("pipeline 0.1.0");
     // A bare `T1` on the card is the §2.2 rule 4 violation the word-shaped
     // "tier" entry below cannot see, so it gets its own token-shaped check.
     expect(bareSourceCode(publicCopy)).toBeNull();

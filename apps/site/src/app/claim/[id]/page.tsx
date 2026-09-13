@@ -1,17 +1,12 @@
 import { claimReviewFromVerdict } from "@cw/store";
 import { Fragment } from "react";
 import { EvidenceSourceKey } from "@/components/evidence-source-key";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { VERDICT_TONES, VerdictRule } from "@/components/verdict-rule";
+import { VerdictTrail } from "@/components/verdict-trail";
 import {
   describeEvidenceSource,
   evidenceSourceCodes,
@@ -54,6 +49,15 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  // Strongest source first (SITE-MVP §2.3): the reader should meet the series
+  // that settles the claim before the commentary about it. Sorting is by stored
+  // source code; rows the check could not classify sink to the bottom.
+  const evidence = orderEvidenceBySourceQuality(data.evidence);
+
+  // Raw source codes for the trail's technical record only — the evidence list
+  // renders their plain-language descriptions (SITE-MVP §2.2 rule 4, SIT-R4).
+  const sourceCodes = evidenceSourceCodes(evidence);
+
   const model = buildVerdictPageModel({
     claimId: data.claimId,
     claimText: data.claimText,
@@ -65,12 +69,33 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
     attachedProposal: data.attachedProposal,
     mediaAnchor: data.mediaAnchor,
     transcriptTier: data.transcriptTier,
-    evidence: data.evidence,
+    evidence,
     pipelineVersion: data.pipelineVersion,
     promptVersions: data.promptVersions,
+    modelVersions: data.modelVersions,
+    searchRefs: data.searchRefs,
+    sourceCodes,
+    claimMadeAt: data.claimMadeAt,
+    claimRecordedAt: data.claimRecordedAt,
+    sourceRetrievedAt: data.sourceRetrievedAt,
+    claimType: data.claimType,
+    publisher: data.publisher,
+    claimPromptVersions: data.claimPromptVersions,
+    claimModelVersion: data.claimModelVersion,
+    checkedAt: data.checkedAt,
+    nliOutcome: data.nliOutcome,
+    verdictVersion: data.verdictVersion,
+    verdictStatus: data.verdictStatus,
   });
 
   const tone = VERDICT_TONES[data.verdictClass];
+
+  // The claim's own date when the store holds one. `publishedAt` is when the
+  // VERDICT was published — used as the claim's date it made the page say a
+  // claim was made the day we checked it (SITE-MVP §2.3). ClaimReview requires a
+  // date on the reviewed item, so the payload keeps the fallback while the page
+  // renders nothing when the claim date is genuinely unknown.
+  const claimDate = data.claimMadeAt ?? data.publishedAt;
 
   // The discovery channel (SIT-R1): one ClaimReview per verdict page, rendered
   // server-side in the initial HTML — Google Fact Check Explorer reads this.
@@ -79,22 +104,13 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
     claimText: data.claimText,
     verdictClass: data.verdictClass,
     publishedAt: data.publishedAt.toISOString(),
-    claimPublishedAt: data.publishedAt.toISOString(),
+    claimPublishedAt: claimDate.toISOString(),
     claimantName: data.speaker ?? "Unknown",
     claimantKind: data.speaker ? "person" : "unknown",
     ...(data.mediaAnchor ? { mediaAnchor: data.mediaAnchor } : {}),
   });
 
   const justifications = data.justifications.filter((j) => !j.startsWith("Deep research checked"));
-
-  // Strongest source first (SITE-MVP §2.3): the reader should meet the series
-  // that settles the claim before the commentary about it. Sorting is by stored
-  // source code; rows the check could not classify sink to the bottom.
-  const evidence = orderEvidenceBySourceQuality(data.evidence);
-
-  // Raw source codes for the provenance block only — the evidence list renders
-  // their plain-language descriptions (SITE-MVP §2.2 rule 4, SIT-R4).
-  const sourceCodes = evidenceSourceCodes(evidence);
 
   return (
     <main className="page-shell py-6">
@@ -122,12 +138,22 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
           <div className="mt-4 text-[13.5px] text-muted-foreground">
             <b className="font-semibold text-foreground">{data.speaker}</b>
             {data.speakerAffiliation ? <>, {data.speakerAffiliation}</> : null}
-            <span className="mx-1.5 text-border">·</span>
-            {data.publishedAt.toLocaleDateString("en-NZ", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
+            {/* The claim's own date, rendered only when the store holds one.
+                `claimDate` falls back to the verdict's publication date for the
+                ClaimReview payload (which requires a date), but showing that
+                fallback here would state the day we checked the claim as the day
+                it was made — the confusion this page exists to remove. */}
+            {data.claimMadeAt ? (
+              <>
+                <span className="mx-1.5 text-border">·</span>
+                {data.claimMadeAt.toLocaleDateString("en-NZ", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "Pacific/Auckland",
+                })}
+              </>
+            ) : null}
           </div>
         ) : null}
       </Card>
@@ -248,64 +274,13 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         )}
       </Card>
 
-      {/* Provenance — collapsed by default, the one place technical vocabulary
-          is permitted. forceMount keeps it in the SSR HTML (no-JS + unfurlers)
-          while it stays closed until asked for. */}
-      <Accordion type="single" collapsible className="mt-4 rounded-xl border bg-card px-7">
-        <AccordionItem value="provenance" className="border-b-0">
-          <AccordionTrigger className="text-[11px] font-extrabold tracking-[.12em] text-faint uppercase hover:no-underline">
-            How this verdict was made
-          </AccordionTrigger>
-          <AccordionContent forceMount className="text-[12px] text-faint">
-            <p>
-              Pipeline version {data.pipelineVersion}. Prompt versions:{" "}
-              {/* The value already carries its role (`grid-materiality@1`), so
-                  rendering the key too produced "adjudication@adjudication@1". */}
-              {Object.values(data.promptVersions).join(", ")}
-              {Object.keys(data.modelVersions).length > 0
-                ? ` · Models: ${Object.entries(data.modelVersions)
-                    .map(([key, value]) => `${key}: ${value}`)
-                    .join(", ")}`
-                : ""}
-              {data.searchRefs.length > 0
-                ? ` · Search queries recorded: ${data.searchRefs.length}`
-                : ""}
-              {data.transcriptTier ? ` · transcript tier: ${data.transcriptTier}` : ""}
-              {sourceCodes ? ` · evidence source codes: ${sourceCodes}` : ""}.
-            </p>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
-      {/* Metarow + contest (mockup footer material). The contest flow names
-          the future contestation slice without building it (SITE-MVP
-          out-of-scope note). */}
-      <div className="mt-4 flex flex-wrap gap-4 px-2 text-[12.5px] text-muted-foreground">
-        <span>
-          Checked{" "}
-          {data.publishedAt.toLocaleDateString("en-NZ", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
-        </span>
-        <span aria-hidden="true">·</span>
-        <a className="text-primary hover:underline" href="/methodology">
-          How we check claims
-        </a>
-      </div>
-      <p className="mt-3 border-l border-dashed border-border pl-4 text-[12px] text-faint">
-        <b>How this verdict was made:</b> produced by our automated pipeline ({data.pipelineVersion}
-        ) and quality-audited. Data tables, prompt versions and audit results are logged and public.
-      </p>
-      <p className="mt-4 text-[15px]">
-        <b className="font-extrabold">Think we&apos;ve got this wrong?</b>{" "}
-        <a className="font-semibold text-primary hover:underline" href="/methodology">
-          Tell us
-        </a>{" "}
-        — with a source we should have used. Contests are public, and when one checks out we change
-        the verdict and show the change history.
-      </p>
+      {/* How this verdict was made — the dated trail (SITE-MVP §2.3). It
+          replaced three things that said the same thing: a collapsed provenance
+          accordion, the "Checked … · How we check claims" metarow, and a dashed
+          paragraph that restated the accordion's own heading and body. The
+          technical record is the one place internal vocabulary is permitted
+          (§2.2 rule 4) and sits behind this block's single control. */}
+      <VerdictTrail trail={model.trail} />
     </main>
   );
 }
