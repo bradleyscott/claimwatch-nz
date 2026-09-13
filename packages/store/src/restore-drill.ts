@@ -5,36 +5,78 @@
 // hashes, roles and grants intact. Pure SQL transport (no pg_dump dependency)
 // so it runs anywhere the store runs.
 
+import { is } from "drizzle-orm";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
+import * as schema from "./schema/index.ts";
 
-// FK-safe order: verdict_provenance BEFORE verdict_version (its FK parent).
-const DRILL_TABLES = [
-  "publication",
-  "segment",
-  "claim",
-  "claimant_entity",
-  "evidence_item",
-  "evidence_pack",
-  "verdict_provenance",
-  "verdict_version",
-  "verdict_transition_log",
-  "fallback_log",
-] as const;
+/** One schema table and the tables it references (FK parents). */
+export interface DrillTableNode {
+  name: string;
+  dependsOn: string[];
+}
 
-// Grants replayed with the data — the audit mechanism is grants (STORE §2.4);
-// a restore that loses them loses the blind-rule enforcement with it.
-const GRANTED_TABLES = [
-  "publication",
-  "segment",
-  "claim",
-  "claimant_entity",
-  "evidence_item",
-  "evidence_pack",
-  "verdict_version",
-  "verdict_transition_log",
-  "fallback_log",
-  "verdict_provenance",
-] as const;
+/**
+ * The store schema as a dependency graph, read from the Drizzle table objects.
+ * Nothing here is hand-listed: the drill used to carry literal table arrays and
+ * they silently drifted — `authority` (the one table that persists across live
+ * runs) was absent from every list, so the release-blocking drill reported PASS
+ * while dropping the authority registry, and no grant was replayed for it
+ * (Sept 2026). Deriving from the schema makes that class of omission
+ * impossible. `drillTableGraph` is exported so the parity test can re-assert
+ * the derivation rather than trust it.
+ */
+export function drillTableGraph(): DrillTableNode[] {
+  const tables = Object.values(schema).filter((value) => is(value, PgTable));
+  return tables.map((table) => {
+    const config = getTableConfig(table);
+    return {
+      name: config.name,
+      dependsOn: config.foreignKeys.map((fk) => getTableConfig(fk.reference().foreignTable).name),
+    };
+  });
+}
+
+/**
+ * Every store table in FK-safe replay order (referenced tables first). The dump
+ * is replayed as plain INSERTs, so a child row must not be inserted before its
+ * parent; alphabetical order is not enough — `verdict_transition_log` references
+ * `verdict_version`, which references both `evidence_pack` and
+ * `verdict_provenance`. Depth-first over the schema's own foreign keys keeps the
+ * order correct when a table gains a parent.
+ */
+export function drillTables(): string[] {
+  const nodes = drillTableGraph();
+  const byName = new Map(nodes.map((n) => [n.name, n]));
+  const ordered: string[] = [];
+  const visiting = new Set<string>();
+
+  const visit = (node: DrillTableNode): void => {
+    if (ordered.includes(node.name)) return;
+    if (visiting.has(node.name)) {
+      throw new Error(`restore drill: FK cycle through ${node.name} — cannot order replay`);
+    }
+    visiting.add(node.name);
+    for (const dep of node.dependsOn) {
+      const parent = byName.get(dep);
+      if (parent) visit(parent);
+    }
+    visiting.delete(node.name);
+    ordered.push(node.name);
+  };
+
+  // Visit in name order so the result is deterministic: the schema module's
+  // export order is a fact about import order, not a contract.
+  for (const node of [...nodes].sort((a, b) => a.name.localeCompare(b.name))) visit(node);
+  return ordered;
+}
+
+// One derived list, used for the dump, the row-count assertions AND the grant
+// replay: migration 0003_roles grants the pipeline/site roles on every table in
+// the schema, so "all tables" is the correct set for each. Previously the grant
+// list was a second literal array, which is how `authority` lost its grants
+// while the drill still passed.
+const DRILL_TABLES = drillTables();
 
 export interface DrillAssertion {
   name: string;
@@ -47,6 +89,12 @@ export async function exportDrillDump(databaseUrl: string): Promise<string> {
   const lines: string[] = [];
   try {
     await pool.query("BEGIN READ ONLY");
+    // The statement TEXT is built here on purpose: the artefact IS a portable
+    // SQL dump, and the drill exists so restore does not depend on pg_dump.
+    // Every identifier interpolated below comes from `drillTables()`, i.e. from
+    // the schema — never from input — so there is no injection surface; the
+    // drill deliberately does not model the rows it transports (DB-agnostic
+    // literals, including columns a future migration adds).
     for (const table of DRILL_TABLES) {
       const result = await pool.query(`SELECT * FROM ${table}`);
       lines.push(`-- ${table} (${result.rows.length} rows)`);
@@ -56,7 +104,9 @@ export async function exportDrillDump(databaseUrl: string): Promise<string> {
         lines.push(`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${values.join(", ")});`);
       }
     }
-    for (const table of GRANTED_TABLES) {
+    // The audit mechanism is grants (STORE §2.4); a restore that loses them
+    // loses the blind-rule separation with it.
+    for (const table of DRILL_TABLES) {
       lines.push(`GRANT INSERT, SELECT ON ${table} TO pipeline;`);
       lines.push(`GRANT SELECT ON ${table} TO site;`);
     }
@@ -85,6 +135,18 @@ function sqlLiteral(value: unknown): string {
 export async function replayDrillDump(targetDatabaseUrl: string, dumpSql: string): Promise<void> {
   const pool = new Pool({ connectionString: targetDatabaseUrl });
   try {
+    // The target must start EMPTY: the migration chain is schema + seed rows
+    // (0001_seeds), and the dump carries those same seed rows as data, so
+    // replaying over a freshly migrated target duplicates every seed. The
+    // authority registry came back with 6 rows against a source of 3 — invisible
+    // until `authority` joined the derived table set (Sept 2026).
+    //
+    // TRUNCATE, not DELETE: it does not fire the row-level append-only triggers,
+    // and this is a throwaway scratch database, never history. The same trap
+    // exists in a production restore of a seeded chain (migrate, then restore →
+    // duplicated seeds); the durable fix is a deterministic
+    // conflict-tolerant seed, which is a migration change, not a drill change.
+    await pool.query(`TRUNCATE ${drillTables().join(", ")}`);
     await pool.query(dumpSql);
   } finally {
     await pool.end();

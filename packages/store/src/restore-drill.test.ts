@@ -62,6 +62,11 @@ describe("restore drill (STO-R7)", () => {
     const dump = await exportDrillDump(`${DATABASE_URL}_drill`);
     expect(dump).toContain("INSERT INTO publication");
     expect(dump).toContain("GRANT INSERT, SELECT ON publication TO pipeline");
+    // The authority registry is data AND grants: it is seeded by the migration
+    // chain and written to by live runs, so a restore that skips it loses the
+    // discovered authorities the live-run store deliberately persists.
+    expect(dump).toContain("INSERT INTO authority");
+    expect(dump).toContain("GRANT SELECT ON authority TO site");
 
     // Target: schema applied via the SAME migration chain (createTestStore =
     // wipe + migrate + roles + guards), then data replay — the drill only
