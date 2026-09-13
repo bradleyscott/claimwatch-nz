@@ -29,6 +29,13 @@
       "when": 1789224590409,
       "tag": "0003_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789294647116,
+      "tag": "0004_claim_spoken_at",
+      "breakpoints": true
     }
   ]
 }

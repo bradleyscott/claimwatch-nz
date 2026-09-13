@@ -137,6 +137,7 @@ export class PgStore implements Store {
         fingerprint: fixture.fingerprint ?? null,
         discourseContext: fixture.discourseContext,
         mediaAnchor: fixture.mediaAnchor ?? null,
+        spokenAt: fixture.spokenAt ?? null,
         transcriptTier: fixture.transcriptTier ?? null,
         pipelineVersion: "test",
         attributionCandidates: fixture.attributionCandidates ?? [],

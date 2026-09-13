@@ -62,6 +62,20 @@ function requireEnv(name: string): string {
   return value;
 }
 
+/**
+ * AVeriTeC dates are `DD-MM-YYYY`, and they are calendar dates rather than
+ * instants — so they are anchored at noon UTC, which renders as the same day in
+ * New Zealand regardless of the offset in force at the time. An unparseable
+ * value returns null: the trail drops the step rather than inventing a date.
+ */
+function claimDateToSpokenAt(value: string): Date | null {
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value.trim());
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const parsed = new Date(`${year}-${month}-${day}T12:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 const DATABASE_URL = requireEnv("DATABASE_URL");
 
 /**
@@ -538,6 +552,11 @@ async function main(): Promise<void> {
       utteranceText: target.claim,
       text: target.claim,
       claimType: claim.claimType,
+      // The claim's own date, from the benchmark's `claim_date` (DD-MM-YYYY) —
+      // what lets the public trail say when the claim was made rather than only
+      // when we checked it (claim.spoken_at, SITE-MVP §2.3). A date we cannot
+      // parse stays absent: the trail omits the step instead of guessing.
+      spokenAt: claimDateToSpokenAt(target.claim_date),
       attributionCandidates: target.speaker
         ? [{ name: target.speaker, kind: "person", confidence: 1.0, basis: "benchmark metadata" }]
         : [],

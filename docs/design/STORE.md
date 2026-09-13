@@ -29,7 +29,7 @@ The slice exercises the store end-to-end on the five lanes and four modes plus h
 |---|---|---|
 | `publication` | source_id, canonical_url, content_hash, retrieved_at/method, publisher + publication metadata, transcript (once), `transcript_tier` | Unit of document dedupe, health checks, reprocessing. Hash enforces re-ingest identity. |
 | `segment` | publication_id FK, span, descriptive summary, turn structure | Only where structure exists. |
-| `claim` | text, type, fingerprint, embedding, `discourse_window`, optional context fields (all nullable, never defaulted), publication/segment FKs, `media_anchor`, `transcript_tier` | Fingerprint = the six-tuple; embedding powers repeat match. |
+| `claim` | text, type, fingerprint, embedding, `discourse_window`, optional context fields (all nullable, never defaulted), publication/segment FKs, `media_anchor`, `transcript_tier`, `spoken_at` | Fingerprint = the six-tuple; embedding powers repeat match. `spoken_at` is when the claim was MADE (broadcast moment / item publication date), distinct from `created_at` (when we ingested it) — the public trail states both dates and omits the step when this one is absent rather than guessing (SITE-MVP §2.3). |
 | `claimant_entity` | person/party, aliases, affiliation **at time of statement**, cross-links | Conservative attribution, never guessed. The verification loop never receives claimant identity. |
 | `evidence_item` | claim_id, authority ref, series identity, **vintage_date**, URL, **archive_snapshot_url**, hash, version | One row per fetched version; re-fetch creates a version, never an update. |
 | `evidence_pack` | claim_id, item refs, grid result, justifications, NLI outcome | Append-only; the pack that triggered a verdict is frozen and referenced by it. |

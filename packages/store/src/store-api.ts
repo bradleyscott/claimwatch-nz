@@ -29,6 +29,10 @@ export interface ClaimFixture {
   fingerprint?: Fingerprint | null;
   discourseContext: DiscourseContext;
   mediaAnchor?: MediaAnchor | null;
+  // When the claim was made (broadcast moment / publication date), as opposed
+  // to when we ingested it. Absent means "not recorded", never "unknown date
+  // guessed at" — the public trail omits the step rather than invent one.
+  spokenAt?: Date | null;
   transcriptTier?: "publisher-reviewed" | "publisher-auto" | null;
   // Speaker attribution candidates (ADR-0005 entity model): the first
   // candidate renders on the claim card's "who" line.

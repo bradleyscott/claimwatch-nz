@@ -1,6 +1,10 @@
 # Local test-run databases (SQL scratch files) — never committed.
 scratch/
 *.sql
+# ...but the Drizzle migration chain IS the schema's history: drizzle's migrator
+# reads these files, so a clone without them cannot migrate at all (the blanket
+# rule above silently swallowed 0000–0003 until this was caught).
+!packages/store/drizzle/*.sql
 
 # Environment files (CROSS-CUTTING §4) — .env.example is the template.
 .env

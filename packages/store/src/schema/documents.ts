@@ -83,6 +83,13 @@ export const claim = pgTable(
     embedding: text("embedding"), // pgvector vector; populated by triage phase
     discourseContext: jsonb("discourse_context").notNull(), // nullable fields inside, never defaulted
     mediaAnchor: jsonb("media_anchor"),
+    // When the claim was MADE — the broadcast moment or the publication date of
+    // the item it was said in — as distinct from `createdAt`, which is when we
+    // ingested it. The public trail needs both to say "said on 8 Sep, checked on
+    // 9 Sep" (SITE-MVP §2.3); nullable because some sources carry no usable
+    // date and every row ingested before this column existed has none, and an
+    // absent date must render as "we do not have this" rather than as a guess.
+    spokenAt: timestamp("spoken_at", { withTimezone: true }),
     transcriptTier: text("transcript_tier"),
     captionQualityFlag: text("caption_quality_flag"),
     attributionCandidates: jsonb("attribution_candidates").notNull().default([]),

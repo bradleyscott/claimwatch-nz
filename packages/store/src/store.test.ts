@@ -9,6 +9,7 @@
 //
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
 
+import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestStore } from "./store.ts";
 // Contracts under test — implemented in this phase:
@@ -31,13 +32,22 @@ function requireEnv(name: string): string {
 // database it gets.
 const DATABASE_URL = requireEnv("DATABASE_URL");
 
+// createTestStore drops and recreates `<db><suffix>`, so the raw-SQL reader
+// connects to the same scratch database the store is writing.
+const SCRATCH_SUFFIX = "_store_test";
+
 let store: Store;
+// Reads that no store method exposes: the write path is the API under test, so
+// these assertions go straight at the row it wrote.
+let reader: Pool;
 
 beforeAll(async () => {
-  store = await createTestStore(DATABASE_URL, { scratchSuffix: "_store_test" });
+  store = await createTestStore(DATABASE_URL, { scratchSuffix: SCRATCH_SUFFIX });
+  reader = new Pool({ connectionString: `${DATABASE_URL}${SCRATCH_SUFFIX}` });
 });
 
 afterAll(async () => {
+  await reader.end();
   await store.close();
 });
 
@@ -85,6 +95,31 @@ describe("ingest idempotency", () => {
     expect(rec.retrievedAt).toBeInstanceOf(Date);
     expect(rec.retrievalMethod).toBeTruthy();
     expect(rec.pipelineVersion).toBeTruthy();
+  });
+});
+
+describe("the claim's own date (claim.spoken_at, SITE-MVP §2.3)", () => {
+  it("round-trips the date the claim was made, distinct from when we recorded it", async () => {
+    const spokenAt = new Date("2026-09-08T12:00:00Z");
+    const claim = await store.recordClaim({ ...store.fixtures.statClaim(), spokenAt });
+    const { rows } = await reader.query<{
+      spoken_at: Date | null;
+      created_at: Date;
+    }>("SELECT spoken_at, created_at FROM claim WHERE claim_id = $1", [claim.claimId]);
+    expect(rows[0]?.spoken_at?.toISOString()).toBe(spokenAt.toISOString());
+    // Two different facts, both kept: the claim was made in September, and we
+    // ingested it when we ingested it.
+    expect(rows[0]?.created_at).toBeInstanceOf(Date);
+    expect(rows[0]?.created_at.toISOString()).not.toBe(spokenAt.toISOString());
+  });
+
+  it("leaves the date absent when the source does not carry one (never guessed)", async () => {
+    const claim = await store.recordClaim(store.fixtures.statClaim());
+    const { rows } = await reader.query<{ spoken_at: Date | null }>(
+      "SELECT spoken_at FROM claim WHERE claim_id = $1",
+      [claim.claimId],
+    );
+    expect(rows[0]?.spoken_at).toBeNull();
   });
 });
 
