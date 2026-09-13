@@ -94,6 +94,37 @@ describe("article extraction (Tier 1 readability)", () => {
       extractArticle(readFixture("rnz-article-double-encoded.html"), "https://www.rnz.co.nz/x"),
     ).toThrow(/encoding/i);
   });
+
+  // The guard used to be `/&amp;[a-zA-Z#]/`, which fires on ANY `&amp;X` and so
+  // rejected real pages: `M&amp;T Stadium` and every query-string separator are
+  // correct escaping, not corruption. This case is the RNZ page from the live
+  // probe — it must extract, or the lane cannot read a single article (ING-R8,
+  // Sept 2026).
+  it("keeps correctly escaped ampersands, which are not corruption (ING-R8)", () => {
+    const doc = extractArticle(
+      readFixture("rnz-article-legit-entities.html"),
+      "https://www.rnz.co.nz/news/political/health-funding-record",
+    );
+    // Both decode to `&` in the output: a venue name, and inside a Mailchimp
+    // `id=` query parameter (the link text, not the href — `.text()` carries no
+    // attributes, so the assertion is that the paragraph extracted at all).
+    expect(doc.text).toContain("M&T Stadium");
+    expect(doc.text).toContain("sign up here");
+    expect(doc.text).toContain("Q&A");
+  });
+
+  // The narrowed signature must still fire on the thing it exists for. Pinned
+  // against the raw string rather than a fixture so the two directions sit side
+  // by side: numeric entities, and a named entity that is not one of the five
+  // XML predefined names (`&amp;auml;` -> `&auml;`, the double-encoded macron
+  // ING-R8 is about).
+  it("rejects a genuine entity that decodes to another entity (ING-R8)", () => {
+    for (const corrupted of ["&amp;amp;", "&amp;amp;amp;", "&amp;#39;", "&amp;auml;"]) {
+      expect(() =>
+        extractArticle(`<article><p>${corrupted}</p></article>`, "https://www.rnz.co.nz/x"),
+      ).toThrow(/encoding/i);
+    }
+  });
 });
 
 describe("caption track tiering (ING-R3)", () => {

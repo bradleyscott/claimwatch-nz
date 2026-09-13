@@ -175,7 +175,7 @@ Every risk maps to a layer per TEST-STRATEGY (L1 every push; L2 every PR; L3 wee
 | Accuracy | Per-stratum extraction quality is a measured L3 output, not an assumption | L3 |
 | Site | Hear-it links, ClaimReview on caption-derived pages, methodology table | L4 |
 
-**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant); stale/broken feeds (200-zero-items, frozen, malformed XML); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-fingerprint, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
+**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant, + valid-entity variant — a page whose `&amp;` escapes are correct must extract, which the old guard denied); stale/broken feeds (200-zero-items, frozen, malformed XML); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-fingerprint, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
 
 ## 6. Open questions
 

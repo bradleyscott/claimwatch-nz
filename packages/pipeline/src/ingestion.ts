@@ -121,6 +121,15 @@ export interface ExtractedDocument {
 
 const BOT_WALL = /verify you are human|access denied|are you a robot|checking your browser/i;
 
+// Genuine double-encoding is an entity that decodes to ANOTHER entity:
+// `&amp;amp;` -> `&amp;`, `&amp;auml;` -> `&auml;`, `&amp;#39;` -> `&#39;`. The
+// previous pattern (`/&amp;[a-zA-Z#]/`) also matched *correct* escaping — a
+// venue name (`M&amp;T Stadium`) and every query-string separator
+// (`?u=...&amp;id=...`) — so it rejected real RNZ pages whose markup was never
+// corrupt, and the lane could not extract a single article (ING-R8, Sept 2026).
+const DOUBLE_ENCODED =
+  /&amp;(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#[0-9]{1,7}|#x[0-9a-fA-F]{1,6});/;
+
 export function extractArticle(html: string, canonicalUrl: string): ExtractedDocument {
   const $ = cheerio.load(html);
   if (BOT_WALL.test($.text())) {
@@ -128,9 +137,9 @@ export function extractArticle(html: string, canonicalUrl: string): ExtractedDoc
   }
   // Detect double-encoding on the RAW input, not the re-serialised DOM:
   // cheerio decodes entities on parse and re-encodes minimally on output, so
-  // an escaped entity inside the source (`&auml;&amp;e`) disappears from
+  // an escaped entity inside the source (`&amp;amp;`) disappears from
   // $.html() and the corruption would slip through silently (ING-R8).
-  if (/&amp;[a-zA-Z#]/.test(html)) {
+  if (DOUBLE_ENCODED.test(html)) {
     throw new Error("extract error: encoding violation — double-encoded entities in source");
   }
   const title = $("article h1").first().text() || $("h1").first().text();
