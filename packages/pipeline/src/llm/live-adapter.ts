@@ -21,7 +21,7 @@
 import { setDefaultResultOrder } from "node:dns";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { PromptRole } from "@cw/llm";
+import { type PromptRole, SAMPLING, SEEDABLE_PROVIDERS } from "@cw/llm";
 import { generateObject } from "ai";
 import type { z } from "zod";
 
@@ -244,6 +244,13 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           prompt: providerCall.user,
           maxOutputTokens:
             providerCall.maxOutputTokens ?? entry.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+          // Sampling is pinned (CROSS-CUTTING §2, SAMPLING): the same document
+          // triaged twice at the provider's default returned 31 claims and then
+          // 42, which moves a published disclosure — the set-aside list — between
+          // runs of identical input. Seeding is provider-conditional; Anthropic
+          // accepts no seed, so its determinism rests on temperature alone.
+          temperature: SAMPLING.temperature,
+          ...(SEEDABLE_PROVIDERS.includes(entry.provider as never) ? { seed: SAMPLING.seed } : {}),
         });
         return {
           ok: true,

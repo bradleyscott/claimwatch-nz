@@ -40,6 +40,15 @@ export interface RunManifest {
   fingerprintNormalisationVersion: string;
   searchConfig: string;
   storeSchemaVersion: string;
+  /**
+   * The sampling settings the run made its calls with (CROSS-CUTTING §2,
+   * `SAMPLING`). Part of the pinned tuple for the same reason the versions are:
+   * two runs that differed only in temperature are not comparable, and without
+   * this the manifest cannot say which is which (Sept 2026). The seed applies to
+   * providers that accept one (OpenAI, OpenRouter); `modelVersions` names which
+   * providers ran, and Anthropic accepts no seed.
+   */
+  sampling: { temperature: number; seed: number | null };
   datasetVersion: string;
   evalToolCommit: string;
   strata: Record<string, StratumResult>;

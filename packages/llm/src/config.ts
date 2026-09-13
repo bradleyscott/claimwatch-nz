@@ -38,5 +38,27 @@ export const PROMPT_ROLES = [
   "research-assess",
 ] as const;
 
+/**
+ * Sampling settings every live call is made with (Sept 2026).
+ *
+ * Chosen for REPRODUCIBILITY, not quality. A verdict is a published artefact
+ * that has to be re-checkable, and the same document triaged twice with default
+ * sampling returned 31 claims then 42 — eleven sentences moved across the
+ * "checkable" boundary, so the set-aside list the verdict page publishes is not
+ * a stable property of the document unless the sampling is pinned.
+ *
+ * It belongs on this surface because it is part of what a scoring run depends
+ * on (CRO-R1): two runs that differed only in temperature are not comparable,
+ * and until this existed a run manifest could not tell them apart.
+ *
+ * `seed` is provider-conditional — Anthropic exposes no seed parameter, so its
+ * determinism rests on temperature alone. `null` means "the provider was given
+ * none", which is a fact a run file should carry rather than hide.
+ */
+export const SAMPLING = { temperature: 0, seed: 20260901 } as const;
+
+/** Providers that accept a seed. Anthropic does not expose one. */
+export const SEEDABLE_PROVIDERS = ["openai", "openrouter"] as const;
+
 /** A role in {@link PROMPT_ROLES}. */
 export type PromptRole = (typeof PROMPT_ROLES)[number];

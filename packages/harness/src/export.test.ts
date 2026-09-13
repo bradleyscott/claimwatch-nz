@@ -56,6 +56,7 @@ const manifest: RunManifest = {
   modelVersions: { "citation-compare": "model-x@v1" },
   promptVersions: { "citation-compare": "citation-compare@1" },
   datasetVersion: "dev-2024",
+  sampling: { temperature: 0, seed: null },
   evalToolCommit: "7c62d1ec8df3fb560d6efe2b85fa191135636f81",
   searchConfig: "brave-primary",
   strata: { stat_grid: { n: 30, accuracy: 0.8 } },

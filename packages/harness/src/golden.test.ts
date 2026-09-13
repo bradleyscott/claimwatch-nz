@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
 
+import { SAMPLING } from "@cw/llm";
 import { STORE_SCHEMA_VERSION } from "@cw/store";
 import { parseDatasetB, toDatasetB } from "./export.ts";
 import {
@@ -122,6 +123,13 @@ describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
     expect(manifest.fingerprintNormalisationVersion).toBe("fp-norm-2025-01");
     expect(manifest.searchConfig).toBe("brave-primary");
     expect(manifest.storeSchemaVersion).toBe(STORE_SCHEMA_VERSION);
+    // Sampling is part of the tuple, not a detail of the call site: the same
+    // document triaged twice at the provider's default returned 31 claims and
+    // then 42, so two runs differing only in temperature are not comparable —
+    // and before this they produced identical manifests (Sept 2026).
+    expect(manifest.sampling.temperature).toBe(SAMPLING.temperature);
+    expect(manifest.sampling.temperature).toBe(0);
+    expect(manifest.sampling.seed).toBe(SAMPLING.seed);
   });
 
   it("asserts completeness: a manifest missing any pin fails loudly before the run (HAR-R7)", () => {
@@ -134,6 +142,8 @@ describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
     expect(() => assertManifestCompleteness(incomplete)).toThrow(/modelVersions/);
     const noPipeline = { ...complete, pipelineVersion: "" } as RunManifest;
     expect(() => assertManifestCompleteness(noPipeline)).toThrow(/pipelineVersion/);
+    const noSampling = { ...complete, sampling: undefined } as unknown as RunManifest;
+    expect(() => assertManifestCompleteness(noSampling)).toThrow(/sampling/);
   });
 
   it("manifest completeness recomputes content hashes, never trusts stored ones (HAR-R7)", () => {

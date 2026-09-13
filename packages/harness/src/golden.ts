@@ -4,7 +4,12 @@
 // recomputed at assert time (HAR-R7) — never trusted from storage.
 
 import { createHash } from "node:crypto";
-import { FINGERPRINT_NORMALISATION_VERSION, GRID_AXES_VERSION, PROMPT_ROLES } from "@cw/llm";
+import {
+  FINGERPRINT_NORMALISATION_VERSION,
+  GRID_AXES_VERSION,
+  PROMPT_ROLES,
+  SAMPLING,
+} from "@cw/llm";
 import { STORE_SCHEMA_VERSION } from "@cw/store";
 import type { GoldenSnapshot, RunManifest } from "./golden-api.ts";
 
@@ -109,6 +114,9 @@ export function buildRunManifest(
     ),
     searchConfig: String(pinned.searchConfig ?? ""),
     storeSchemaVersion: STORE_SCHEMA_VERSION,
+    // Recorded from the pinned surface rather than from a call site, so a run
+    // file can never claim sampling it did not use (CRO-R1).
+    sampling: { temperature: SAMPLING.temperature, seed: SAMPLING.seed },
     datasetVersion: String(pinned.datasetVersion ?? "dev-2024"),
     evalToolCommit: String(pinned.evalToolCommit ?? "7c62d1ec8df3fb560d6efe2b85fa191135636f81"),
     strata: (pinned.strata ?? {}) as RunManifest["strata"],
@@ -124,6 +132,7 @@ const REQUIRED_MANIFEST_FIELDS: Array<{ field: keyof RunManifest; label: string 
   { field: "fingerprintNormalisationVersion", label: "fingerprintNormalisationVersion" },
   { field: "searchConfig", label: "searchConfig" },
   { field: "storeSchemaVersion", label: "storeSchemaVersion" },
+  { field: "sampling", label: "sampling" },
 ];
 
 export function assertManifestCompleteness(manifest: RunManifest): void {

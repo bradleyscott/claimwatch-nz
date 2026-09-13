@@ -114,6 +114,21 @@ export interface RunManifest {
   storeSchemaVersion?: string;
   modelVersions: Record<string, string>;
   promptVersions: Record<string, string>;
+  /**
+   * The sampling settings the run made its calls with (CROSS-CUTTING §2,
+   * `SAMPLING`). Required, because the published accuracy table is rendered from
+   * these files and two runs that differed only in temperature are not
+   * comparable: without this, a run at the provider's default and a run at
+   * temperature 0 produce the same manifest and different numbers, and nothing
+   * in the file says which is which (Sept 2026).
+   *
+   * The seed is the value passed to providers that ACCEPT one (OpenAI,
+   * OpenRouter); Anthropic exposes no seed parameter, so a Claude-served run is
+   * reproducible only as far as temperature takes it. `modelVersions` names the
+   * providers that ran, and `seed: null` means no seed is configured at all —
+   * neither is a gap in the record.
+   */
+  sampling: { temperature: number; seed: number | null };
   datasetVersion: string;
   evalToolCommit: string;
   searchConfig: string;
