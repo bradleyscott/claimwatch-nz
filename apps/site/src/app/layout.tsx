@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en-NZ">
       <body className="min-h-screen antialiased">
         <header className="bg-foreground text-background">
-          <div className="mx-auto flex max-w-[820px] items-center gap-2 px-5 py-2.5 sm:gap-4">
+          <div className="mx-auto flex max-w-[820px] flex-wrap items-center gap-2 px-5 py-2.5 sm:gap-4">
             <a
               href="/"
               className="flex items-center gap-1.5 text-[19px] font-extrabold tracking-tight"
