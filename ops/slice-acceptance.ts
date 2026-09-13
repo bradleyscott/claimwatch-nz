@@ -27,18 +27,6 @@ function run(cmd: string, args: string[], env: NodeJS.ProcessEnv): Check {
   }
 }
 
-async function checkDb(databaseUrl: string, name: string, sql: string): Promise<Check> {
-  const pool = new Pool({ connectionString: databaseUrl });
-  try {
-    const result = await pool.query(sql);
-    return { name, passed: true, detail: `${result.rowCount} rows` };
-  } catch (e) {
-    return { name, passed: false, detail: (e as Error).message.slice(0, 160) };
-  } finally {
-    await pool.end();
-  }
-}
-
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   const labelsDatabaseUrl = process.env.LABELS_DATABASE_URL;
@@ -115,13 +103,32 @@ async function main(): Promise<void> {
     checks.push(blindCheck);
   }
 
-  // 3. Per-lane fallback log queryable (STORE §5.3).
+  // 3. Per-lane fallback log queryable (STORE §5.3). Read through the store's
+  // typed API rather than a hand-written SELECT: this script should break when
+  // the shape moves, not report a PASS against a query nothing else in the repo
+  // uses (Sept 2026).
   console.error("→ store probes");
-  const fallback = await checkDb(
-    databaseUrl,
-    "per-lane fallback log queryable",
-    "SELECT lane, COUNT(*) FROM fallback_log GROUP BY lane",
-  );
+  let fallback: Check;
+  try {
+    const { createStore } = await import("../packages/store/src/store.ts");
+    const store = await createStore(databaseUrl);
+    try {
+      const lanes = await store.fallbackRateByLane();
+      fallback = {
+        name: "per-lane fallback log queryable",
+        passed: true,
+        detail: `${lanes.length} lane(s)`,
+      };
+    } finally {
+      await store.close();
+    }
+  } catch (e) {
+    fallback = {
+      name: "per-lane fallback log queryable",
+      passed: false,
+      detail: (e as Error).message.slice(0, 160),
+    };
+  }
   console.error(`  ${fallback.passed ? "PASS" : "FAIL"}  fallback_log per-lane queryable`);
   if (!fallback.passed) {
     console.error(`    ${fallback.detail}`);
@@ -132,17 +139,17 @@ async function main(): Promise<void> {
   // detection — here we run the assertion suite against the live store).
   console.error("→ restore drill");
   try {
-    const { exportDrillDump, replayDrillDump, assertRestoreIntegrity, runRestoreDrillCheck } =
-      await import("../packages/store/src/restore-drill.ts");
+    const drill = await import("../packages/store/src/restore-drill.ts");
     const { createTestStore } = await import("../packages/store/src/store.ts");
     const targetStore = await createTestStore(databaseUrl, { scratchSuffix: "_restore_drill" });
     await targetStore.close();
-    const dump = await (await import("../packages/store/src/restore-drill.ts")).exportDrillDump(
+    const dump = await drill.exportDrillDump(databaseUrl);
+    await drill.replayDrillDump(`${databaseUrl}_restore_drill`, dump);
+    const assertions = await drill.assertRestoreIntegrity(
       databaseUrl,
+      `${databaseUrl}_restore_drill`,
     );
-    await replayDrillDump(`${databaseUrl}_restore_drill`, dump);
-    const assertions = await assertRestoreIntegrity(databaseUrl, `${databaseUrl}_restore_drill`);
-    runRestoreDrillCheck(assertions);
+    drill.runRestoreDrillCheck(assertions);
     console.error("  PASS  restore drill");
   } catch (e) {
     console.error(`  FAIL  restore drill: ${(e as Error).message.slice(0, 160)}`);
