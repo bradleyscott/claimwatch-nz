@@ -90,9 +90,28 @@ export const SERVING_MODE: Record<Provider, ServingMode> = {
   openrouter: "aggregator",
 };
 
+/** Default output-token budget when a role declares none and the call site does
+ * not override: sized for a one-object answer. */
+export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+
+/**
+ * A role's routing entry. `maxOutputTokens` is part of the entry because the
+ * response SHAPE is a property of the role, not of the provider: a role that
+ * returns a single verdict object fits the default, and a role that returns
+ * authored prose does not. A truncated response arrives as a schema failure, so
+ * an under-sized budget reads as "the model returned something malformed"
+ * rather than "the answer was cut in half" (Sept 2026).
+ */
+export interface RoutingEntry {
+  provider: Provider;
+  model: string;
+  /** Output budget for this role; falls back to DEFAULT_MAX_OUTPUT_TOKENS. */
+  maxOutputTokens?: number;
+}
+
 // Role → provider/model routing, per ADR-0011's table. Overridable via config
 // (the harness arbitrates per role on measured performance).
-export const DEFAULT_ROUTING: Record<PortRole, { provider: Provider; model: string }> = {
+export const DEFAULT_ROUTING: Record<PortRole, RoutingEntry> = {
   // Triage: high-volume structured extraction over mundane text.
   "triage-checkability": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-typing": { provider: "anthropic", model: "claude-sonnet-5" },
@@ -105,7 +124,15 @@ export const DEFAULT_ROUTING: Record<PortRole, { provider: Provider; model: stri
   // because it produces a published verdict (VERIFICATION §2.4), not a control
   // signal: wording-critical claims turn on its reading of the caption.
   "grid-materiality": { provider: "anthropic", model: "claude-sonnet-5" },
-  "citation-compare": { provider: "anthropic", model: "claude-sonnet-5" },
+  // The only role that returns authored prose: a lead, 2-4 paragraphs, a
+  // pull-quote and a finding per source. At the default the narrative was cut
+  // mid-sentence and the run blocked on `finish_reason: length` — twice on the
+  // first lane that reached publication (Sept 2026).
+  "citation-compare": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    maxOutputTokens: 4096,
+  },
   "quote-fidelity": { provider: "anthropic", model: "claude-sonnet-5" },
   "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
 
@@ -215,7 +242,8 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           schema: providerCall.schema,
           system: providerCall.system,
           prompt: providerCall.user,
-          maxOutputTokens: providerCall.maxOutputTokens ?? 2048,
+          maxOutputTokens:
+            providerCall.maxOutputTokens ?? entry.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
         });
         return {
           ok: true,

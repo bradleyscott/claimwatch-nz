@@ -8,7 +8,7 @@
 
 import { PRICE_MAP, PROMPT_ROLES } from "@cw/llm";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ROUTING, SERVING_MODE } from "./live-adapter.ts";
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_ROUTING, SERVING_MODE } from "./live-adapter.ts";
 
 const RESEARCH_TIER = ["research-assess", "claim-decompose", "authority-classify", "open-web"];
 const VERDICT_TIER = [
@@ -59,6 +59,17 @@ describe("routing table (ADR-0011)", () => {
     for (const entry of Object.values(DEFAULT_ROUTING)) {
       expect(entry.provider).not.toMatch(/deepseek|moonshot|zhipu|alibaba|qwen/i);
     }
+  });
+
+  it("gives prose-answering roles output headroom over the one-object default", () => {
+    // `citation-compare` returns a lead, 2-4 paragraphs, a pull-quote and a
+    // finding per source. At the flat default that narrative was cut mid-sentence
+    // and surfaced as `schema-validation`, so the run looked like it had received
+    // a malformed answer rather than a truncated one (Sept 2026). The budget is
+    // per role because the response SHAPE is a property of the role.
+    expect(DEFAULT_ROUTING["citation-compare"].maxOutputTokens).toBeGreaterThan(
+      DEFAULT_MAX_OUTPUT_TOKENS,
+    );
   });
 
   it("derives a model key of the form provider:model, never the role name", () => {
