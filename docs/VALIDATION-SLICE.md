@@ -1,6 +1,6 @@
 # The validation slice v2 — risk-representative sample plus a publicisable site MVP
 
-*Refines the original slice scope (Beehive/RNZ/Stuff RSS → triage → verify → store → export) per Bradley's direction: (a) carry a small representative sample of ALL the technical-viability and accuracy risks, across media types and extraction methods, so measured accuracy attests to the system rather than to a lane; (b) include a sufficient website MVP to publicise and get user feedback.*
+*Refines the original slice scope (Beehive/RNZ/Stuff RSS → triage → verify → store → export): (a) carry a small representative sample of ALL the technical-viability and accuracy risks, across media types and extraction methods, so measured accuracy attests to the system rather than to a lane; (b) include a sufficient website MVP to publicise and get user feedback.*
 
 ## The design question
 
@@ -54,13 +54,13 @@ The human-labelling set (target **~100 claims**) mirrors the risk surface, not l
 
 Scope = the discovery + presentation spine; no accounts, contestation, or submissions yet:
 
-1. **Claim cards + verdict pages** (SSR, Next.js) — verdict + confidence up top, verbatim quote, one-sentence plain verdict, "as deployed" tag, and the demo moment: **"hear it / watch it" deep links** on every broadcast claim (ADR-0007's design made visible)
+1. **Claim cards + verdict pages** (SSR, Next.js) — verdict up top, verbatim quote, one-sentence plain verdict, "as deployed" tag, and the demo moment: **"hear it / watch it" deep links** on every broadcast claim (ADR-0007's design made visible)
 2. **ClaimReview JSON-LD on every verdict page** — the Google/Fact-Check-Explorer discovery channel, live from day one
 3. **The feed** (recency-ranked) + **topic facets** (person/party/topic/verdict off the structured store)
 4. **Entity pages** (person, party, institution) — verdict distributions, the track-record view
 5. **Methodology page** — the four-verdict schema, pipeline description, the measured-accuracy table published live
 6. **Feedback capture** — a lightweight widget on every page (thumbs + free text + optional email). User feedback *about the site* is the goal; the claim-submission system is explicitly post-slice.
-7. **Per-claim "pipeline provenance" block** — pipeline version, prompt versions, confidence — demonstrating the transparency feature to early users
+7. **Per-claim "pipeline provenance" block** — pipeline version, prompt versions — demonstrating the transparency feature to early users
 
 Explicitly **out of the site MVP**: contestation UI, submission system, argument-chain views, debate-night live tracker, newsletters, entity reliability profiles. Each is a follow-on slice; cramming them into the publicise-and-learn slice risks the timeline.
 

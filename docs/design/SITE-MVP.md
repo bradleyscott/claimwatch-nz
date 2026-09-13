@@ -10,13 +10,13 @@ The "sufficient to publicise and get feedback" surface from VALIDATION-SLICE: th
 
 | # | Component | Summary |
 |---|---|---|
-| 1 | Claim cards + verdict pages | SSR Next.js: verdict + confidence up top, verbatim quote + attribution, one-sentence plain verdict, "as deployed" tag, hear-it/watch-it deep links. **The MVP's proof — build first, everything else serves navigation to these** (Bradley, Sept 2026) |
+| 1 | Claim cards + verdict pages | SSR Next.js: verdict up top, verbatim quote + attribution, one-sentence plain verdict, "as deployed" tag, hear-it/watch-it deep links. **The MVP's proof — build first, everything else serves navigation to these** (Sept 2026) |
 | 2 | ClaimReview JSON-LD | schema.org `ClaimReview` on every verdict page — the Google Fact Check Explorer channel |
-| 3 | Feed + topic facets | recency-ranked homepage. *Priority note (Bradley, Sept 2026): the feed only needs enough functionality to navigate to verdict pages — a minimal recency link list; facet/entity machinery is trimmed if it competes with the verdict pages* |
+| 3 | Feed + topic facets | recency-ranked homepage. *Priority note (Sept 2026): the feed only needs enough functionality to navigate to verdict pages — a minimal recency link list; facet/entity machinery is trimmed if it competes with the verdict pages* |
 | 4 | Entity pages | person / party / institution pages with verdict distributions |
 | 5 | Methodology page | four-verdict schema + AVeriTeC mapping + pipeline description + the **accuracy table generated from the harness output file** |
 | 6 | Feedback widget | thumbs + free text + optional email; feedback *about the site*, not claim intake |
-| 7 | Per-claim provenance block | pipeline version, prompt version, confidence, transcript tier |
+| 7 | Per-claim provenance block | pipeline version, prompt version, transcript tier |
 
 **Out of scope** (follow-on slices): contestation UI · submissions · argument-chain views · debate-night live tracker · newsletters · reliability profiles. Concretely: no contest form or "disagree?" flow (the methodology page may *name* that contestation exists post-slice), no argument graphs, no real-time views, no scorecard aggregates beyond verdict-distribution counts.
 
@@ -43,9 +43,9 @@ Anything else visible in the mockups is out of scope (§1) or an open question (
 Two registers are a hard rule: **public layperson pages** vs **internal technical docs**. The MVP must not leak the technical register onto public pages. The methodology page is the one public page whose job is explaining the machinery — plain-English descriptions allowed, unexplained jargon and untranslated internal vocabulary not.
 
 1. **Verdict-first hierarchy, fixed order on every verdict page:** verbatim claim + attribution → verdict mark (band + pin, not a smiley meter) → one-sentence plain verdict → "as deployed" tag (one line) → hear-it control → evidence pack → provenance → related claims last.
-2. **Confidence de-emphasised:** small metadata text only — never a meter, bar, star rating, or headline element. Design says it; the tests enforce it (SIT-R6).
+2. **Confidence is not published yet:** the store carries a confidence field (ADR-0004) and keeps carrying it, but nothing in the pipeline computes one — every value written so far is a placeholder in the `ops/` slice scripts — and no calibration backs it, so it renders nowhere on public pages. It returns as small metadata text only, never a meter/bar/star rating/headline, once ADR-0011's adjudication step exists *and* the harness measures it (`EVALUATION.md` §3). Design says it; the tests enforce it (SIT-R6).
 3. **Claims, not persons (ADR-0002):** character statements structurally impossible in generated copy and banned in template strings. Verdict language is the ADR-0004 mapping; no degree-slider language anywhere.
-4. **Layperson language:** no "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2 caption", "stratum" on public pages. The methodology page translates each; technical terms appear only in the provenance block, visually secondary.
+4. **Layperson language:** no "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2 caption", "stratum" on public pages. The methodology page translates each; technical terms appear only in the provenance block, visually secondary. This covers source quality too: on the evidence card, an item's stored source code renders as a plain-language label ("Official statistics") with a "What these labels mean" key in the same card; the raw codes stay in the provenance block, as above.
 5. **Gaps named, not hidden:** coverage limits (audio-only sources out of scope; caption claims flagged) stated in the same plain register.
 
 ### 2.3 Verdict-page anatomy (data → section)
@@ -57,8 +57,8 @@ Two registers are a hard rule: **public layperson pages** vs **internal technica
 | One-sentence plain verdict | `verdict.plain_summary` — must pass register checks |
 | "As deployed" tag | `claim.deployment_context` (ADR-0008) |
 | Hear it / watch it | `claim.media_anchor` — rendered only when present (§3.3) |
-| Evidence pack | items with source link + authority tier (T1–T6) + plain reasoning |
-| Provenance block | pipeline/prompt versions, confidence, transcript tier |
+| Evidence pack | items with source link + plain-language description of the source (the stored code stays in the provenance block) + plain reasoning; rendered strongest source first, with rows no check has classified last |
+| Provenance block | pipeline/prompt versions, transcript tier |
 | Related claims | fingerprint/pgvector adjacency — last; chains de-scoped |
 
 Ordering is a design invariant, not a suggestion: verdict visible without scrolling (UX finding 1); show-your-work after the answer (finding 6). The §5 register/snapshot tests assert section order, not just presence.
@@ -79,7 +79,7 @@ pipeline ──writes──▶ Postgres (packages/store)
 
 ### 2.5 Component notes
 
-- **Claim card** (feed atom): quote (highlighted) + subtle attribution → verdict mark + plain verdict → "as deployed" tag when present → hear-it pill when anchored → link. Self-contained and quotable — a screenshot carries the whole finding. Confidence only in the small meta row.
+- **Claim card** (feed atom): quote (highlighted) + subtle attribution → verdict mark + plain verdict → "as deployed" tag when present → hear-it pill when anchored → link. Self-contained and quotable — a screenshot carries the whole finding.
 - **Verdict page**: SSR atom (§2.3). Canonical URL stable per claim id; mutations change content, not the URL. "Not enough evidence" renders as an honest open question ("we could not verify this"), never a failure state.
 - **Feed**: recency-ranked; facets filter server-side via URL params (shareable, crawlable). Pagination, not infinite scroll — every card URL-addressable.
 - **Entity pages**: header + verdict distribution (counts per class — a bar of segments, not a score) + claim list. Publisher-level framing avoided to stay within claims-not-persons.
@@ -138,7 +138,7 @@ Producer: L3 run → versioned JSON artifact (`packages/harness/output/latest-ac
 | SIT-R3 | Broken hear-it deep links (wrong time, dead URL, control without anchor) | The demo moment fails live; broadcast claims become dead-ends | Deep link resolves wrong/absent |
 | SIT-R4 | Register violations — jargon on public pages | Public pages read like internal docs; engagement goal fails | Banned-pattern scan on rendered text |
 | SIT-R5 | Verdict language violating ADR-0002 (character statements, degree-slider, wrong class label) | Legal exposure; benchmark-mapping opacity | Banned-pattern scan + label-set check |
-| SIT-R6 | Confidence over-emphasised (meter/headline) | Implies subjective truth degrees we don't have (ADR-0004) | Confidence rendered outside meta slots |
+| SIT-R6 | Uncalibrated confidence published (placeholder value, or over-emphasised as meter/headline) | Claims a measured statistical confidence the pipeline does not compute — implies subjective truth degrees we don't have (ADR-0004) | Any confidence value in rendered public pages |
 | SIT-R7 | Stale verdict pages after store mutations | Public verdict contradicts the store — worst-case trust failure | Page HTML ≠ store state for the claim id |
 | SIT-R8 | SSR/hydration failures | Blank verdict above the fold; crawlers get nothing | Initial HTML lacks verdict content; hydration errors |
 | SIT-R9 | Accessibility failures (verdict by colour alone, contrast, keyboard) | Core artefact unreadable to screen readers | axe violations; colour-only signal |
@@ -157,9 +157,9 @@ The site's failure modes are disproportionately **silent** (JSON-LD dropped by t
 | SIT-R1 | Extract `<script type="application/ld+json">` from every rendered verdict page; validate against schema.org `ClaimReview`; fail the build loudly. Serializer unit-tested incl. pledge states | L1 + L4a |
 | SIT-R2 | Render the table from the artifact in CI; assert numeric equality; build fails if the artifact is missing/malformed | L1 + L4a |
 | SIT-R3 | For every fixture broadcast claim: control rendered iff anchor present; href matches the stored anchor; URL 200s to the expected item. Builder unit-tested | L1 + L4a (live URLs at L4b) |
-| SIT-R4 | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); methodology page checked separately for sanctioned sections | L2 + L4a |
+| SIT-R4 | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); source labels rendered as descriptions with raw codes confined to provenance; methodology page checked separately for sanctioned sections | L2 + L4a |
 | SIT-R5 | Banned-pattern check over generated verdict text + rendered pages: character statements, slider vocabulary, label-set == ADR-0004 rendering | L1 + L4a |
-| SIT-R6 | Confidence renders only in designated meta slots — no meter/progress/headline carries it | L1 + L4a |
+| SIT-R6 | No confidence value renders on any public page (render-model + SSR-HTML assertion). The rule relaxes to "metadata text only" when an adjudicator + calibration land | L1 + L4a |
 | SIT-R7 | Fixture mutation → revalidation → page (and ClaimReview `datePublished`) reflects the new verdict; webhook fires for claim/entity/topic routes | L1 + L4a |
 | SIT-R8 | Playwright asserts verdict class, plain verdict, ClaimReview present in the **pre-hydration SSR HTML**; zero console hydration errors | L4a |
 | SIT-R9 | axe tests on verdict card + feed; verdict conveyed in text (label always co-rendered with colour); contrast assertions | L1 |

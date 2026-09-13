@@ -31,8 +31,11 @@ export const evidenceItem = pgTable(
     contentHash: text("content_hash").notNull(),
     version: integer("version").notNull().default(1),
     // Open-web evidence: what this source says relevant to the claim + its
-    // reliability tier (1-6, null when unclassified). Null for stat-grid rows
-    // (the series IS the finding).
+    // source class (1-6, from the open-web classifier; null when the row
+    // carries none — an adjudicated finding returned without a code, or a
+    // stat-grid series row where the series IS the finding). Nothing orders by
+    // it at rest: the site sorts for display, strongest source first
+    // (apps/site/src/lib/evidence-source-labels.ts).
     plainFinding: text("plain_finding"),
     tier: integer("tier"),
   },

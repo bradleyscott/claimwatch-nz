@@ -19,7 +19,10 @@ export const VerdictPageData = z.object({
     "not_enough_evidence",
     "conflicting_cherry_picking",
   ]),
-  confidence: z.number().min(0).max(1),
+  // Nullable, and never defaulted: an absent confidence must stay absent rather
+  // than be invented as 0.5. Nothing renders it today (SIT-R6) — see
+  // `verdict-page.ts` for why.
+  confidence: z.number().min(0).max(1).nullable(),
   attachedProposal: z.string().nullable(),
   mediaAnchor: z
     .object({ mediaUrl: z.string(), startS: z.number(), endS: z.number(), deepLink: z.string() })
@@ -34,6 +37,11 @@ export const VerdictPageData = z.object({
       // Source link-out (evidence_item.url) — the mockup renders every
       // evidence row's source as a link; absent → text-only row.
       url: z.string().default(""),
+      // Source classification code written by the open-web loop (1-6; see
+      // packages/pipeline/src/search/vetting.ts TIER_GUIDANCE). Rendered on the
+      // verdict page as a plain-language description (lib/evidence-source-labels),
+      // never as the raw code — that stays in the provenance block.
+      tier: z.number().nullable().default(null),
     }),
   ),
   pipelineVersion: z.string(),
@@ -110,7 +118,7 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
       // refuted" commentary); the items carry the source rows.
       const evidence = await pool.query(
         `SELECT e.authority_ref, e.series_identity, e.vintage_date, e.url,
-                ep.justifications
+                e.plain_finding, e.tier, ep.justifications
          FROM evidence_pack ep
          LEFT JOIN evidence_item e ON e.claim_id = ep.claim_id
          WHERE ep.claim_id = $1::uuid
@@ -127,7 +135,7 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
         transcriptTier: row.transcript_tier ?? null,
         publishedAt: row.published_at,
         verdictClass: row.verdict_class,
-        confidence: row.confidence ?? 0.5,
+        confidence: row.confidence ?? null,
         mediaAnchor: null, // caption lanes land with the YouTube slice
         attachedProposal: row.attached_proposal,
         // The pack LEFT JOIN means claims with a pack but no items produce
@@ -141,8 +149,12 @@ export function liveSiteStore(databaseUrl: string): SiteStore {
               e.vintage_date instanceof Date
                 ? e.vintage_date.toISOString().slice(0, 10)
                 : String(e.vintage_date),
-            plainReason: "",
+            // The adjudicator's per-source finding — what THIS source says
+            // relevant to the claim. Empty for stat-grid series rows (the
+            // series itself is the finding).
+            plainReason: e.plain_finding ?? "",
             url: e.url ?? "",
+            tier: e.tier ?? null,
           })),
         justifications,
         pipelineVersion: row.pipeline_version ?? "unknown",

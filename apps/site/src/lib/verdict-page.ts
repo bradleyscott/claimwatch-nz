@@ -10,19 +10,41 @@ export type VerdictClass =
   | "conflicting_cherry_picking";
 
 /** ADR-0004 public label set — the only verdict words a page may carry. */
-export const VERDICT_LABELS: Record<VerdictClass, { label: string; plainSummary: string }> = {
+export const VERDICT_LABELS: Record<
+  VerdictClass,
+  {
+    /** The class name, as published to ClaimReview/AVeriTeC consumers. */
+    label: string;
+    /**
+     * The public rendering of the class (ADR-0004: "a rendering, not a
+     * departure") — the wording the verdict band's stop legend uses, and the
+     * same rendering `packages/store` publishes as ClaimReview `alternateName`.
+     * Identical to `label` for the three classes whose class name is already
+     * plain English; the fourth is the one AVeriTeC name that is not.
+     */
+    plainLabel: string;
+    plainSummary: string;
+  }
+> = {
   supported: {
     label: "Supported",
+    plainLabel: "Supported",
     plainSummary: "We verified this claim against the official data.",
   },
-  refuted: { label: "Refuted", plainSummary: "The official data does not support this claim." },
+  refuted: {
+    label: "Refuted",
+    plainLabel: "Refuted",
+    plainSummary: "The official data does not support this claim.",
+  },
   not_enough_evidence: {
     label: "Not enough evidence",
+    plainLabel: "Not enough evidence",
     plainSummary:
       "We could not verify this claim with the evidence available — it stays an open question.",
   },
   conflicting_cherry_picking: {
     label: "Conflicting Evidence/Cherrypicking",
+    plainLabel: "Accurate but incomplete",
     plainSummary: "The number is real, but the way it is framed changes the picture.",
   },
 };
@@ -41,7 +63,16 @@ export interface VerdictPageInput {
   speakerAffiliation: string | null;
   publishedAt: Date;
   verdictClass: VerdictClass;
-  confidence: number;
+  /**
+   * Store field, deliberately NOT rendered (SITE-MVP §2.2 rule 2, revised Sept
+   * 2026). Every value ever written came from a hardcoded placeholder in the
+   * `ops/` slice scripts — no adjudicator produces it and no calibration backs
+   * it, so publishing "Confidence: 70%" claimed a measured statistical
+   * confidence the pipeline does not compute. It is republished as small meta
+   * text only once ADR-0011's adjudication step lands *and* the harness
+   * measures it (EVALUATION §3). Test: SIT-R6.
+   */
+  confidence: number | null;
   attachedProposal: string | null;
   mediaAnchor: { mediaUrl: string; startS: number; endS: number; deepLink: string } | null;
   transcriptTier: string | null;
@@ -100,7 +131,7 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
   });
   sections.push({
     kind: "verdict",
-    data: { verdictClass: input.verdictClass, confidence: input.confidence },
+    data: { verdictClass: input.verdictClass },
   });
   if (input.attachedProposal) {
     sections.push({ kind: "deployed", data: { attachedProposal: input.attachedProposal } });

@@ -25,7 +25,7 @@ const input = (
   transcriptTier: null,
   evidence: [],
   pipelineVersion: "0.1.0",
-  promptVersions: { adjudication: "adjudication@1" },
+  promptVersions: { "citation-compare": "citation-compare@1" },
   ...over,
 });
 
@@ -104,13 +104,19 @@ describe("register rules (SIT-R4/R5/R6)", () => {
     ).not.toThrow();
     for (const label of Object.values(VERDICT_LABELS)) {
       expect(() => assertRegisterSafe(`${label.label} — ${label.plainSummary}`)).not.toThrow();
+      expect(() => assertRegisterSafe(`${label.plainLabel} — ${label.plainSummary}`)).not.toThrow();
     }
   });
 
-  it("confidence never appears in headline slots — only small meta text (SIT-R6)", () => {
+  // Sept 2026: the published number was a hardcoded placeholder in the `ops/`
+  // slice scripts with no adjudicator behind it, so SIT-R6 tightened from
+  // "de-emphasise" to "do not publish": a confidence value is withheld until
+  // ADR-0011's adjudication step exists and the harness calibrates it.
+  it("publishes no confidence value, even when the store carries one (SIT-R6)", () => {
     const model = buildVerdictPageModel(input({ verdictClass: "supported", confidence: 0.81 }));
-    const verdictSection = model.sections.find((s) => s.kind === "verdict");
-    expect((verdictSection?.data as { confidence: number }).confidence).toBe(0.81);
+    const rendered = JSON.stringify(model.sections);
+    expect(rendered).not.toContain("confidence");
+    expect(rendered).not.toContain("0.81");
   });
 });
 
@@ -128,6 +134,19 @@ describe("label set is the ADR-0004 mapping", () => {
     expect(VERDICT_LABELS.not_enough_evidence.label).toBe("Not enough evidence");
     expect(VERDICT_LABELS.conflicting_cherry_picking.label).toBe(
       "Conflicting Evidence/Cherrypicking",
+    );
+  });
+
+  it("carries the ADR-0004 public rendering the verdict band displays", () => {
+    // The fourth class is the one AVeriTeC name that is not already plain
+    // English, so ADR-0004 gives it a public rendering — the same string
+    // `packages/store` publishes as ClaimReview `alternateName`.
+    expect(VERDICT_LABELS.conflicting_cherry_picking.plainLabel).toBe("Accurate but incomplete");
+    // The other three class names are their own public rendering.
+    expect(VERDICT_LABELS.supported.plainLabel).toBe(VERDICT_LABELS.supported.label);
+    expect(VERDICT_LABELS.refuted.plainLabel).toBe(VERDICT_LABELS.refuted.label);
+    expect(VERDICT_LABELS.not_enough_evidence.plainLabel).toBe(
+      VERDICT_LABELS.not_enough_evidence.label,
     );
   });
 });

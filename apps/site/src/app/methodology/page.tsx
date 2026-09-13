@@ -1,8 +1,21 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { VERDICT_TONES } from "@/components/verdict-rule";
 import {
   type AccuracyTableRow,
   loadAccuracyArtifact,
   renderAccuracyTable,
 } from "@/lib/accuracy-artifact";
+import { cn } from "@/lib/utils";
 import { VERDICT_LABELS, type VerdictClass } from "@/lib/verdict-page";
 
 // Methodology page (SITE-MVP §2.5): the one public page whose job is explaining
@@ -38,46 +51,63 @@ function loadTable(): { rows: AccuracyTableRow[]; runId: string } | null {
   }
 }
 
+function Section({
+  title,
+  children,
+  label,
+}: {
+  title: string;
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Card className="mt-4 gap-0 px-7 py-6" aria-label={label}>
+      <h2 className="text-[17px] font-extrabold">{title}</h2>
+      {children}
+    </Card>
+  );
+}
+
 export default function MethodologyPage() {
   const table = loadTable();
 
   return (
-    <main className="mx-auto max-w-[820px] px-5 py-6">
+    <main className="page-shell py-6">
       <h1 className="mt-4 text-[24px] font-extrabold tracking-tight">How this works</h1>
 
-      <section
-        className="mt-4 rounded-2xl border border-line bg-card px-7 py-6"
-        aria-label="What ClaimWatch is"
-      >
-        <h2 className="text-[17px] font-extrabold">What ClaimWatch is and isn't</h2>
-        <p className="mt-3 text-[15.5px] leading-relaxed text-[#2c3644]">
+      <Section label="What ClaimWatch is" title="What ClaimWatch is and isn't">
+        <p className="mt-3 text-[15.5px] leading-relaxed">
           We check claims made in New Zealand politics against the official data — police figures,
           Statistics NZ series, Treasury forecasts, and the source a claim cites. Every claim gets
           one of four verdicts. There are no degrees in between: a claim either holds up, does not,
           cannot be checked, or is real but framed in a way that changes the picture.
         </p>
-      </section>
+      </Section>
 
-      <section
-        className="mt-4 rounded-2xl border border-line bg-card px-7 py-6"
-        aria-label="The four verdicts"
-      >
-        <h2 className="text-[17px] font-extrabold">The four verdicts</h2>
+      <Section label="The four verdicts" title="The four verdicts">
         <ul className="mt-3 space-y-3">
           {VERDICT_MEANINGS.map((v) => (
-            <li key={v.cls} className="text-[15px] leading-relaxed">
-              <b className="font-bold">{VERDICT_LABELS[v.cls].label}</b> — {v.plain}
+            <li
+              key={v.cls}
+              className="flex flex-wrap items-baseline gap-2 text-[15px] leading-relaxed"
+            >
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-[11.5px] font-semibold",
+                  VERDICT_TONES[v.cls].chip,
+                )}
+              >
+                {VERDICT_LABELS[v.cls].label}
+              </Badge>
+              <span>{v.plain}</span>
             </li>
           ))}
         </ul>
-      </section>
+      </Section>
 
-      <section
-        className="mt-4 rounded-2xl border border-line bg-card px-7 py-6"
-        aria-label="How we check"
-      >
-        <h2 className="text-[17px] font-extrabold">How we check claims</h2>
-        <p className="mt-3 text-[15.5px] leading-relaxed text-[#2c3644]">
+      <Section label="How we check" title="How we check claims">
+        <p className="mt-3 text-[15.5px] leading-relaxed">
           A claim with a number gets checked against the full official record — we show what the
           same data looks like over different windows and per person, so a true number with a
           misleading frame is visible. A claim citing a source gets checked against that source.
@@ -85,55 +115,57 @@ export default function MethodologyPage() {
           open web, which is our least reliable method — those verdicts are the ones most worth
           contesting.
         </p>
-      </section>
+      </Section>
 
-      <section
-        className="mt-4 rounded-2xl border border-line bg-card px-7 py-6"
-        aria-label="Measured accuracy"
-      >
-        <h2 className="text-[17px] font-extrabold">How accurate is this? Measured, not claimed</h2>
+      <Section label="Measured accuracy" title="How accurate is this? Measured, not claimed">
         {table === null ? (
-          <p className="mt-3 rounded-xl border border-[#eddfc2] bg-[#fdf8ef] p-4 text-[13.5px] text-[#8a5a12]">
-            The accuracy table will appear here after the first published scoring run. We will not
-            display a number until it comes from a recorded, reproducible run — and the run id will
-            sit next to it.
-          </p>
+          <Alert className="mt-3 border-verdict-incomplete-line bg-verdict-incomplete-soft text-verdict-incomplete-ink">
+            <AlertDescription className="text-[13.5px] text-verdict-incomplete-ink">
+              The accuracy table will appear here after the first published scoring run. We will not
+              display a number until it comes from a recorded, reproducible run — and the run id
+              will sit next to it.
+            </AlertDescription>
+          </Alert>
         ) : (
           <>
-            <table className="mt-4 w-full border-collapse text-[14px]">
-              <thead>
-                <tr className="border-b border-line text-left text-[11.5px] font-extrabold uppercase tracking-[.05em] text-faint">
-                  <th className="py-2 pr-3">What was checked</th>
-                  <th className="py-2 pr-3">Agreement with our labellers</th>
-                  <th className="py-2 pr-2">Claims checked</th>
-                  <th className="py-2">Cost per claim</th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map((r) => (
-                  <tr key={r.mode} className="border-b border-line last:border-0">
-                    <td className="py-2.5 pr-3">{r.label}</td>
-                    <td className="py-2.5 pr-3 font-bold">{r.accuracyPercent}%</td>
-                    <td className="py-2.5 pr-2">{r.n}</td>
-                    <td className="py-2.5">${r.costPerClaim.toFixed(2)}</td>
-                  </tr>
+            <Table className="mt-4">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[11.5px] font-extrabold tracking-[.05em] text-faint uppercase">
+                    What was checked
+                  </TableHead>
+                  <TableHead className="text-[11.5px] font-extrabold tracking-[.05em] text-faint uppercase">
+                    Agreement with our labellers
+                  </TableHead>
+                  <TableHead className="text-[11.5px] font-extrabold tracking-[.05em] text-faint uppercase">
+                    Claims checked
+                  </TableHead>
+                  <TableHead className="text-[11.5px] font-extrabold tracking-[.05em] text-faint uppercase">
+                    Cost per claim
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {table.rows.map((row) => (
+                  <TableRow key={row.mode}>
+                    <TableCell>{row.label}</TableCell>
+                    <TableCell className="font-bold">{row.accuracyPercent}%</TableCell>
+                    <TableCell>{row.n}</TableCell>
+                    <TableCell>${row.costPerClaim.toFixed(2)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-            <p className="mt-3 text-[12px] text-[#8a919b]">
+              </TableBody>
+            </Table>
+            <p className="mt-3 text-[12px] text-faint">
               Generated from scoring run <b>{table.runId}</b> — the number above is produced by the
               harness, never edited by hand.
             </p>
           </>
         )}
-      </section>
+      </Section>
 
-      <section
-        className="mt-4 rounded-2xl border border-line bg-card px-7 py-6"
-        aria-label="Known gaps"
-      >
-        <h2 className="text-[17px] font-extrabold">What we can't check yet</h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-[#2c3644]">
+      <Section label="Known gaps" title="What we can't check yet">
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed">
           <li>
             Audio-only sources: we read words that were published, not transcripts we generate.
           </li>
@@ -150,7 +182,7 @@ export default function MethodologyPage() {
             change history is public.
           </li>
         </ul>
-      </section>
+      </Section>
     </main>
   );
 }

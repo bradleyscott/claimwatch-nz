@@ -4,12 +4,17 @@
 //   advocacy rejection (ADR-0018), foreign-official domains (suffix matching —
 //   ".gov" must not substring-match "govt.nz"), non-https links.
 //
-// Stage 2 — LLM tier classification into the declared T1–T6 taxonomy with
-// rationale + confidence. The classifier is an LLM, honestly stated: same
-// posture as the NLI publication gate (VERIFICATION §2.7) — a gate on the
-// worst misclassifications, calibrated by harness fixtures (must-pass/must-fail
-// authority packs at L1; audit agreement on labels at L3). The rationale is
-// recorded on the authority row as provenance, contestable like any verdict.
+// Stage 2 — LLM classification onto this module's own T1–T6 source scale (the
+// one in TIER_GUIDANCE below) with rationale + confidence. Note this is NOT
+// `docs/SOURCE-TAXONOMY.md` §2.1's evidence-authority ladder: the two share a
+// code space and disagree from T2 on, and the value written to
+// `evidence_item.tier` comes from here — so public copy must be described from
+// TIER_GUIDANCE (see apps/site/src/lib/evidence-source-labels.ts). The
+// classifier is an LLM, honestly stated: same posture as the NLI publication
+// gate (VERIFICATION §2.7) — a gate on the worst misclassifications, calibrated
+// by harness fixtures (must-pass/must-fail authority packs at L1; audit
+// agreement on labels at L3). The rationale is recorded on the authority row as
+// provenance, contestable like any verdict.
 
 import type { SearchResult } from "./serper-adapter.ts";
 
