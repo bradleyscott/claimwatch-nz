@@ -12,6 +12,7 @@ const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures")
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
 
 import {
+  agreeOnVerdictClass,
   citationCheck,
   computeStatGrid,
   nliAudit,
@@ -23,6 +24,7 @@ import {
   resolveAuthority,
 } from "./verification.ts";
 import type {
+  VerdictClass,
   CitationOutcome,
   DepthCapResult,
   EvidenceSeries,
@@ -406,3 +408,63 @@ interface AuthorityResolution {
   primary: string;
   note?: string;
 }
+
+// ---------- class-agreement gate (VER-R16) ----------
+//
+// The sampling pin does not work on the configured models, so the class decision
+// is pinned instead: publish only a class two runs agree on, and treat
+// disagreement as a measured instability rather than a class to publish.
+
+describe("class agreement before publication (VER-R16)", () => {
+  const outcome = (verdictClass: VerdictClass): { verdictClass: VerdictClass; reason: string } => ({
+    verdictClass,
+    reason: `reason for ${verdictClass}`,
+  });
+
+  it("publishes the first outcome when the runs agree", async () => {
+    const result = await agreeOnVerdictClass(async () => outcome("supported"));
+    expect(result.agreed).toBe(true);
+    expect(result.attempts).toBe(2);
+    expect(result.classes).toEqual(["supported", "supported"]);
+    expect(result.outcome?.reason).toBe("reason for supported");
+  });
+
+  it("refuses to publish a class the runs disagree about, and carries both", async () => {
+    // The measured case: one claim returned not_enough_evidence once and
+    // supported twice, with the NLI gate passing every time. Publishing either
+    // class would be a coin flip presented as a finding.
+    let attempt = 0;
+    const result = await agreeOnVerdictClass(async () =>
+      outcome(attempt++ === 0 ? "not_enough_evidence" : "supported"),
+    );
+    expect(result.agreed).toBe(false);
+    expect(result.classes).toEqual(["not_enough_evidence", "supported"]);
+    // No outcome at all: a caller cannot publish a class this gate rejected.
+    expect(result.outcome).toBeUndefined();
+  });
+
+  it("takes the number of runs it is given, and never fewer than two", async () => {
+    // Two is a floor rather than a default: a one-run "agreement" gate would
+    // agree with itself by construction.
+    let calls = 0;
+    const count = async () => {
+      calls++;
+      return outcome("refuted");
+    };
+    await agreeOnVerdictClass(count, { attempts: 3 });
+    expect(calls).toBe(3);
+    calls = 0;
+    await agreeOnVerdictClass(count, { attempts: 1 });
+    expect(calls).toBe(2);
+  });
+
+  it("propagates a failed call instead of recording it as disagreement", async () => {
+    // A provider failure is not instability. Recording it as one would inflate
+    // the instability signal with outages and hide the real failures.
+    await expect(
+      agreeOnVerdictClass(async () => {
+        throw new Error("provider timeout");
+      }),
+    ).rejects.toThrow(/provider timeout/);
+  });
+});

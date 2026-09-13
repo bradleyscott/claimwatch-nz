@@ -92,6 +92,18 @@ Every justification sentence must be entailed by its cited evidence before publi
 - Stated honestly: the auditor is itself an LLM. The harness calibrates it (must-pass/must-fail packs at L1; audit-agreement on labels at L3) — a gate on the worst hallucinations, not proof of entailment.
 - Models per ADR-0011 routing, harness-gated; prompts versioned files; adjudication batch-routed with realtime escalation for publish-day verdicts. The **verdict tier and this gate run on the mid-tier model, not the research tier's cheap model** — a gate is exactly where a cheap model is expensive.
 
+### 2.7a Class-agreement gate (Sept 2026, VER-R16)
+
+The verdict class is decided **twice**, and only a class both runs produce is published; a disagreement publishes nothing and is counted.
+
+This exists because the alternative does not work: the configured models discard the sampling settings — the SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter research model ignores `seed` — so identical input moved a class between runs (`not_enough_evidence` once, `supported` twice, with the NLI gate passing every time). When no knob can pin the sampler, the thing to pin is the decision: a class two independent runs agree on is a class the pipeline can defend, and a disagreement is a *measurement* of how unstable that decision is rather than a class to publish.
+
+- **Where it applies**: the class-deciding step — the low-volume call that produces what a reader sees. Deliberately **not** triage, which runs once per sentence per document and would multiply the dominant cost; the triage boundary is measured and disclosed instead (TRIAGE open question 9, and the page states that what-can-be-checked is a model's judgement).
+- **The first run's outcome is the published one**, so the published reason comes from a run whose class agreed, and the choice is predictable rather than "whichever agreed".
+- **A failed call is not a disagreement.** Provider errors propagate; counting them as instability would inflate the signal with outages and hide the real failures.
+- **Two runs is a floor, not a default**: a one-run gate would agree with itself by construction.
+- Disagreement rate is the calibration signal for whether a decision is trustworthy enough to publish, and belongs beside the audit failure rate on the same page-level metric.
+
 ### 2.8 Model tiers (ADR-0011 provisional routing, Sept 2026)
 
 The routing table is tiered by *what the output is used for*, not by how hard the task looks:
@@ -156,6 +168,7 @@ Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 
 | VER-R12 | Confidence miscalibration | Open-question posture hollows out; abstention unmeasured | L3 calibration table; threshold fixtures; L4 open-question rendering |
 | VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims |
 | VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority-resolution tests per domain; T6 rejection asserted |
+| VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability |
 | VER-R15 | Routing misclassification | Claims land in the least reliable mode by accident; failures attributed to wrong machinery | Router fixtures; L3 lane×mode cross-tab |
 
 ## 5. Test strategy
@@ -176,6 +189,7 @@ Every risk maps to a layer per TEST-STRATEGY. The deterministic surface is large
 | VER-R10 | Golden fixtures carry hand-labelled material-row expectations; L3 cherry-picking oversample (≥12 labels) is the measured check | L2 + L3 |
 | VER-R11 | Boundary fixtures (selective → Conflicting; no-row-match → Refuted; thin → NEI); L3 verdict-mix vs targets catches over-refutation | L1 + L3 |
 | VER-R12 | Threshold fixtures (below-threshold → open question); L3 calibration table per run | L1 + L3 |
+| VER-R16 | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | L1 + L3 |
 | VER-R13 | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | L1 + L2 |
 | VER-R14 | Authority resolution per seeded domain; advocacy-source rejection asserted | L1 |
 | VER-R15 | Router fixtures over type × text patterns; routing decision stored for L3 cross-tabbing | L1 + L3 |

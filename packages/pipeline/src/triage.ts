@@ -515,7 +515,20 @@ function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
  */
 export type TriageDocumentResult = Omit<TriageResult, "claims"> & {
   claims: Array<
-    TypedClaim & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
+    TypedClaim & {
+      sourceSentenceId: string;
+      discourseContext: StoredDiscourseContext;
+      /**
+       * The claim's six-part parse, extracted for statistical claims by the
+       * fingerprint stage (TRIAGE §2.1). Null for every other type, and null
+       * when a statistical claim was degraded to `other` because its parse
+       * could not be extracted (TRI-R3) — the two cases are told apart by
+       * `claimType`, never by guessing.
+       */
+      fingerprint: FingerprintTuple | null;
+      /** Canonical normalised key over the tuple (TRI-R2), or null. */
+      fingerprintKey: string | null;
+    }
   >;
   dropLog: Array<DropRecord & { sentenceId: string }>;
   triageRecord: TriageRecord;

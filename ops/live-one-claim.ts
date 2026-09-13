@@ -16,6 +16,7 @@ import {
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
 import {
+  agreeOnVerdictClass,
   computeStatGrid as computeGrid,
   nliAudit,
   VERIFICATION_SCHEMAS,
@@ -137,18 +138,33 @@ async function main(): Promise<void> {
   // from triage route the mode; the grid arithmetic is pure logic — the LLM
   // only selects material rows, which is also live).
   console.log("\n[2/4] verification (stat grid, materiality via live LLM)…");
-  const grid = await computeGrid(verificationLlm as never, {
-    fingerprint: claim.fingerprintAttempt ?? {
-      core: claim.text,
-      claimant: null,
-      domain: "crime",
-      temporal: "since 2017",
-      quantity: "30%",
-      source: null,
-    },
-    series: fixtureSeries(),
-    discourseContext: { attachedProposal: "tougher sentencing package" },
-  });
+  // The class-agreement gate (VERIFICATION §2.7a, VER-R16): the class this slice
+  // publishes is decided twice, and a disagreement publishes nothing. The
+  // sampling pin does not work on the configured models — claude-sonnet-5
+  // ignores temperature and the OpenRouter model ignores seed — so the decision
+  // is what gets pinned rather than the sampler: one claim returned
+  // `not_enough_evidence` once and `supported` twice, gate passing each time.
+  const agreement = await agreeOnVerdictClass(() =>
+    computeGrid(verificationLlm as never, {
+      fingerprint: claim.fingerprintAttempt ?? {
+        core: claim.text,
+        claimant: null,
+        domain: "crime",
+        temporal: "since 2017",
+        quantity: "30%",
+        source: null,
+      },
+      series: fixtureSeries(),
+      discourseContext: { attachedProposal: "tougher sentencing package" },
+    }),
+  );
+  if (!agreement.agreed || !agreement.outcome) {
+    console.log(
+      `\n── publication blocked by class disagreement ──\n  runs: ${agreement.attempts}\n  classes: ${agreement.classes.join(", ")}`,
+    );
+    return;
+  }
+  const grid = agreement.outcome;
   console.log(`  verdict: ${grid.verdictClass}`);
   console.log(`  matched row: ${grid.matchedRow ?? "none"}`);
   console.log(`  reason: ${grid.reason}`);
