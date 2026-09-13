@@ -1,0 +1,272 @@
+{
+  "id": "0df40bd4-bb5f-48ec-adbf-daea39bdbeed",
+  "prevId": "15f40f0b-ab39-4ff5-9af5-e30886a9e28b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.double_label": {
+      "name": "double_label",
+      "schema": "",
+      "columns": {
+        "double_label_id": {
+          "name": "double_label_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_label_id": {
+          "name": "first_label_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "second_label_id": {
+          "name": "second_label_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agreement": {
+          "name": "agreement",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "double_label_first_label_id_label_label_id_fk": {
+          "name": "double_label_first_label_id_label_label_id_fk",
+          "tableFrom": "double_label",
+          "columnsFrom": ["first_label_id"],
+          "tableTo": "label",
+          "columnsTo": ["label_id"],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "double_label_second_label_id_label_label_id_fk": {
+          "name": "double_label_second_label_id_label_label_id_fk",
+          "tableFrom": "double_label",
+          "columnsFrom": ["second_label_id"],
+          "tableTo": "label",
+          "columnsTo": ["label_id"],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "double_label_distinct": {
+          "name": "double_label_distinct",
+          "value": "\"double_label\".\"first_label_id\" <> \"double_label\".\"second_label_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.label": {
+      "name": "label",
+      "schema": "",
+      "columns": {
+        "label_id": {
+          "name": "label_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "label_set_version": {
+          "name": "label_set_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unassigned'"
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verdict": {
+          "name": "verdict",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cited_sources": {
+          "name": "cited_sources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "labeller_reasoning": {
+          "name": "labeller_reasoning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_availability": {
+          "name": "evidence_availability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_ecosystem": {
+          "name": "source_ecosystem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labeller_id": {
+          "name": "labeller_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label_date": {
+          "name": "label_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "label_verdict_valid": {
+          "name": "label_verdict_valid",
+          "value": "\"label\".\"verdict\" IN ('supported','refuted','not_enough_evidence','conflicting_cherry_picking')"
+        },
+        "label_confidence_valid": {
+          "name": "label_confidence_valid",
+          "value": "\"label\".\"confidence\" IN ('high','medium','low')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.label_set": {
+      "name": "label_set",
+      "schema": "",
+      "columns": {
+        "label_set_version": {
+          "name": "label_set_version",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.stratum_assignment": {
+      "name": "stratum_assignment",
+      "schema": "",
+      "columns": {
+        "claim_id": {
+          "name": "claim_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stratum": {
+          "name": "stratum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignment_version": {
+          "name": "assignment_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "stratum_assignment_claim_id_assignment_version_pk": {
+          "name": "stratum_assignment_claim_id_assignment_version_pk",
+          "columns": ["claim_id", "assignment_version"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
