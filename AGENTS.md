@@ -54,7 +54,7 @@ Breaking one of these is a bug regardless of test results.
 
 ```bash
 pnpm install                 # pnpm 11.8.0 only; Node >= 24 (engines + CI)
-pnpm typecheck               # tsc --noEmit in every workspace
+pnpm typecheck               # tsc --noEmit in every workspace, ops/ included
 pnpm test                    # vitest run at root: all packages + site
 pnpm lint                    # biome check (lint + format)
 pnpm format                  # biome check --write — run before committing
@@ -85,7 +85,7 @@ pnpm db:generate             # drizzle-kit generate after a schema edit
 | `packages/llm/` | Cross-cutting config surface (`GRID_AXES_VERSION`, `FINGERPRINT_NORMALISATION_VERSION`) and provider/prompt plumbing. | `docs/design/CROSS-CUTTING.md` §2–3 |
 | `packages/harness/` | AVeriTeC + NZ label scoring, golden set, regression gate, exports, labels-DB schema, blind-rule tests. | `docs/design/HARNESS.md` |
 | `tools/averitec-eval/` | Pinned official Python eval script — a scoring step only, never a runtime dependency. | `tools/averitec-eval/averitec-pinned/PIN.md` |
-| `ops/` | Runnable live/acceptance scripts (`tsx`). | `docs/VALIDATION-SLICE.md` |
+| `ops/` | Runnable live/acceptance scripts (`tsx`). A workspace project (`@cw/ops`) so `pnpm typecheck` covers it — it reaches into `packages/*/src` by relative path rather than package name. | `docs/VALIDATION-SLICE.md` |
 | `docs/design/` | Component specs with numbered risk IDs, test postures, open questions. | — |
 | `docs/adr/` | Decision record (stable; `docs/DECISION-LOG.md` holds working notes). | `docs/adr/README.md` |
 

@@ -358,8 +358,8 @@ export async function fetchWithBudget(
 }
 
 // ---------- rate-budget fixture server (test support) ----------
-// Node http.createServer, not Bun.serve: the suite runs under vitest/Node and
-// must not couple test infrastructure to a specific runtime (CRO-R15 parity).
+// Node http.createServer (not a runtime-specific server API): the suite runs under
+// vitest/Node and must not couple test infrastructure to a specific runtime (CRO-R15 parity).
 
 export async function startRateBudgetServer(
   port: number,

@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Type-check only: these scripts import pipeline/store *source* across
+    // package boundaries, so the program spans `ops/` plus `packages/*/src`.
+    // `rootDir` must therefore be the repo root — left inferred, TS takes it
+    // from `ops/` alone and rejects every cross-package import (TS6059).
+    "noEmit": true,
+    "rootDir": "..",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

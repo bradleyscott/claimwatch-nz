@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 
 // Load .env (gitignored) into process.env before suites run — no committed
-// credentials anywhere (Bradley, Sept 2026). CI sets env directly; .env is
+// credentials anywhere (Sept 2026). CI sets env directly; .env is
 // absent there and this is a no-op.
 const envPath = resolve(import.meta.dirname ?? ".", ".env");
 if (existsSync(envPath)) {

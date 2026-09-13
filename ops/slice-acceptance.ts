@@ -96,7 +96,8 @@ async function main(): Promise<void> {
       blindCheck = {
         name: "pipeline role denied on labels DB (HAR-R1)",
         passed: denied,
-        detail: denied ? undefined : "pipeline role can READ labels — blind rule breach (HAR-R1)",
+        // exactOptionalPropertyTypes: omit the key when there is nothing to say.
+        ...(denied ? {} : { detail: "pipeline role can READ labels — blind rule breach (HAR-R1)" }),
       };
     } catch (e) {
       blindCheck = {
