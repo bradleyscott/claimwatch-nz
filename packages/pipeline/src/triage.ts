@@ -504,8 +504,16 @@ function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
  * (SITE-MVP §2.3). Declared as a named type so a consumer cannot hold the result
  * typed as `TriageResult` and miss the fields the store write needs — which is
  * how `attached_proposal` stayed null for so long.
+ *
+ * `Omit<…, "claims">` rather than intersecting `TriageResult` directly: an
+ * intersection of two array types (`Array<A> & Array<B>`) does not propagate the
+ * narrowed element type through `.find()`. TypeScript infers the BASE element
+ * type there, so a consumer that selects a claim the natural way —
+ * `claims.find(c => c.claimType === …)` — cannot see `discourseContext` and fails
+ * to compile, while index access works. Verified against tsc (Sept 2026), and it
+ * bit the first consumer, which is the whole reason this type exists.
  */
-export type TriageDocumentResult = TriageResult & {
+export type TriageDocumentResult = Omit<TriageResult, "claims"> & {
   claims: Array<
     TypedClaim & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
   >;

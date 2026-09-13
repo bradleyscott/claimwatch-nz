@@ -39,25 +39,33 @@ export const PROMPT_ROLES = [
 ] as const;
 
 /**
- * Sampling settings every live call is made with (Sept 2026).
+ * Sampling settings every live call REQUESTS (Sept 2026).
  *
- * Chosen for REPRODUCIBILITY, not quality. A verdict is a published artefact
- * that has to be re-checkable, and the same document triaged twice with default
- * sampling returned 31 claims then 42 — eleven sentences moved across the
- * "checkable" boundary, so the set-aside list the verdict page publishes is not
- * a stable property of the document unless the sampling is pinned.
+ * **This is a request, not a control — and on the configured stack it is
+ * currently ignored.** Measured against a live lane: the AI SDK warns
+ * `temperature is not supported by claude-sonnet-5 and will be ignored`
+ * (Anthropic serves every triage role, the verdict tier and the gate) and
+ * `seed is not supported` on the OpenRouter path. So neither knob bites where
+ * the variance was observed, and the same article still produced
+ * `not_enough_evidence` once and `supported` twice, with the gate passing each
+ * time.
  *
- * It belongs on this surface because it is part of what a scoring run depends
- * on (CRO-R1): two runs that differed only in temperature are not comparable,
- * and until this existed a run manifest could not tell them apart.
+ * It stays on the surface because what a run REQUESTS belongs in the run file
+ * (CRO-R1, and two runs that differed here are not comparable) — but a manifest
+ * carrying this must not be read as evidence that the provider honoured it. See
+ * CROSS-CUTTING §2 and TRIAGE open question 9: determinism needs a mechanism
+ * that survives an unseedable model, not a parameter.
  *
- * `seed` is provider-conditional — Anthropic exposes no seed parameter, so its
- * determinism rests on temperature alone. `null` means "the provider was given
- * none", which is a fact a run file should carry rather than hide.
+ * `seed: null` means no seed is configured at all; the seed applies only to
+ * providers that accept one, and `modelVersions` names which ran.
  */
 export const SAMPLING = { temperature: 0, seed: 20260901 } as const;
 
-/** Providers that accept a seed. Anthropic does not expose one. */
+/**
+ * Providers that accept a seed. Anthropic does not expose one, and the
+ * OpenAI-compatible route does not honour it for every model behind it — so
+ * membership here is a necessary condition, not a promise.
+ */
 export const SEEDABLE_PROVIDERS = ["openai", "openrouter"] as const;
 
 /** A role in {@link PROMPT_ROLES}. */
