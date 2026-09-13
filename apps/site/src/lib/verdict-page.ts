@@ -3,6 +3,9 @@
 // Pure logic — unit-tested at L1 for every input shape; L4a asserts a rendered
 // page only where a fixture covers it.
 
+import { rejectionDescription } from "./triage-labels.ts";
+import { CLAIM_TYPE_READING, modeDescription, resolveMode } from "./verification-mode.ts";
+
 export type VerdictClass =
   | "supported"
   | "refuted"
@@ -56,6 +59,14 @@ const VERDICT_ORDER: VerdictClass[] = [
   "supported",
 ];
 
+/** A sentence triage classified but did not turn into a claim (claim.triage_record). */
+export interface TriageRecordInput {
+  sentencesRead: number;
+  checked: number;
+  setAside: Array<{ sentenceText: string; rejectionClass: string }>;
+  held: Array<{ sentenceText: string; reason: string }>;
+}
+
 export interface VerdictPageInput {
   claimId: string;
   claimText: string;
@@ -100,6 +111,20 @@ export interface VerdictPageInput {
   sourceRetrievedAt: Date | null;
   /** Store claim type — decides which method the claim got (TRIAGE). */
   claimType: string | null;
+  /**
+   * The check triage routed this claim to (claim.verification_mode, Sept 2026).
+   * Null on every row written before the column existed — the trail then renders
+   * an absent check rather than guessing, and never falls back to a guess for a
+   * statistical claim, which can take either of two modes.
+   */
+  verificationMode?: string | null;
+  /**
+   * Triage's output for the document this claim came from (claim.triage_record):
+   * how many sentences were read, which were set aside and why, which were held.
+   * Null on older rows — the "what we did not check" section is omitted rather
+   * than rendered with invented counts.
+   */
+  triageRecord?: TriageRecordInput | null;
   publisher: string | null;
   /** Roles recorded on the claim itself (claim.prompt_versions) — its triage. */
   claimPromptVersions: Record<string, string>;
@@ -125,7 +150,7 @@ export interface VerdictPageModel {
   label: string;
   plainSummary: string;
   verdictPosition: number; // 0..3 on the verdict rule, left = refuted
-  /** The dated trail that replaces the old provenance block (SITE-MVP §2.3). */
+  /** The mode-aware account of the check (SITE-MVP §2.3, Sept 2026). */
   trail: VerdictTrail;
 }
 
@@ -173,9 +198,10 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
   // not-enough-evidence ("we could not verify this") — never a failure state
   // (SITE-MVP §2.5), never a placeholder-free gap.
   sections.push({ kind: "evidence", data: input.evidence });
-  // The provenance block became the dated trail (Sept 2026): the same audit
-  // content, ordered by when it happened, with the technical record behind one
-  // control instead of a paragraph that restated the block's own heading.
+  // The trail became mode-aware in Sept 2026: the same dated record, but the
+  // section that explains HOW the comparison worked is the one belonging to the
+  // check this claim actually got, rather than one shape stretched to cover all
+  // five kinds of check.
   const trail = buildVerdictTrail(input);
   sections.push({ kind: "trail", data: trail });
   return {
@@ -188,30 +214,44 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
 }
 
 // ---------------------------------------------------------------------------
-// "How this verdict was made" — the dated trail (SITE-MVP §2.3, Sept 2026)
+// "How this verdict was made" — the mode-aware trail (SITE-MVP §2.3, Sept 2026)
 // ---------------------------------------------------------------------------
 //
-// House style for this block, decided after a first pass wrote far too much:
-// every line is either a fact about THIS claim (its dates, its counts, its
-// sources, its verdict) or — at most one per step — a single short sentence that
-// explains the stage. Nothing restates the verdict card above or the methodology
-// page, and the technical record is part of the reader's default view: no
-// toggle, no collapsed content, nothing to click to see how a check was made.
-// The reasoning behind that: an audit record a reader has to ask for is one most
-// readers never see, and this block exists precisely to be seen.
+// House style, unchanged from the Sept 2026 revisions and now applied per
+// section: every line is either a fact about THIS claim (its dates, its counts,
+// its sources, its verdict) or — at most one per section — a single short
+// sentence explaining the stage. Nothing restates the verdict card above, and
+// nothing restates `/methodology`: the general explanation of a check lives
+// there, and what appears here is that explanation applied to this claim.
 //
-// The audit lines carry plain labels around verbatim values (`ClaimWatch version
-// 0.1.0 · state PUBLISHED · instructions triage-typing@1`), so a reader can read
-// the line where it stands instead of holding six definitions in their head while
-// they scroll down to a key. The labels are drawn from `AUDIT_LABELS`; the VALUES
-// stay exactly as the check recorded them, because they are what ties this page to
-// the run that produced it — a gloss can drift from the store, a stored value
-// cannot. `TECHNICAL_RECORD_KEY` is now only what a reader genuinely cannot
-// guess: the opaque value forms. Both live here so the register check can scan
-// them.
+// Sections, and which of them exist for a given claim:
+//
+//   1 read      the document this claim came from, and what was not checked
+//   2 chosen    what the claim was read as, and which check that produced
+//   3 check     THE MODE SECTION — one body per verification mode, plus the
+//               bound that mode must declare, plus the decision it reached
+//   4 sources   what we compared it against
+//   5 gate      our own reasoning re-read against those sources
+//
+// Sections 1 and 3 can render as ABSENCES, and that is a designed state rather
+// than a failure: a claim whose document record we do not hold, and a claim
+// whose mode we do not hold, both say so. Neither substitutes a generic
+// paragraph for material it does not have, because an empty section is
+// indistinguishable from a check that found nothing to say.
+//
+// NOT YET BUILT: a closing "where this check stops" section (what the check
+// could not settle, and what would change the verdict). It needs the pipeline to
+// record those two things; no column holds them today, and deriving them on the
+// site would be inventing findings. The mode bound in section 3 carries the part
+// of that job which IS derivable — what the check cannot establish.
+//
+// The audit lines label their own parts in plain words around verbatim values
+// (`sentences 11 · checked 1 · set aside 9`). Labels are drawn from
+// `AUDIT_LABELS` and values stay exactly as the check recorded them. The
+// opaque value forms are defined in `TECHNICAL_RECORD_KEY`.
 
-/** The trail's four steps, in order. */
-export type TrailStepId = "made" | "logged" | "compared" | "decided";
+/** The trail's sections, in order. */
+export type TrailSectionKind = "read" | "chosen" | "check" | "sources" | "gate";
 
 export interface TrailSource {
   title: string;
@@ -222,6 +262,89 @@ export interface TrailSource {
   /** "dated 30 Jun 2026 · fetched 9 Sept 2026" */
   dates: string;
 }
+
+/** A label/value line: the framing rows a figures check computes, and similar. */
+export interface TrailRow {
+  label: string;
+  value: string;
+  /** Marked by the check as changing what the claim means (grid materialRows). */
+  material: boolean;
+}
+
+/** A sentence that was classified and set aside, with the plain reason. */
+export interface TrailAside {
+  sentenceText: string;
+  /** Plain-language reason, never the stored class name (SIT-R4). */
+  why: string;
+  /** Held rather than set aside — a commitment owed a verdict, not a drop. */
+  held: boolean;
+}
+
+export interface TrailSection {
+  kind: TrailSectionKind;
+  /** "1", "2", … — the reader's running order, gaps closed as sections drop. */
+  number: string;
+  title: string;
+  /** "9 Sept · 9:10 am". Empty when the store holds no date for the section. */
+  when: string;
+  /** The section's variable facts, one line each. */
+  facts: string[];
+  /** Labelled rows, where the check produced them (e.g. framing readings). */
+  rows: TrailRow[];
+  /** Sentences classified but not checked — the honest edge of the finding. */
+  asides: TrailAside[];
+  sources: TrailSource[];
+  /** The decision this section reached, where it reached one. */
+  decision: string | null;
+  /**
+   * What this check cannot establish (the mode's bound). Set on section 3 only,
+   * and always present when section 3 describes a mode: a finding reported
+   * without its limit invites the reader to over-read it.
+   */
+  bound: string | null;
+  /** True when the section reports that something did NOT happen. */
+  absent: boolean;
+  /** The audit line: recorded counts, versions, timestamps. Always rendered. */
+  technical: string;
+  /** Filled marker on the section that reached the verdict. */
+  mark: "none" | "answer";
+}
+
+export interface VerdictTrail {
+  /** "Checked 9 Sept 2026 — the day after the claim" */
+  headline: string;
+  sections: TrailSection[];
+}
+
+/**
+ * The key to the values the audit lines print (SITE-MVP §2.3, Sept 2026). The
+ * lines label their own parts in plain words, so this defines only what a plain
+ * label cannot carry: the form of a prompt version, the source-type codes, the
+ * verdict states this page is not currently printing, and the sentinel the page
+ * uses when the store held nothing.
+ */
+export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string }> = [
+  {
+    term: "name@version",
+    meaning:
+      "which set of instructions a step ran, and which version of them, written the way our system recorded it. A new number means the instructions changed; the version before it is kept, so a verdict can always be re-checked against the instructions that produced it. The section it sits under is where it belongs in the check.",
+  },
+  {
+    term: "source type codes",
+    meaning:
+      "a one-letter code saying what kind of source each one is — official statistics, academic research, a major newsroom. The plain-language key to these codes is on the evidence card above; the codes themselves are what the check wrote down.",
+  },
+  {
+    term: "PUBLISHED",
+    meaning:
+      "the state the verdict is in. This page says PUBLISHED once it is live and public, CONTESTED once someone has challenged it, and FROZEN once it is locked for the election period — from 5 Nov 2026 until the results are declared.",
+  },
+  {
+    term: "not recorded",
+    meaning:
+      "we hold nothing for that field, so the record says so rather than filling the gap with a guess — what a section shows when nothing was written down for it.",
+  },
+];
 
 /**
  * The labels an audit line may carry (SITE-MVP §2.2 rule 4, revised Sept 2026).
@@ -237,6 +360,11 @@ export const AUDIT_LABELS: readonly string[] = [
   "clip",
   "publisher",
   "recorded",
+  "sentences",
+  "checked",
+  "set aside",
+  "held",
+  "kind",
   "check",
   "model",
   "instructions",
@@ -248,6 +376,7 @@ export const AUDIT_LABELS: readonly string[] = [
   "state",
   "never revised",
   "revised",
+  "outcome",
   "not recorded",
 ];
 
@@ -263,74 +392,10 @@ export function assertAuditLabelsKnown(auditLine: string): void {
     const known = AUDIT_LABELS.some((label) => part === label || part.startsWith(`${label} `));
     if (!known) {
       throw new Error(
-        `audit line part "${part}" carries no reviewed label (SITE-MVP §2.2 rule 4) — add it to AUDIT_LABELS and define its value in TECHNICAL_RECORD_KEY, or state it in the step's facts instead`,
+        `audit line part "${part}" carries no reviewed label (SITE-MVP §2.2 rule 4) — add it to AUDIT_LABELS and define its value in TECHNICAL_RECORD_KEY, or state it in the section's facts instead`,
       );
     }
   }
-}
-
-/**
- * The key under the trail (SITE-MVP §2.3, revised Sept 2026). The audit lines
- * label their own parts in plain words now, so this no longer decodes the line's
- * syntax — it defines the four things a plain label cannot carry: the form of a
- * prompt version, the source-type codes, the verdict states this page is not
- * currently printing, and the sentinel the page uses when the store held nothing.
- * Kept as data rather than prose in the component so the register check can scan
- * it: the key is public copy like any other, and it must not smuggle in the
- * vocabulary it exists to explain.
- *
- * A method code (`stat-grid`, `citation-check`) is deliberately absent: the
- * facts line directly above the audit line already states that check in plain
- * words, and the code sits underneath it as the record of which one ran.
- */
-export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string }> = [
-  {
-    term: "name@version",
-    meaning:
-      "which set of instructions a step ran, and which version of them, written the way our system recorded it. A new number means the instructions changed; the version before it is kept, so a verdict can always be re-checked against the instructions that produced it. The step it sits under is where it belongs in the check.",
-  },
-  {
-    term: "source type codes",
-    meaning:
-      "a one-letter code saying what kind of source each one is — official statistics, academic research, a major newsroom. The plain-language key to these codes is on the evidence card above; the codes themselves are what the check wrote down.",
-  },
-  {
-    term: "PUBLISHED",
-    meaning:
-      "the state the verdict is in. This page says PUBLISHED once it is live and public, CONTESTED once someone has challenged it, and FROZEN once it is locked for the election period — from 5 Nov 2026 until the results are declared.",
-  },
-  {
-    term: "not recorded",
-    meaning:
-      "we hold nothing for that field, so the record says so rather than filling the gap with a guess — what a step shows when nothing was written down for it.",
-  },
-];
-
-export interface TrailStep {
-  id: TrailStepId;
-  /** "Tue 8 Sep" — the rail's date. Empty when the step is undated. */
-  dayLabel: string;
-  /** "7:42 am", "9:10–9:26 am". Empty alongside `dayLabel`. */
-  timeLabel: string;
-  title: string;
-  /** The step's variable facts, one line each. */
-  facts: string[];
-  sources: TrailSource[];
-  /** One short line, where the stage needs one. Null when the facts suffice. */
-  note: string | null;
-  /**
-   * The audit line: prompt/model/pipeline versions, source codes, timestamps.
-   * Always rendered — it is the reason this block is trustworthy.
-   */
-  technical: string;
-  /** Filled marker on the step that reached the verdict. */
-  mark: "none" | "answer";
-}
-
-export interface VerdictTrail {
-  /** "Checked 9 Sept 2026 — the day after the claim" */
-  headline: string;
-  steps: TrailStep[];
 }
 
 /**
@@ -353,7 +418,7 @@ function nzDate(date: Date, zone: string = NZ_ZONE): string {
     .replace(/\u202f|\u00a0/g, " ");
 }
 
-/** "Tue 8 Sep" — the rail label. */
+/** "Tue 8 Sep" — the day label. */
 function nzDayLabel(date: Date): string {
   return date
     .toLocaleDateString("en-NZ", {
@@ -398,40 +463,6 @@ function relativeToClaim(claimMadeAt: Date, checkedAt: Date): string {
   return "before the claim was made";
 }
 
-/**
- * What the claim IS decides what it gets checked against (TRIAGE's typing step),
- * said as the check the reader is watching happen. Written as plain sentences on
- * purpose: the first version read "a number over a period → the official series"
- * and "no routine shape → the open web", which is our internal framing — the
- * reader has no reason to know we think in claim shapes at all.
- */
-const METHOD_BY_CLAIM_TYPE: Record<string, { check: string; mode: string }> = {
-  statistical: {
-    check: "Checked against the official figures for that number.",
-    mode: "stat-grid",
-  },
-  "citation-backed": { check: "Checked against the source it cites.", mode: "citation-check" },
-  "institution-citation": {
-    check: "Checked against that institution's own record.",
-    mode: "citation-check",
-  },
-  "broadcast-quote": { check: "Checked against the recording.", mode: "quote-fidelity" },
-  "false-context": {
-    check: "Checked against whether the context around it holds.",
-    mode: "provenance",
-  },
-  other: {
-    check:
-      "Checked against whatever we could find online — our least reliable method, and the one most worth contesting.",
-    mode: "open-web",
-  },
-};
-
-const UNTYPED_METHOD = {
-  check: "Checked against the official record for it.",
-  mode: "not recorded",
-};
-
 /** What the evidence did to the claim, per verdict class (ADR-0004 wording). */
 const DECISION_PHRASE: Record<VerdictClass, string> = {
   supported: "backs the claim as it was made.",
@@ -441,49 +472,59 @@ const DECISION_PHRASE: Record<VerdictClass, string> = {
 };
 
 /**
- * Which step a recorded prompt role belongs to, by name. The site reads
+ * Which section a recorded prompt role belongs to, by name. The site reads
  * provenance keys as opaque strings (it may not import pipeline source — the
  * package boundary in AGENTS.md), so this is a mapping over the published role
  * names, not a type import. Roles that match nothing are still printed, on the
- * final step, rather than being dropped.
+ * final section, rather than being dropped (HAR-R7).
  */
-const ROLES_BY_STEP: Record<TrailStepId, string[]> = {
-  made: [],
-  logged: ["triage-checkability", "triage-typing", "triage-fingerprint", "triage-context"],
-  compared: [
+const ROLES_BY_SECTION: Record<TrailSectionKind, string[]> = {
+  read: ["triage-checkability", "triage-typing", "triage-fingerprint", "triage-context"],
+  chosen: [],
+  check: [
     "citation-compare",
     "quote-fidelity",
     "open-web",
     "authority-classify",
     "claim-decompose",
     "research-assess",
+    // Selects which readings of a series are material to how the claim is
+    // deployed — the comparison itself, not the gate. Filed here rather than
+    // under `gate` because the published copy for this section is what that
+    // selection produced.
+    "grid-materiality",
   ],
-  decided: ["grid-materiality", "nli-audit"],
+  sources: [],
+  gate: ["nli-audit"],
 };
 
-/** Every role the steps above account for, by name. */
-const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(ROLES_BY_STEP).flat());
+/**
+ * Sections a role may land on when the pipeline recorded it before the section
+ * names existed. `read` and `chosen` share the triage roles; a role that belongs
+ * to neither is printed on the last section rather than dropped.
+ */
+const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(ROLES_BY_SECTION).flat());
 
-function promptRolesFor(step: TrailStepId, versions: Record<string, string>): string[] {
+function promptRolesFor(section: TrailSectionKind, versions: Record<string, string>): string[] {
   return Object.keys(versions).filter((role) =>
-    step === "decided"
-      ? ROLES_BY_STEP.decided.includes(role) || !KNOWN_ROLES.has(role)
-      : ROLES_BY_STEP[step].includes(role),
+    section === "gate"
+      ? ROLES_BY_SECTION.gate.includes(role) || !KNOWN_ROLES.has(role)
+      : ROLES_BY_SECTION[section].includes(role),
   );
 }
 
-/** "role@1, other-role@1" for the roles that belong to one step. */
-function promptVersionsFor(step: TrailStepId, versions: Record<string, string>): string[] {
-  return promptRolesFor(step, versions)
+/** "role@1, other-role@1" for the roles that belong to one section. */
+function promptVersionsFor(section: TrailSectionKind, versions: Record<string, string>): string[] {
+  return promptRolesFor(section, versions)
     .map((role) => versions[role] ?? role)
     .filter((value) => value.length > 0);
 }
 
-function modelVersionsFor(step: TrailStepId, versions: Record<string, string>): string[] {
-  return promptRolesFor(step, versions).map((role) => `${role}: ${versions[role]}`);
+function modelVersionsFor(section: TrailSectionKind, versions: Record<string, string>): string[] {
+  return promptRolesFor(section, versions).map((role) => `${role}: ${versions[role]}`);
 }
 
-/** The earliest and latest of a set of instants — the step's own span. */
+/** The earliest and latest of a set of instants — the section's own span. */
 function spanOf(instants: Array<Date | null | undefined>): { from: Date; to: Date } | null {
   const times = instants.filter((value): value is Date => value instanceof Date);
   if (times.length === 0) return null;
@@ -491,7 +532,7 @@ function spanOf(instants: Array<Date | null | undefined>): { from: Date; to: Dat
   return { from: new Date(Math.min(...settled)), to: new Date(Math.max(...settled)) };
 }
 
-/** "9:10–9:26 am" when the step's events are on different clock times. */
+/** "9:10–9:26 am" when the section's events are on different clock times. */
 function timeRange(span: { from: Date; to: Date } | null): { dayLabel: string; timeLabel: string } {
   if (!span) return { dayLabel: "", timeLabel: "" };
   const dayLabel = nzDayLabel(span.to);
@@ -510,6 +551,13 @@ function timeRange(span: { from: Date; to: Date } | null): { dayLabel: string; t
     return { dayLabel, timeLabel: `${shared}–${to}` };
   }
   return { dayLabel, timeLabel: `${nzDayLabel(span.from)} – ${nzDayLabel(span.to)}` };
+}
+
+/** "9 Sept · 9:10–9:26 am" — the section header's date, or "" when undated. */
+function whenLabel(span: { from: Date; to: Date } | null): string {
+  const range = timeRange(span);
+  if (!range.dayLabel) return "";
+  return range.timeLabel ? `${range.dayLabel} · ${range.timeLabel}` : range.dayLabel;
 }
 
 /**
@@ -531,180 +579,69 @@ function line(parts: Array<string | null>): string {
 }
 
 /**
- * Build the trail (SITE-MVP §2.3). Steps whose dates the store does not hold are
- * omitted rather than rendered with a guessed one — a page that says "we logged
- * it on the 8th" when nothing recorded that is worse than a page whose trail
- * starts at the verdict.
+ * Build the trail (SITE-MVP §2.3). A section whose material the store does not
+ * hold renders as an absence with its reason; it is never filled with a
+ * paraphrase, because an empty or generic section is indistinguishable from a
+ * check that ran and found nothing.
  *
  * Public copy goes through the register check (`assertRegisterSafe`), so a
- * template edit cannot leak internal vocabulary onto a public page (SIT-R4). The
- * technical lines are the sanctioned exception (§2.2 rule 4) and are not
- * scanned.
+ * template edit cannot leak internal vocabulary onto a public page (SIT-R4). Two
+ * regions are exempt, both scoped rather than wholesale: the technical lines
+ * (§2.2 rule 4), and verbatim sentences quoted from the source document — a
+ * quotation is not our copy, and scanning third-party text against our internal
+ * lexicon would fail a page because an interviewee said "fingerprint".
  */
 export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
-  const steps: TrailStep[] = [];
-  const method =
-    (input.claimType ? METHOD_BY_CLAIM_TYPE[input.claimType] : undefined) ?? UNTYPED_METHOD;
+  const sections: Array<Omit<TrailSection, "number">> = [];
+  const resolved = resolveMode({
+    verificationMode: input.verificationMode ?? null,
+    claimType: input.claimType,
+  });
   // The claim's own record and the verdict's provenance are two sides of the same
   // run: merged for bucketing, so a role written onto the claim (triage) and one
-  // written onto the verdict (the check) both reach their step.
+  // written onto the verdict (the check) both reach their section.
   const promptVersions: Record<string, string> = {
     ...input.promptVersions,
     ...input.claimPromptVersions,
   };
 
-  // 1 · the claim was made — needs the claim's own date (claim.spoken_at).
-  if (input.claimMadeAt) {
-    steps.push({
-      id: "made",
-      dayLabel: nzDayLabel(input.claimMadeAt),
-      timeLabel: nzTimeLabel(input.claimMadeAt),
-      title: "Claim made",
-      facts: [
-        line([
-          input.publisher,
-          input.mediaAnchor ? `clip from ${clipOffset(input.mediaAnchor.startS)}` : null,
-        ]) || "in the record we logged",
-      ],
-      sources: [],
-      note: null,
-      technical: line([
-        `exact time ${input.claimMadeAt.toISOString()}`,
-        input.mediaAnchor
-          ? `clip ${clipOffset(input.mediaAnchor.startS)}–${clipOffset(input.mediaAnchor.endS)}`
-          : null,
-        input.publisher ? `publisher ${input.publisher}` : null,
-      ]),
-      mark: "none",
-    });
-  }
+  // 1 · the document this claim came from, and what was not checked.
+  sections.push(readSection(input, promptVersions));
 
-  // 2 · we logged it and sorted it — needs a recorded ingestion time.
-  const loggedSpan = spanOf([input.sourceRetrievedAt, input.claimRecordedAt]);
-  if (loggedSpan) {
-    const range = timeRange(loggedSpan);
-    steps.push({
-      id: "logged",
-      dayLabel: range.dayLabel,
-      timeLabel: range.timeLabel,
-      title: "Logged and sorted",
-      facts: [method.check],
-      sources: [],
-      note:
-        input.transcriptTier === "publisher-auto"
-          ? "This wording came from an automatic transcript and can contain errors."
-          : null,
-      technical: line([
-        `recorded ${loggedSpan.from.toISOString()}`,
-        `check ${method.mode}`,
-        input.claimModelVersion ? `model ${input.claimModelVersion}` : null,
-        `instructions ${promptVersionsFor("logged", promptVersions).join(", ") || "not recorded"}`,
-      ]),
-      mark: "none",
-    });
-  }
+  // 2 · what the claim was read as, and which check that produced.
+  sections.push(chosenSection(input, resolved));
 
-  // 3 · what we compared it against — one row per stored source.
-  if (input.evidence.length > 0) {
-    const count = input.evidence.length;
-    const newest =
-      input.evidence
-        .map((item) => item.vintageDate)
-        .filter((value) => value.length > 0)
-        .sort()
-        .at(-1) ?? null;
-    const sourcesRange = timeRange(spanOf(input.evidence.map((item) => item.retrievedAt)));
-    steps.push({
-      id: "compared",
-      dayLabel: sourcesRange.dayLabel,
-      timeLabel: sourcesRange.timeLabel,
-      title: "We gathered the evidence",
-      facts: [
-        `${count} source${count === 1 ? "" : "s"}${newest ? `, newest dated ${readableDate(newest)}` : ""}`,
-      ],
-      sources: input.evidence.map((item) => ({
-        title: item.seriesIdentity,
-        url: item.url && item.url.length > 0 ? item.url : null,
-        finding: item.plainReason,
-        dates: line([
-          item.vintageDate ? `dated ${readableDate(item.vintageDate)}` : null,
-          item.retrievedAt ? `fetched ${nzDate(item.retrievedAt)}` : null,
-        ]),
-      })),
-      note: "A claim can hold up against old figures and fail against new ones.",
-      technical: line([
-        `sources ${count}`,
-        input.sourceCodes ? `source types ${input.sourceCodes}` : null,
-        `web searches ${input.searchRefs.length}`,
-        `instructions ${promptVersionsFor("compared", promptVersions).join(", ") || "not recorded"}`,
-      ]),
-      mark: "none",
-    });
-  }
+  // 3 · THE MODE SECTION — how this kind of check works, and what it did here.
+  sections.push(checkSection(input, promptVersions, resolved));
 
-  // 4 · the verdict, the second pass and publication.
-  const decidedSpan = spanOf([input.checkedAt, input.publishedAt]);
-  const range = timeRange(decidedSpan);
-  const count = input.evidence.length;
-  const revisions = Math.max(0, input.verdictVersion - 1);
-  const facts: string[] = [
-    count > 0
-      ? `Against ${count} source${count === 1 ? "" : "s"}: the evidence ${DECISION_PHRASE[input.verdictClass]}`
-      : input.verdictClass === "not_enough_evidence"
-        ? "No usable source found: it stays an open question."
-        : "This check rested on the record above.",
-  ];
-  // The publication gate (VERIFICATION §2.7): the reasoning is re-read against
-  // the sources before anything publishes, and a failure is supposed to BLOCK the
-  // verdict. So a published page carrying `fail` is a defect in whatever wrote it
-  // — two slice scripts used to publish past a failed audit, one of them
-  // recording "pass" without running the audit at all (Sept 2026, both fixed).
-  // The line below still renders the stored outcome rather than hiding it: a page
-  // whose record says one thing and whose trail says another is worse than a page
-  // that admits its second pass did not pass.
-  if (input.nliOutcome === "pass") {
-    facts.push("A second pass re-read the sources and agreed.");
-  } else if (input.nliOutcome) {
-    facts.push("The second pass on the reasoning did not pass.");
-  }
-  facts.push(
-    revisions === 0
-      ? "Nothing has changed since."
-      : `Revised ${revisions} time${revisions === 1 ? "" : "s"} since.`,
-  );
-  steps.push({
-    id: "decided",
-    dayLabel: range.dayLabel,
-    timeLabel: range.timeLabel,
-    title: "Decided and published",
-    facts,
-    sources: [],
-    note: null,
-    technical: line([
-      `ClaimWatch version ${input.pipelineVersion}`,
-      `verdict version ${input.verdictVersion}`,
-      `state ${input.verdictStatus}`,
-      revisions === 0 ? "never revised" : `revised ${revisions} time${revisions === 1 ? "" : "s"}`,
-      `instructions ${promptVersionsFor("decided", promptVersions).join(", ") || "not recorded"}`,
-      modelVersionsFor("decided", input.modelVersions).length > 0
-        ? `model ${modelVersionsFor("decided", input.modelVersions).join(", ")}`
-        : null,
-    ]),
-    mark: "answer",
-  });
+  // 4 · what we compared it against.
+  if (input.evidence.length > 0) sections.push(sourcesSection(input));
+
+  // 5 · our own reasoning, re-read against those sources.
+  sections.push(gateSection(input, promptVersions));
+
+  const numbered: TrailSection[] = sections.map((section, index) => ({
+    ...section,
+    number: String(index + 1),
+  }));
 
   // The audit lines are the one region the register scan cannot police (§2.2
   // rule 4), so their labels are checked against a reviewed allow-list instead:
   // an unreviewed label fails the build rather than riding into a public page
   // inside the exempt region.
-  for (const step of steps) assertAuditLabelsKnown(step.technical);
+  for (const section of numbered) assertAuditLabelsKnown(section.technical);
 
+  // Quoted source sentences are excluded from the scan on purpose — see the
+  // function comment. Everything else the page prints is scanned.
   const publicCopy = [
-    ...steps.flatMap((step) => [
-      step.title,
-      ...step.facts,
-      step.note ?? "",
-      ...step.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
+    ...numbered.flatMap((section) => [
+      section.title,
+      ...section.facts,
+      section.decision ?? "",
+      section.bound ?? "",
+      ...section.rows.flatMap((row) => [row.label, row.value]),
+      ...section.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
+      ...section.asides.map((aside) => aside.why),
     ]),
     // The key is public copy too — the one place internal values are named, so it
     // must not itself smuggle in vocabulary it exists to explain.
@@ -716,7 +653,348 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
     headline: input.claimMadeAt
       ? `Checked ${nzDate(input.publishedAt)} — ${relativeToClaim(input.claimMadeAt, input.publishedAt)}`
       : `Checked ${nzDate(input.publishedAt)}`,
-    steps,
+    sections: numbered,
+  };
+}
+
+/** Said when a stored rejection class has no description in the site's table. */
+const SET_ASIDE_FALLBACK = "no evidence can settle it as stated.";
+
+/** Section 1 — the document read, and what was set aside. */
+function readSection(
+  input: VerdictPageInput,
+  promptVersions: Record<string, string>,
+): Omit<TrailSection, "number"> {
+  const span = spanOf([input.sourceRetrievedAt, input.claimRecordedAt]);
+  const record = input.triageRecord ?? null;
+  // Two buckets, built separately rather than merged. A held sentence is not a
+  // set-aside, and the plain reason for each comes from the SITE's own table
+  // rather than from stored prose: published copy stays ours and stays
+  // register-scanned, so a pipeline that writes an unvetted sentence into
+  // `triage_record` cannot put it on a public page (SIT-R4).
+  const asides: TrailAside[] = record
+    ? [
+        ...record.setAside.map((entry) => ({
+          sentenceText: entry.sentenceText,
+          why: rejectionDescription(entry.rejectionClass)?.description ?? SET_ASIDE_FALLBACK,
+          held: false,
+        })),
+        ...record.held.map((entry) => ({
+          sentenceText: entry.sentenceText,
+          why: "a commitment that can only be graded once the deadline it names has passed.",
+          held: true,
+        })),
+      ]
+    : [];
+
+  if (!record) {
+    return {
+      kind: "read",
+      title: "What else was in the document",
+      when: whenLabel(span),
+      facts: [
+        "This claim came out of a longer document. We do not hold a record of which other sentences were read and set aside for it, so this page cannot say how much of that document the verdict speaks to.",
+      ],
+      rows: [],
+      asides: [],
+      sources: [],
+      decision: null,
+      bound: null,
+      absent: true,
+      // The claim's own record — when it was said, where in the recording, and
+      // who published it — rides on this section's audit line rather than having
+      // a section of its own: the claim card above already carries the
+      // attribution and the date, and a section that restates them would be the
+      // duplication this block was rewritten to remove. The raw values are
+      // provenance and stay visible either way.
+      technical: line([
+        `exact time ${input.claimMadeAt?.toISOString() ?? "not recorded"}`,
+        input.mediaAnchor
+          ? `clip ${clipOffset(input.mediaAnchor.startS)}–${clipOffset(input.mediaAnchor.endS)}`
+          : null,
+        input.publisher ? `publisher ${input.publisher}` : null,
+        `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+        "sentences not recorded",
+        input.claimModelVersion ? `model ${input.claimModelVersion}` : null,
+        `instructions ${promptVersionsFor("read", promptVersions).join(", ") || "not recorded"}`,
+      ]),
+      mark: "none",
+    };
+  }
+
+  const setAsideCount = record.setAside.length;
+  const heldCount = record.held.length;
+  const facts: string[] = [
+    `${record.sentencesRead} sentence${record.sentencesRead === 1 ? "" : "s"} in the document this claim came from were read and classified. ${record.checked} became ${record.checked === 1 ? "a claim" : "claims"}; the rest could not be graded.`,
+  ];
+  if (setAsideCount > 0 || heldCount > 0) {
+    facts.push(
+      "What we did not check is listed below, so you can judge for yourself how much of the document this finding covers.",
+    );
+  }
+  return {
+    kind: "read",
+    title: "What else was in the document, and what we did not check",
+    when: whenLabel(span),
+    facts,
+    rows: [],
+    asides,
+    sources: [],
+    decision: null,
+    bound: null,
+    absent: false,
+    technical: line([
+      `exact time ${input.claimMadeAt?.toISOString() ?? "not recorded"}`,
+      input.mediaAnchor
+        ? `clip ${clipOffset(input.mediaAnchor.startS)}–${clipOffset(input.mediaAnchor.endS)}`
+        : null,
+      input.publisher ? `publisher ${input.publisher}` : null,
+      `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+      `sentences ${record.sentencesRead}`,
+      `checked ${record.checked}`,
+      `set aside ${setAsideCount}`,
+      heldCount > 0 ? `held ${heldCount}` : null,
+      input.claimModelVersion ? `model ${input.claimModelVersion}` : null,
+      `instructions ${promptVersionsFor("read", promptVersions).join(", ") || "not recorded"}`,
+    ]),
+    mark: "none",
+  };
+}
+
+/** "kind statistical" — the typing, for an audit line. */
+function kindLabel(input: VerdictPageInput): string {
+  return input.claimType ? `kind ${input.claimType}` : "kind not recorded";
+}
+
+/** Section 2 — the reading, and the check it produced. */
+function chosenSection(
+  input: VerdictPageInput,
+  resolved: { mode: string; source: "recorded" | "derived" } | null,
+): Omit<TrailSection, "number"> {
+  const span = spanOf([input.claimRecordedAt]);
+  const reading = input.claimType ? CLAIM_TYPE_READING[input.claimType] : undefined;
+  if (!resolved) {
+    return {
+      kind: "chosen",
+      title: "Which check this claim was given",
+      when: whenLabel(span),
+      facts: [
+        "We do not hold a record of the kind of check this claim was routed to. The check ran and produced the verdict above, but the decision that selected it was not written down, so this page will not guess which one it was.",
+      ],
+      rows: [],
+      asides: [],
+      sources: [],
+      decision: null,
+      bound: null,
+      absent: true,
+      technical: line([
+        `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+        "check not recorded",
+      ]),
+      mark: "none",
+    };
+  }
+  return {
+    kind: "chosen",
+    title: "Which check this claim was given",
+    when: whenLabel(span),
+    facts: [
+      reading
+        ? `Read as ${reading}`
+        : "Read as a statement a check could test, on the claim's own wording.",
+      "That choice was made from the claim itself, before any evidence was gathered — it is the one decision that cannot be made honestly once the answer is known.",
+    ],
+    rows: [],
+    asides: [],
+    sources: [],
+    decision: null,
+    bound: null,
+    absent: false,
+    technical: line([
+      `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+      kindLabel(input),
+      `check ${resolved.mode}`,
+      resolved.source === "derived" ? "check derived from claim type" : null,
+    ]),
+    mark: "none",
+  };
+}
+
+/** Section 3 — the mode body: how this check works, what it did, its limit. */
+function checkSection(
+  input: VerdictPageInput,
+  promptVersions: Record<string, string>,
+  resolved: { mode: string; source: "recorded" | "derived" } | null,
+): Omit<TrailSection, "number"> {
+  const span = spanOf([input.checkedAt, ...input.evidence.map((item) => item.retrievedAt)]);
+  const description = resolved ? modeDescription(resolved.mode) : null;
+
+  if (!description || !resolved) {
+    return {
+      kind: "check",
+      title: "How this claim was checked",
+      when: whenLabel(span),
+      facts: [
+        "This page does not hold a record of which kind of check produced the verdict below, so it cannot explain how the comparison worked.",
+      ],
+      rows: [],
+      asides: [],
+      sources: [],
+      decision: null,
+      bound: null,
+      absent: true,
+      technical: line([
+        `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+        "check not recorded",
+      ]),
+      mark: "answer",
+    };
+  }
+
+  const facts: string[] = [description.whatItDoes, description.chosenWhen];
+  const decision = decisionFor(input);
+
+  // The anchor absence (VER-R5): a quotation check cannot compare words it
+  // cannot locate, and says so rather than reporting a comparison it did not run.
+  if (resolved.mode === "quote-fidelity" && !input.mediaAnchor) {
+    facts.push(
+      "No recording or transcript is linked to this claim, so the quoted words could not be located in any record — and this check could not run. That is not the same finding as a quotation being misreported.",
+    );
+  }
+
+  // One line, and only where it is true of this mode: a figures check reads
+  // several vintages of the same series, and the vintage is half of what a
+  // number means. It would be noise on a quotation check.
+  if (resolved.mode === "stat-grid" && input.evidence.length > 1) {
+    facts.push("A claim can hold up against old figures and fail against new ones.");
+  }
+
+  const rows: TrailRow[] = [];
+
+  return {
+    kind: "check",
+    title: `How this claim was checked: ${description.label.toLowerCase()}`,
+    when: whenLabel(span),
+    facts,
+    rows,
+    asides: [],
+    sources: [],
+    decision,
+    bound: description.cannot,
+    absent: false,
+    technical: line([
+      `recorded ${span?.from.toISOString() ?? "not recorded"}`,
+      `check ${resolved.mode}`,
+      // The source count and codes live on the sources section, one section on;
+      // repeating them here would print the same record twice.
+      input.searchRefs.length > 0 ? `web searches ${input.searchRefs.length}` : null,
+      `instructions ${promptVersionsFor("check", promptVersions).join(", ") || "not recorded"}`,
+      modelVersionsFor("check", input.modelVersions).length > 0
+        ? `model ${modelVersionsFor("check", input.modelVersions).join(", ")}`
+        : null,
+    ]),
+    mark: "answer",
+  };
+}
+
+/** What the evidence did to the claim, from the verdict class (ADR-0004). */
+function decisionFor(input: VerdictPageInput): string | null {
+  const count = input.evidence.length;
+  if (count > 0) {
+    return `Against ${count} source${count === 1 ? "" : "s"}: the evidence ${DECISION_PHRASE[input.verdictClass]}`;
+  }
+  if (input.verdictClass === "not_enough_evidence") {
+    return "No usable source was found, so the claim stays an open question rather than being graded.";
+  }
+  return null;
+}
+
+/** Section 4 — the sources themselves. */
+function sourcesSection(input: VerdictPageInput): Omit<TrailSection, "number"> {
+  const span = spanOf(input.evidence.map((item) => item.retrievedAt));
+  return {
+    kind: "sources",
+    title: "What we compared it against",
+    when: whenLabel(span),
+    facts: [],
+    rows: [],
+    asides: [],
+    sources: input.evidence.map((item) => ({
+      title: item.seriesIdentity,
+      url: item.url && item.url.length > 0 ? item.url : null,
+      finding: item.plainReason,
+      dates: line([
+        item.vintageDate ? `dated ${readableDate(item.vintageDate)}` : null,
+        item.retrievedAt ? `fetched ${nzDate(item.retrievedAt)}` : null,
+      ]),
+    })),
+    decision: null,
+    bound: null,
+    absent: false,
+    technical: line([
+      `sources ${input.evidence.length}`,
+      input.sourceCodes ? `source types ${input.sourceCodes}` : null,
+    ]),
+    mark: "none",
+  };
+}
+
+/** Section 5 — the publication gate, and the publication itself. */
+function gateSection(
+  input: VerdictPageInput,
+  promptVersions: Record<string, string>,
+): Omit<TrailSection, "number"> {
+  const span = spanOf([input.checkedAt, input.publishedAt]);
+  const revisions = Math.max(0, input.verdictVersion - 1);
+  const facts: string[] = [
+    "Before publishing, our own reasoning was re-read against the sources by a separate pass whose only job is to find statements the evidence does not support.",
+  ];
+  // The publication gate (VERIFICATION §2.7): a failure is supposed to BLOCK the
+  // verdict, so a published page carrying `fail` is a defect in whatever wrote it
+  // — two slice scripts used to publish past a failed audit, one of them
+  // recording "pass" without running the audit at all (Sept 2026, both fixed).
+  // The line below still renders the stored outcome rather than hiding it.
+  if (input.nliOutcome === "pass") {
+    facts.push(
+      "It agreed with all of the reasoning, so nothing published here rests on a statement the sources do not support.",
+    );
+  } else if (input.nliOutcome) {
+    facts.push(
+      "The second pass did not pass. That is a defect in how this verdict was published, and it is recorded rather than hidden.",
+    );
+  }
+  if (input.transcriptTier === "publisher-auto") {
+    facts.push("The claim's wording came from an automatic transcript and can contain errors.");
+  }
+  facts.push(
+    revisions === 0
+      ? "Nothing has changed since it was first published."
+      : `It has been revised ${revisions} time${revisions === 1 ? "" : "s"} since; the earlier version stays visible.`,
+  );
+
+  return {
+    kind: "gate",
+    title: "Decided and published",
+    when: whenLabel(span),
+    facts,
+    rows: [],
+    asides: [],
+    sources: [],
+    decision: null,
+    bound: null,
+    absent: false,
+    technical: line([
+      `ClaimWatch version ${input.pipelineVersion}`,
+      `verdict version ${input.verdictVersion}`,
+      `state ${input.verdictStatus}`,
+      revisions === 0 ? "never revised" : `revised ${revisions} time${revisions === 1 ? "" : "s"}`,
+      input.nliOutcome ? `outcome ${input.nliOutcome}` : null,
+      `instructions ${promptVersionsFor("gate", promptVersions).join(", ") || "not recorded"}`,
+      modelVersionsFor("gate", input.modelVersions).length > 0
+        ? `model ${modelVersionsFor("gate", input.modelVersions).join(", ")}`
+        : null,
+    ]),
+    mark: "answer",
   };
 }
 

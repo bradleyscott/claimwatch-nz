@@ -7,72 +7,112 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   TECHNICAL_RECORD_KEY,
   type VerdictTrail as Trail,
-  type TrailStep,
+  type TrailSection,
 } from "@/lib/verdict-page";
 
-// "How this verdict was made" (SITE-MVP §2.3, Sept 2026) — the dated trail that
-// replaced the provenance accordion, the "Checked …" metarow and the dashed
-// paragraph that restated the accordion's own heading. Built from the vendored
-// shadcn primitives so it themes from the ClaimWatch tokens like every other
-// card.
+// "How this verdict was made" (SITE-MVP §2.3, Sept 2026) — the mode-aware
+// account of the check: what the claim was read as, which check that produced,
+// how that kind of check works and what it did here, what it was compared
+// against, and the second pass on our own reasoning.
 //
-// Two things to know before editing:
+// Three things to know before editing:
 //
-// - Every step, its sources and its audit line are always visible. No accordion,
-//   no reveal control: a record a reader has to ask for is one most readers
-//   never see. Lines are one fact each, and nothing restates the verdict card
-//   above or the /methodology page.
+// - Five sections, and the middle one is the only part that varies with the
+//   check. Sections can render as an ABSENCE (a claim whose document record or
+//   whose mode we do not hold): that is a designed state, not a failure. An
+//   absent section states what is missing; it is never filled with a generic
+//   paragraph, because an empty or paraphrased section is indistinguishable
+//   from a check that ran and found nothing to say.
+// - Every section and its audit line are always visible. No accordion, no
+//   reveal control: a record a reader has to ask for is one most readers never
+//   see. Copy is one fact per line, and nothing restates the verdict card above
+//   or the /methodology page.
 // - Each audit line carries `data-provenance-line`. That is not a styling hook:
 //   the register scan keys on it to exclude the one region allowed internal
-//   vocabulary (SIT-R4, see `publicCopyOf` in the render test). Move the line and
-//   the attribute moves with it.
+//   vocabulary (SIT-R4, see `publicCopyOf` in the render test). Move the line
+//   and the attribute moves with it.
 //
 // `TECHNICAL_RECORD_KEY` (in lib/verdict-page.ts) defines the opaque values
 // those lines can print — the lines label their own parts in plain words — and
 // is register-scanned like any other public copy.
 
-/** The rail marker: filled on the step that reached the verdict. */
-function StepDot({ step }: { step: TrailStep }) {
+/** One section: its heading, its prose, and whatever else it carries. */
+function TrailSectionRow({ section }: { section: TrailSection }) {
   return (
-    <span
-      aria-hidden="true"
-      // `block`: a bare span is inline, where width/height are ignored and the
-      // marker collapses into a border-only sliver.
-      className={`mt-1.5 block size-[11px] flex-none rounded-full border-2 ${
-        step.mark === "answer" ? "border-foreground bg-foreground" : "border-faint bg-card"
-      }`}
-    />
-  );
-}
-
-function StepRow({ step }: { step: TrailStep }) {
-  return (
-    <div className="grid grid-cols-[84px_1fr] gap-4 border-border border-t py-3 first:border-t-0 sm:grid-cols-[96px_12px_1fr]">
-      <div className="pt-0.5 text-[12px] font-bold text-muted-foreground">
-        {step.dayLabel}
-        {step.timeLabel ? (
-          <span className="block font-mono text-[11px] font-medium text-faint">
-            {step.timeLabel}
-          </span>
-        ) : null}
-      </div>
-      <div className="hidden sm:block">
-        <StepDot step={step} />
-      </div>
+    <section
+      className="grid grid-cols-[84px_1fr] gap-4 border-border border-t py-4 first:border-t-0 sm:grid-cols-[96px_1fr]"
+      data-trail-section={section.kind}
+      {...(section.absent ? { "data-trail-absent": "" } : {})}
+    >
+      <div className="pt-0.5 text-[12px] font-bold text-muted-foreground">{section.when}</div>
       <div className="min-w-0">
-        <h3 className="text-[14.5px] font-bold tracking-tight">{step.title}</h3>
-        {step.facts.map((fact) => (
-          <p key={fact} className="mt-0.5 text-[13px] leading-snug">
+        <h3 className="text-[14.5px] font-bold tracking-tight">
+          <span className="mr-1.5 font-mono text-[12px] font-semibold text-faint">
+            {section.number}
+          </span>
+          {section.title}
+        </h3>
+
+        {section.facts.map((fact) => (
+          <p key={fact} className="mt-1 text-[13px] leading-snug">
             {fact}
           </p>
         ))}
-        {step.sources.length > 0 ? (
+
+        {section.rows.length > 0 ? (
+          <table className="mt-2 w-full border-collapse text-[12.5px]">
+            <tbody>
+              {section.rows.map((row) => (
+                <tr
+                  key={`${row.label}-${row.value}`}
+                  className={`border-border border-t${row.material ? " bg-verdict-incomplete-soft" : ""}`}
+                >
+                  <td className="py-1.5 pr-3 align-top font-semibold text-foreground">
+                    {row.label}
+                  </td>
+                  <td className="py-1.5 align-top font-mono text-[12px] text-muted-foreground">
+                    {row.value}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+
+        {section.decision ? (
+          <div className="mt-2 rounded-lg border border-verdict-incomplete-line bg-verdict-incomplete-soft px-3 py-2">
+            <div className="microlabel mb-0 text-verdict-incomplete-ink">What this means</div>
+            <p className="mt-1 text-[13px] leading-snug font-semibold">{section.decision}</p>
+          </div>
+        ) : null}
+
+        {section.bound ? (
+          <div className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+            <div className="microlabel mb-0">What this check cannot establish</div>
+            <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{section.bound}</p>
+          </div>
+        ) : null}
+
+        {section.asides.length > 0 ? (
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {section.asides.map((aside) => (
+              <li key={aside.sentenceText} className="text-[12.5px] leading-snug">
+                <span className="text-foreground italic">“{aside.sentenceText}”</span>{" "}
+                <span className="text-muted-foreground">
+                  {aside.held ? "held back — " : ""}
+                  {aside.why}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {section.sources.length > 0 ? (
           <div className="mt-2 flex flex-col gap-2">
-            {step.sources.map((source) => (
+            {section.sources.map((source) => (
               <Card
                 // A series can legitimately appear twice (two vintages), so the
                 // key is the row's identity plus the dates that distinguish it.
@@ -105,17 +145,15 @@ function StepRow({ step }: { step: TrailStep }) {
             ))}
           </div>
         ) : null}
-        {step.note ? (
-          <p className="mt-1.5 text-[12.5px] leading-snug text-faint">{step.note}</p>
-        ) : null}
+
         <p
           data-provenance-line=""
           className="mt-1.5 font-mono text-[11px] leading-relaxed text-faint"
         >
-          {step.technical}
+          {section.technical}
         </p>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -132,16 +170,9 @@ export function VerdictTrail({ trail }: { trail: Trail }) {
       </CardHeader>
 
       <CardContent className="mt-3 px-0">
-        <div className="relative">
-          {/* The rail: one line behind every step's marker. */}
-          <Separator
-            orientation="vertical"
-            className="absolute top-4 bottom-4 left-[117px] hidden h-auto sm:block"
-          />
-          {trail.steps.map((step) => (
-            <StepRow key={step.id} step={step} />
-          ))}
-        </div>
+        {trail.sections.map((section) => (
+          <TrailSectionRow key={section.number} section={section} />
+        ))}
 
         {/* The key to the values above. A native <details> for the same reason the
             evidence card's source key is one: the explanation stays in the

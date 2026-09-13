@@ -3,7 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
-import type { TriageRecord, VerificationMode } from "./triage-record.ts";
+import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {
   sourceId: string;
@@ -41,7 +41,7 @@ export interface ClaimFixture {
    * a caller with only a single sentence to record legitimately has no document
    * record, and the page then omits the section rather than inventing counts.
    */
-  triageRecord?: TriageRecord | null;
+  triageRecord?: TriageRecordInput | null;
   discourseContext: DiscourseContext;
   mediaAnchor?: MediaAnchor | null;
   // When the claim was made (broadcast moment / publication date), as opposed

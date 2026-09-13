@@ -79,6 +79,11 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
     claimRecordedAt: data.claimRecordedAt,
     sourceRetrievedAt: data.sourceRetrievedAt,
     claimType: data.claimType,
+    // Both nullable, and passed through as null rather than omitted (Sept 2026):
+    // the trail needs to tell "we hold no mode for this claim" from "this claim is
+    // old", and every verdict written before the columns existed is the former.
+    verificationMode: data.verificationMode,
+    triageRecord: data.triageRecord,
     publisher: data.publisher,
     claimPromptVersions: data.claimPromptVersions,
     claimModelVersion: data.claimModelVersion,

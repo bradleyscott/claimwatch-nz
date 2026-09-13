@@ -89,10 +89,41 @@ const pageData = {
   triageRecord: null,
 } as const satisfies VerdictPageData;
 
+/**
+ * The same claim recorded AFTER the two Sept 2026 columns existed. Kept as a
+ * second fixture rather than merged into `pageData`, because the null state is
+ * not a leftover: it is what all 25 verdicts written before the migration look
+ * like, so BOTH paths are live code and both get rendered here.
+ */
+const pageDataWithMode = {
+  ...pageData,
+  verificationMode: "stat-grid",
+  triageRecord: {
+    sentencesRead: 11,
+    checked: 1,
+    setAside: [
+      { sentenceText: "Communities deserve to feel safe.", rejectionClass: "opinion" },
+      { sentenceText: "This is a war we intend to win.", rejectionClass: "rhetoric" },
+    ],
+    held: [
+      {
+        sentenceText: "We will have new laws in place this term.",
+        reason: "A commitment: it can only be graded once the deadline it names has passed.",
+      },
+    ],
+  },
+} as const satisfies VerdictPageData;
+
 async function renderVerdictPage(id: string): Promise<string> {
   const mod = await import("@/app/claim/[id]/page");
   const element = await mod.default({ params: Promise.resolve({ id }) });
   return renderToStaticMarkup(element as React.ReactElement);
+}
+
+/** The page as it renders for a claim whose check we can name. */
+async function renderVerdictPageWithMode(id: string): Promise<string> {
+  pinFixtureStore(fixtureSiteStore([], { [id]: pageDataWithMode }));
+  return renderVerdictPage(id);
 }
 
 /**
@@ -199,33 +230,51 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("source types T1, T6");
   });
 
-  it("renders the trail — every step, its date and its audit line — in the initial HTML (SITE-MVP §2.3)", async () => {
-    const html = await renderVerdictPage(claimId);
-    // The block that replaced the provenance accordion states the checked date
-    // against the claim's own date...
+  it("renders the mode-aware trail — every section, dated — in the initial HTML (SITE-MVP §2.3)", async () => {
+    const html = await renderVerdictPageWithMode(claimId);
+    // The block states the checked date against the claim's own date...
     expect(html).toContain("How this verdict was made");
     expect(html).toContain("Checked 9 Sept 2026 — the day after the claim");
-    // ...carries all four dated steps, in short, jargon-free titles...
-    for (const step of [
-      "Claim made",
-      "Logged and sorted",
-      "We gathered the evidence",
+    // ...and carries all five sections, in order, in jargon-free titles.
+    const headings = [
+      "What else was in the document, and what we did not check",
+      "Which check this claim was given",
+      "How this claim was checked: official figures",
+      "What we compared it against",
       "Decided and published",
-    ]) {
-      expect(html).toContain(step);
-    }
-    expect(html).toContain("Tue 8 Sept");
-    expect(html).toContain("7:42 am");
-    // ...says what each step actually did to this claim...
-    expect(html).toContain("Checked against the official figures for that number.");
-    expect(html).toContain("3 sources, newest dated 2 Aug 2026");
+    ];
+    const positions = headings.map((heading) => html.indexOf(heading));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    // The section the claim's own record rides on is dated; the claim-time line
+    // is on the audit line rather than in a section of its own.
+    expect(html).toContain("Wed 9 Sept");
+    expect(html).toContain("exact time 2026-09-07T19:42:00.000Z");
+    expect(html).toContain("publisher Newstalk ZB");
+    // The claim's own date in words is the claim card's, not the trail's: the
+    // "claim made" step was folded into section 1's audit line, so this pins
+    // that the absolute date still reaches the reader.
+    expect(html).toContain("8 September 2026");
+    // What the claim was read as, and which check that produced.
+    expect(html).toContain("a number stated over a period");
+    expect(html).toContain("check stat-grid");
+    // What this check cannot establish — the bound, which no mode may omit.
+    expect(html).toContain("What this check cannot establish");
+    expect(html).toContain("Establish that one thing caused another.");
+    // The sentences we did not check, with a plain reason instead of the class.
+    expect(html).toContain("Communities deserve to feel safe.");
+    expect(html).toContain("A judgement about fairness or importance");
+    expect(html).toContain("We will have new laws in place this term.");
+    expect(html).toContain("held back");
+    expect(html).toContain("sentences 11");
+    expect(html).toContain("set aside 2");
+    // The decision, the sources, and the second pass.
     expect(html).toContain(
       "Against 3 sources: the evidence backs the numbers but not the framing.",
     );
-    expect(html).toContain("A second pass re-read the sources and agreed.");
-    // ...carries the sources themselves, dated...
     expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
     expect(html).toContain("The cited window shows +11.6%, per-capita +1.9%.");
+    expect(html).toContain("agreed with all of the reasoning");
     // ...and the key that explains the values those audit lines print — the
     // labels are plain words, so only the opaque forms need defining — is in the
     // same server-rendered response, not behind a script.
@@ -239,6 +288,19 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("ClaimWatch version 0.1.0");
     expect(html).not.toContain("Show the technical record");
     expect(html).not.toContain('type="checkbox"');
+  });
+
+  it("renders an absence for the claims that predate the mode columns, not a guess", async () => {
+    const html = await renderVerdictPage(claimId);
+    // This is the state every verdict written before Sept 2026 is in. The page
+    // says what it does not hold; it does not describe a check it cannot name.
+    expect(html).toContain("data-trail-absent");
+    expect(html).toContain("does not hold a record of which kind of check");
+    expect(html).toContain("cannot say how much of that document");
+    expect(html).toContain("check not recorded");
+    expect(html).toContain("sentences not recorded");
+    // And it never invents the bound for a check it could not identify.
+    expect(html).not.toContain("What this check cannot establish");
   });
 
   it("states the explained-away duplication exactly once (the old footer paragraph is gone)", async () => {
@@ -255,11 +317,11 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
 
   it("keeps the technical record in the reader's view rather than behind a control", async () => {
     const html = await renderVerdictPage(claimId);
-    // One audit line per step, marked so the register scan can exclude it — the
-    // marker is a scan key, not a hiding mechanism (globals.css has no rule for
-    // it; there is nothing to reveal and nothing to click).
+    // One audit line per section, marked so the register scan can exclude it —
+    // the marker is a scan key, not a hiding mechanism (globals.css has no rule
+    // for it; there is nothing to reveal and nothing to click).
     const lines = html.match(/data-provenance-line/g) ?? [];
-    expect(lines).toHaveLength(4);
+    expect(lines).toHaveLength(5);
     // Nothing left over from the collapsed version: no reveal checkbox, no
     // drawer body wrapper, no accordion at all (the only disclosure left on the
     // page is the key, a native <details>).
@@ -283,10 +345,10 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
   });
 
   it("renders prompt versions without re-prefixing the role (it is already in the value)", async () => {
-    const html = await renderVerdictPage(claimId);
+    const html = await renderVerdictPageWithMode(claimId);
     expect(html).toContain("citation-compare@1");
     expect(html).not.toContain("citation-compare@citation-compare@1");
-    // Roles recorded on the claim itself reach the trail's "we logged it" step
+    // Roles recorded on the claim itself reach the section for the reading
     // (with the model that typed the claim), and the claim's own date governs
     // the claim card — not the day the verdict was published.
     expect(html).toContain("triage-typing@1");

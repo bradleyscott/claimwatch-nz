@@ -92,3 +92,10 @@ export const TriageRecord = z.object({
   held: z.array(TriageHeld).default([]),
 });
 export type TriageRecord = z.infer<typeof TriageRecord>;
+/**
+ * What a WRITER may pass: the schema defaults `setAside` and `held` to empty
+ * arrays, so a producer that has nothing in either bucket should not have to
+ * spell `setAside: []` to satisfy the type. The reader parses with `TriageRecord`
+ * (the output type), so the defaults are applied on the way back out.
+ */
+export type TriageRecordInput = z.input<typeof TriageRecord>;

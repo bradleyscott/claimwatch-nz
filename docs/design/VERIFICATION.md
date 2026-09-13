@@ -29,7 +29,9 @@ statistical → stat-engine grid · citation-backed → citation-check · quote-
 false-context → provenance (curated only) · other → open-web loop (capped)
 ```
 
-Misroutes are a first-class failure: the routing decision is stored on the evidence pack so L3 can measure per-mode accuracy on the *routed* stratum and catch routing drift.
+Misroutes are a first-class failure: the routing decision is stored on the evidence pack so L3 can measure per-mode accuracy on the *routed* stratum and catch routing drift. Since Sept 2026 the decision is also stored on the **claim** (`claim.verification_mode`) and published on the verdict page, which selects its explanation of the check from it — the site cannot re-derive a statistical claim's mode, because that one depends on an authority-registry lookup the reader cannot see.
+
+**Named gap — no mode tests causation (Sept 2026).** 54 of the 500 AVeriTeC dev claims (11%) are causal, and the five modes above test numbers, documents, quotations and context attachments — none establishes that one thing caused another. The gap is published rather than papered over: every mode's section on the verdict page states what that check cannot establish, and the open-web bound names causation explicitly, so a causal claim graded by timing evidence says so on the page instead of being silently over-read. A pure causal claim is currently typed `other` and routed to the open-web loop, where its timing evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap means a sixth mode — pre-trend tests, an unaffected comparison group, difference-in-differences against a series the intervention did not touch — with its own trail section. Until then the gap is stated on the page and on `/methodology`, and it is not treated as covered.
 
 ### 2.2 Stat-engine grid mode (flagship)
 
@@ -194,3 +196,4 @@ Every risk maps to a layer per TEST-STRATEGY. The deterministic surface is large
 | 5 | NLI-auditor calibration bar — what false-pass rate disqualifies the auditor model? | Deferred until two L3 runs produce audit-agreement data |
 | 6 | Depth-cap values per mode — the FIRE pattern fixes the mechanism, not our numbers; calibrate against first L3 cost data | The $25/run envelope bounds the search space |
 | 7 | Stat-mode verdict for misquoted-but-real numbers (right indicator, wrong figure) — the no-row-match rule says Refuted; confirm the boundary holds for rounding variants ("about 30%" vs 27.3%) or whether a tolerance band is needed | Interacts with VER-R11 fixtures |
+| 8 | **Causal claims have no mode** (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Needs either a sixth mode (pre-trend tests, unaffected comparison group, difference-in-differences) or an explicit out-of-scope refusal — the one option ruled out is grading a causal claim with a check that cannot reach causation | Publishes a bound on every mode's trail section meanwhile; the gap is named on the page and on `/methodology`, not assumed covered |
