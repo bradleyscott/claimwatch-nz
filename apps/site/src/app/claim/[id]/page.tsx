@@ -23,15 +23,25 @@ export async function generateMetadata() {
   return { title: "Verdict" };
 }
 
-export default async function ClaimPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClaimPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
-  const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
+  const { getSiteStore, installLiveStore, readOptionsFromSearch } = await import(
+    "@/lib/site-store"
+  );
   if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
     // Schema is guaranteed current by the startup migration step
     // (drizzle-kit migrate in the service entrypoint) — the page just reads.
     installLiveStore(process.env.DATABASE_URL);
   }
-  const data = await getSiteStore().getVerdictPage(id);
+  // Public record by default; `?corpus=all` serves a record with no ingested
+  // document behind it (the AVeriTeC evaluation corpus).
+  const data = await getSiteStore().getVerdictPage(id, readOptionsFromSearch(await searchParams));
   if (!data) {
     return (
       <main className="page-shell py-10">

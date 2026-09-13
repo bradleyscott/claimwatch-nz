@@ -11,15 +11,32 @@
 // only the DI seam and the fixtures; the read-model types are re-exported so
 // page code and tests keep importing them from `@/lib/site-store`.
 
-import type { SiteReader } from "@cw/store";
+import type { SiteReader, SiteReadOptions } from "@cw/store";
 import { createSiteReader, FeedEntry, VerdictPageData } from "@cw/store";
 
-export type { SiteReader };
+export type { SiteReader, SiteReadOptions };
 export { FeedEntry, VerdictPageData };
 
 export interface SiteStore {
-  getVerdictPage(claimId: string): Promise<VerdictPageData | null>;
-  getFeed(page: number, pageSize: number): Promise<{ entries: FeedEntry[]; hasMore: boolean }>;
+  getVerdictPage(claimId: string, opts?: SiteReadOptions): Promise<VerdictPageData | null>;
+  getFeed(
+    page: number,
+    pageSize: number,
+    opts?: SiteReadOptions,
+  ): Promise<{ entries: FeedEntry[]; hasMore: boolean }>;
+}
+
+/**
+ * `?corpus=all` on a page switches the reader to the unprovenanced corpus (the
+ * AVeriTeC evaluation rows and anything else written straight into the store).
+ * The public default is document-provenanced records only — see
+ * `SiteReadOptions.includeUnprovenanced` for why, and keep this the ONLY place
+ * the query string is interpreted.
+ */
+export function readOptionsFromSearch(
+  search: Record<string, string | string[] | undefined> | undefined,
+): SiteReadOptions {
+  return { includeUnprovenanced: search?.corpus === "all" };
 }
 
 /** Fixture-backed store for L4a smoke tests and the empty-store edge case (SIT-R14). */

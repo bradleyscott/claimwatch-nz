@@ -116,7 +116,12 @@ const pageDataWithMode = {
 
 async function renderVerdictPage(id: string): Promise<string> {
   const mod = await import("@/app/claim/[id]/page");
-  const element = await mod.default({ params: Promise.resolve({ id }) });
+  // No query string: the page renders the public record, which is the default
+  // the reader enforces (`?corpus=all` is the unprovenanced escape hatch).
+  const element = await mod.default({
+    params: Promise.resolve({ id }),
+    searchParams: Promise.resolve({}),
+  });
   return renderToStaticMarkup(element as React.ReactElement);
 }
 

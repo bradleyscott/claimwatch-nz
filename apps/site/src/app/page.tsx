@@ -11,14 +11,21 @@ import { VERDICT_LABELS } from "@/lib/verdict-page";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeedPage() {
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // Live store lands with the deployment slice; empty state is the honest one.
-  const { getSiteStore, installLiveStore } = await import("@/lib/site-store");
+  const { getSiteStore, installLiveStore, readOptionsFromSearch } = await import(
+    "@/lib/site-store"
+  );
   if (process.env.SITE_STORE === "live" && process.env.DATABASE_URL) {
     installLiveStore(process.env.DATABASE_URL);
   }
   const store = getSiteStore();
-  const { entries } = await store.getFeed(0, 20);
+  // Public record by default; `?corpus=all` shows the unprovenanced corpus.
+  const { entries } = await store.getFeed(0, 20, readOptionsFromSearch(await searchParams));
 
   return (
     <main className="page-shell py-6">

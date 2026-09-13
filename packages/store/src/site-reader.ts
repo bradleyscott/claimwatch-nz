@@ -20,7 +20,7 @@
 //     claim" — a claim with an earlier pack used to report that pack's check
 //     time and audit outcome beside the current verdict.
 
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
@@ -158,12 +158,42 @@ export const FeedEntry = z.object({
 export type FeedEntry = z.infer<typeof FeedEntry>;
 
 /**
+ * Live read options. The default is the PUBLIC record; anything else is an
+ * inspection mode and has to be asked for explicitly.
+ */
+export interface SiteReadOptions {
+  /**
+   * Include records with no ingested document behind them
+   * (`claim.publication_id is null`).
+   *
+   * Off by default. The site serves checks of something we actually ingested —
+   * ADR-0008's `publication → segment → claim` hierarchy is what makes a check
+   * traceable to a document a reader can open. Records without one are the
+   * AVeriTeC evaluation corpus (and anything else a slice script writes
+   * straight into the store): real rows, deliberately kept for the harness and
+   * for our own inspection, but not the public record. The live store held 26
+   * published verdicts on 2026-09-13 of which 25 had no publication and 19 cited
+   * no evidence — the feed showed the same claim text up to twelve times with
+   * contradictory classes, which is ING-R10's "fixture records treated as a
+   * production lane" arriving at the site (Sept 2026).
+   *
+   * The escape hatch is the site's `?corpus=all`; it exists so the corpus stays
+   * reachable without making it the default.
+   */
+  includeUnprovenanced?: boolean;
+}
+
+/**
  * The live reader. `SiteStore` in `apps/site` is the DI seam pages render
  * through; this is the only implementation that talks to Postgres.
  */
 export interface SiteReader {
-  getVerdictPage(claimId: string): Promise<VerdictPageData | null>;
-  getFeed(page: number, pageSize: number): Promise<{ entries: FeedEntry[]; hasMore: boolean }>;
+  getVerdictPage(claimId: string, opts?: SiteReadOptions): Promise<VerdictPageData | null>;
+  getFeed(
+    page: number,
+    pageSize: number,
+    opts?: SiteReadOptions,
+  ): Promise<{ entries: FeedEntry[]; hasMore: boolean }>;
   close(): Promise<void>;
 }
 
@@ -187,6 +217,16 @@ export interface SiteReader {
 // verdict in VALIDATING is arguably still contested-and-under-review from the
 // reader's view, which is exactly why it needs a decision rather than a guess.
 const SITE_VISIBLE_STATUSES = ["DRAFT", "PUBLISHED", "CONTESTED", "FROZEN"] as const;
+
+/**
+ * The document-provenance condition, or nothing when the caller asked for the
+ * unprovenanced corpus. Kept as one function so the two queries cannot drift:
+ * a claim invisible on its own page but listable in the feed (or the reverse)
+ * is worse than either choice.
+ */
+function provenanceCondition(opts?: SiteReadOptions) {
+  return opts?.includeUnprovenanced ? undefined : isNotNull(s.claim.publicationId);
+}
 
 // evidence_pack.justifications is jsonb (`unknown` to the type system); the
 // write path appends string[]. Parse at the boundary rather than trusting it.
@@ -215,7 +255,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
   );
 
   return {
-    async getVerdictPage(claimId: string): Promise<VerdictPageData | null> {
+    async getVerdictPage(claimId: string, opts?: SiteReadOptions): Promise<VerdictPageData | null> {
       const [row] = await db
         .with(latestVerdict)
         .select({
@@ -268,6 +308,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           and(
             eq(s.claim.claimId, claimId),
             inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES),
+            provenanceCondition(opts),
           ),
         )
         .limit(1);
@@ -363,6 +404,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
     async getFeed(
       page: number,
       pageSize: number,
+      opts?: SiteReadOptions,
     ): Promise<{
       entries: FeedEntry[];
       hasMore: boolean;
@@ -384,7 +426,9 @@ export function createSiteReader(databaseUrl: string): SiteReader {
             eq(s.verdictVersion.version, latestVerdict.version),
           ),
         )
-        .where(inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES))
+        .where(
+          and(inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES), provenanceCondition(opts)),
+        )
         .orderBy(desc(s.verdictVersion.createdAt))
         .offset(page * pageSize)
         .limit(pageSize);

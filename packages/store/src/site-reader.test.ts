@@ -32,6 +32,9 @@ const SCRATCH_URL = `${DATABASE_URL}${SCRATCH_SUFFIX}`;
 
 let store: Store;
 let reader: SiteReader;
+// Distinct content hashes for the documents the fixtures come from
+// (`publication.content_hash` is unique — STO-R13).
+let publicationSeq = 0;
 
 beforeAll(async () => {
   store = await createTestStore(DATABASE_URL, { scratchSuffix: SCRATCH_SUFFIX });
@@ -52,8 +55,23 @@ function provenance() {
   };
 }
 
-async function seedClaim(overrides: Partial<ClaimFixture> = {}) {
+async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = true) {
+  // By default the claim carries the document it came from: that is what the
+  // site serves, so the fixtures represent the public record rather than the
+  // evaluation corpus. `documented: false` is the corpus case, asserted below.
+  let publicationId: string | undefined;
+  if (documented) {
+    publicationSeq += 1;
+    const publication = await store.recordPublication({
+      ...store.fixtures.beehiveRelease(),
+      // `publication.content_hash` is unique (STO-R13), so each fixture document
+      // needs its own hash.
+      contentHash: `hash-claim-${publicationSeq}`,
+    });
+    publicationId = publication.publicationId;
+  }
   return store.recordClaim({
+    ...(publicationId ? { publicationId } : {}),
     utteranceText: "Crime is up 30% since 2017.",
     text: "Crime is up 30% since 2017.",
     claimType: "statistical",
@@ -221,6 +239,38 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(page?.triageRecord?.checked).toBe(1);
     expect(page?.triageRecord?.setAside).toEqual([]);
     expect(page?.triageRecord?.held).toEqual([]);
+  });
+
+  it("serves only records with document provenance, and the corpus on request", async () => {
+    // The public default. On 2026-09-13 the live store served 26 published
+    // verdicts of which 25 had no publication and 19 cited no evidence: the feed
+    // showed one claim text up to twelve times with contradictory classes, all
+    // of it AVeriTeC evaluation rows written straight into the live store by a
+    // slice script. This gate is what keeps that corpus out of the public record
+    // without deleting it — the harness and our own inspection still read it
+    // through `includeUnprovenanced` (ING-R10's "fixture records treated as a
+    // production lane", arriving at the site).
+    const documented = await seedClaim();
+    await publishVerdict(documented.claimId);
+    const unprovenanced = await seedClaim({}, false);
+    await publishVerdict(unprovenanced.claimId);
+
+    // A page for a record with no document behind it does not exist publicly...
+    expect(await reader.getVerdictPage(unprovenanced.claimId)).toBeNull();
+    expect((await reader.getVerdictPage(documented.claimId))?.claimId).toBe(documented.claimId);
+    // ...and the escape hatch is explicit rather than implicit.
+    expect(
+      (await reader.getVerdictPage(unprovenanced.claimId, { includeUnprovenanced: true }))?.claimId,
+    ).toBe(unprovenanced.claimId);
+
+    // The feed and the page make the SAME decision — a claim listable but not
+    // readable is worse than either.
+    const publicFeed = await reader.getFeed(0, 100);
+    expect(publicFeed.entries.map((e) => e.claimId)).toContain(documented.claimId);
+    expect(publicFeed.entries.map((e) => e.claimId)).not.toContain(unprovenanced.claimId);
+    const corpus = await reader.getFeed(0, 100, { includeUnprovenanced: true });
+    expect(corpus.entries.map((e) => e.claimId)).toContain(unprovenanced.claimId);
+    expect(corpus.entries.length).toBeGreaterThan(publicFeed.entries.length);
   });
 
   it("reports the pack the CURRENT verdict pins, not an earlier pack for the claim", async () => {

@@ -110,6 +110,8 @@ Site telemetry routes to Grafana via the same OTel stack: request spans, feedbac
 
 The read path is implemented **in the store package** (`packages/store/src/site-reader.ts`, exported as `createSiteReader`) and the site consumes it through the `SiteStore` DI seam. The site holds no SQL and no read-model schema of its own: the shapes below are `@cw/store` exports, and its connection is a read-only Postgres session, so "no write path" holds structurally. A column rename therefore fails `pnpm typecheck` instead of breaking a page at request time.
 
+**What the site serves by default: the document-provenanced record** — claims that came from a document we ingested (`claim.publication_id` present), which is what makes a check traceable to something a reader can open (ADR-0008's hierarchy). Records with no document behind them are the AVeriTeC evaluation corpus and anything else a slice script wrote straight into the store; they are deliberately retained, and deliberately not published. `?corpus=all` on a verdict page or the feed switches the reader to include them — one option gates both, so the corpus is reachable for our own inspection without anything being listable but unreadable. The site's public surface therefore contains no evaluation rows, and an ops script that publishes into the live store cannot leak them by accident.
+
 | Query | Used by |
 |---|---|
 | claim by id (+ verdict + pack + media_anchor) | verdict page, ClaimReview |
