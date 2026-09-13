@@ -17,6 +17,7 @@ import {
 import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
 import {
   computeStatGrid as computeGrid,
+  nliAudit,
   VERIFICATION_SCHEMAS,
 } from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
@@ -155,8 +156,27 @@ async function main(): Promise<void> {
     `  grid rows computed: ${grid.grid.rows.length}, material: ${grid.grid.materialRows.length}`,
   );
 
-  // 3. NLI gate + store write.
+  // 3. NLI gate + store write. The gate runs BEFORE the write: this script used
+  // to record `nliOutcome: "pass"` without ever running an audit, which put a
+  // gate result on a public verdict that nothing had checked (Sept 2026).
   console.log("\n[3/4] publication (NLI gate + verdict write)…");
+  const justification = `The cited window shows ${grid.grid.rows[0]?.percentChange ?? 0}% change, not 30%.`;
+  const nli = await nliAudit(verificationLlm as never, {
+    justification,
+    // What the audit is given as "the evidence": the material rows the grid
+    // computed, each as window + change, so the audit can ask whether the
+    // justification above actually follows from them.
+    citedSpan: grid.grid.rows
+      .filter((row) => grid.grid.materialRows.includes(row.variant))
+      .map(
+        (row) =>
+          `${row.axis} ${row.variant}: ${
+            row.percentChange != null ? `${row.percentChange.toFixed(1)}%` : "no change computed"
+          }`,
+      )
+      .join("; "),
+  });
+  console.log(`  NLI: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`);
   const store = await createTestStore(DATABASE_URL);
   try {
     const claimRecord = await store.recordClaim({
@@ -180,11 +200,19 @@ async function main(): Promise<void> {
     const pack = await store.appendEvidencePack(claimRecord.claimId, {
       itemRefs: [],
       gridResult: grid.grid,
-      justifications: [
-        `The cited window shows ${grid.grid.rows[0]?.percentChange ?? 0}% change, not 30%.`,
-      ],
-      nliOutcome: "pass",
+      justifications: [justification],
+      nliOutcome: nli.verdict === "pass" ? "pass" : "fail",
     });
+    if (nli.verdict !== "pass") {
+      // The publication gate is a gate (VERIFICATION §2.7): the pack is the record
+      // of the blocked attempt and no verdict is written, so nothing unvetted
+      // reaches the public page.
+      console.log(
+        `\n── publication blocked ── NLI audit: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`,
+      );
+      console.log(`  pack recorded without a verdict: ${pack.packId}`);
+      return;
+    }
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
       provenance: {
         pipelineVersion: "0.1.0-live-run",
