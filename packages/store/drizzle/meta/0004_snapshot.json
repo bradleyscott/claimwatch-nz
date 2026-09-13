@@ -192,12 +192,8 @@
           "name": "claim_publication_id_publication_publication_id_fk",
           "tableFrom": "claim",
           "tableTo": "publication",
-          "columnsFrom": [
-            "publication_id"
-          ],
-          "columnsTo": [
-            "publication_id"
-          ],
+          "columnsFrom": ["publication_id"],
+          "columnsTo": ["publication_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -205,12 +201,8 @@
           "name": "claim_segment_id_segment_segment_id_fk",
           "tableFrom": "claim",
           "tableTo": "segment",
-          "columnsFrom": [
-            "segment_id"
-          ],
-          "columnsTo": [
-            "segment_id"
-          ],
+          "columnsFrom": ["segment_id"],
+          "columnsTo": ["segment_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -503,12 +495,8 @@
           "name": "segment_publication_id_publication_publication_id_fk",
           "tableFrom": "segment",
           "tableTo": "publication",
-          "columnsFrom": [
-            "publication_id"
-          ],
-          "columnsTo": [
-            "publication_id"
-          ],
+          "columnsFrom": ["publication_id"],
+          "columnsTo": ["publication_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -730,12 +718,8 @@
           "name": "evidence_item_claim_id_claim_claim_id_fk",
           "tableFrom": "evidence_item",
           "tableTo": "claim",
-          "columnsFrom": [
-            "claim_id"
-          ],
-          "columnsTo": [
-            "claim_id"
-          ],
+          "columnsFrom": ["claim_id"],
+          "columnsTo": ["claim_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -818,12 +802,8 @@
           "name": "evidence_pack_claim_id_claim_claim_id_fk",
           "tableFrom": "evidence_pack",
           "tableTo": "claim",
-          "columnsFrom": [
-            "claim_id"
-          ],
-          "columnsTo": [
-            "claim_id"
-          ],
+          "columnsFrom": ["claim_id"],
+          "columnsTo": ["claim_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1067,12 +1047,8 @@
           "name": "verdict_transition_log_verdict_id_verdict_version_verdict_id_fk",
           "tableFrom": "verdict_transition_log",
           "tableTo": "verdict_version",
-          "columnsFrom": [
-            "verdict_id"
-          ],
-          "columnsTo": [
-            "verdict_id"
-          ],
+          "columnsFrom": ["verdict_id"],
+          "columnsTo": ["verdict_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1191,12 +1167,8 @@
           "name": "verdict_version_claim_id_claim_claim_id_fk",
           "tableFrom": "verdict_version",
           "tableTo": "claim",
-          "columnsFrom": [
-            "claim_id"
-          ],
-          "columnsTo": [
-            "claim_id"
-          ],
+          "columnsFrom": ["claim_id"],
+          "columnsTo": ["claim_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1204,12 +1176,8 @@
           "name": "verdict_version_evidence_pack_id_evidence_pack_pack_id_fk",
           "tableFrom": "verdict_version",
           "tableTo": "evidence_pack",
-          "columnsFrom": [
-            "evidence_pack_id"
-          ],
-          "columnsTo": [
-            "pack_id"
-          ],
+          "columnsFrom": ["evidence_pack_id"],
+          "columnsTo": ["pack_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1217,12 +1185,8 @@
           "name": "verdict_version_provenance_id_verdict_provenance_provenance_id_fk",
           "tableFrom": "verdict_version",
           "tableTo": "verdict_provenance",
-          "columnsFrom": [
-            "provenance_id"
-          ],
-          "columnsTo": [
-            "provenance_id"
-          ],
+          "columnsFrom": ["provenance_id"],
+          "columnsTo": ["provenance_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
