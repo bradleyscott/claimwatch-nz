@@ -6,6 +6,10 @@
 
 import { createHash } from "node:crypto";
 import { FINGERPRINT_NORMALISATION_VERSION } from "@cw/llm";
+// The published shape of triage's own output lives in @cw/store, which the
+// pipeline may import and the site may too (AGENTS.md boundaries) — so the
+// record written here and the record rendered there are one definition.
+import type { RejectionClass, TriageRecord } from "@cw/store";
 import { z } from "zod";
 import type {
   CanonicalFingerprintKey,
@@ -406,6 +410,7 @@ export async function triageDocument(
   TriageResult & {
     claims: Array<TypedClaim & { sourceSentenceId: string }>;
     dropLog: Array<DropRecord & { sentenceId: string }>;
+    triageRecord: TriageRecord;
   }
 > {
   const call = await llm.generateObject(
@@ -461,5 +466,44 @@ export async function triageDocument(
       });
     }
   }
-  return { claims, dropLog, failures, provenance };
+  return { claims, dropLog, failures, provenance, triageRecord: triageRecordFor(doc, claims, dropLog) };
+}
+
+/**
+ * Fold the drop log into the record the verdict page publishes (SITE-MVP §2.3,
+ * Sept 2026): how many sentences were read, how many became claims, which were
+ * set aside and why, and which were held rather than dropped.
+ *
+ * `pledge-conditional` sentences are the held bucket, not a rejection. TRIAGE.md
+ * §2.2 is explicit that they are "pledge — not yet checkable", checkable later
+ * as consistency claims once a deadline passes — so they are a debt the project
+ * owes a verdict on, and the page reports them separately from sentences no
+ * evidence can ever settle. Every other rejection class is a permanent set-aside.
+ *
+ * Counts come from the document and the results rather than from
+ * `setAside.length`, so a sentence whose id fails to match the document (skipped
+ * in the loop above) can never silently shrink the denominator the page divides
+ * by.
+ */
+export function triageRecordFor(
+  doc: TriageDocumentInput,
+  claims: readonly TypedClaim[],
+  dropLog: readonly DropRecord[],
+): TriageRecord {
+  return {
+    sentencesRead: doc.sentences.length,
+    checked: claims.length,
+    setAside: dropLog
+      .filter((drop) => drop.rejectionClass !== "pledge-conditional")
+      .map((drop) => ({
+        sentenceText: drop.sentenceText,
+        rejectionClass: drop.rejectionClass as RejectionClass,
+      })),
+    held: dropLog
+      .filter((drop) => drop.rejectionClass === "pledge-conditional")
+      .map((drop) => ({
+        sentenceText: drop.sentenceText,
+        reason: "A commitment: it can only be graded once the deadline it names has passed.",
+      })),
+  };
 }

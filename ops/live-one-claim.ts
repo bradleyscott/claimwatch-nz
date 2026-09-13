@@ -183,6 +183,15 @@ async function main(): Promise<void> {
       utteranceText: CLAIM_TEXT,
       text: CLAIM_TEXT,
       claimType: "statistical",
+      // Which check this claim got, decided by triage before any figure was
+      // fetched. Stored because a statistical claim reaches stat-grid only on a
+      // registry hit and the open-web loop otherwise (mode-routing.ts), and the
+      // site cannot see the registry (claim.verification_mode).
+      verificationMode: "stat-grid",
+      // What triage made of the document the claim came from — the "what we did
+      // not check" section on the page. Written from the triage result, never
+      // hand-authored: a summary a human wrote is not a record of what ran.
+      triageRecord: triage.triageRecord,
       fingerprint: {
         indicator: "crime",
         population: "all",

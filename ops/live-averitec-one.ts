@@ -593,6 +593,16 @@ async function main(): Promise<void> {
       utteranceText: target.claim,
       text: target.claim,
       claimType: claim.claimType,
+      // The check triage routed this claim to, recorded rather than re-derived:
+      // a statistical claim reaches stat-grid only on an authority-registry hit
+      // and the open-web loop otherwise, and the site cannot see the registry
+      // (claim.verification_mode, SITE-MVP §2.3).
+      verificationMode: claim.mode,
+      // Triage's own output for the document this claim came from — how many
+      // sentences were read and which were set aside or held. This is the
+      // page's "what we did not check" section, written from the result rather
+      // than summarised by hand.
+      triageRecord: triage.triageRecord,
       // The claim's own date, from the benchmark's `claim_date` (DD-MM-YYYY) —
       // what lets the public trail say when the claim was made rather than only
       // when we checked it (claim.spoken_at, SITE-MVP §2.3). A date we cannot
