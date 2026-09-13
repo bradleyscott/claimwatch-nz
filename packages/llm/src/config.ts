@@ -24,6 +24,10 @@ export const FINGERPRINT_NORMALISATION_VERSION = "fp-norm-2025-01";
  * `PortRole` in `packages/pipeline/src/llm/live-adapter.ts` derives from this.
  */
 export const PROMPT_ROLES = [
+  // The `attribute` stage, which runs BEFORE triage: it decides whose words each
+  // sentence is, and therefore whether the sentence is ours to check at all
+  // (ADR-0019). Listed first because it is the first stage on the path.
+  "speakership-classify",
   "triage-checkability",
   "triage-typing",
   "triage-fingerprint",

@@ -135,6 +135,19 @@ export const DEFAULT_ROUTING: Record<PortRole, RoutingEntry> = {
   },
   "quote-fidelity": { provider: "anthropic", model: "claude-sonnet-5" },
   "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
+  // Speakership attribution (ADR-0019) sits on the verdict tier even though it
+  // is not a verdict, because its errors do not degrade gracefully the way the
+  // research tier's do: a false `quoted-actor` publishes an outlet's own
+  // sentence, and a false `outlet-prose` silently drops a politician's claim.
+  // Both are public-quality failures, so "cheap here" is not cheap.
+  "speakership-classify": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    // One result per sentence, so the response grows with the document — the
+    // budget is explicit here rather than inherited, per the same lesson as
+    // `citation-compare` (Sept 2026).
+    maxOutputTokens: 4096,
+  },
 
   // Research tier: ~80% of calls per claim, output is a control signal (rounds
   // and gaps), and its confidence is neither published nor written to a verdict.

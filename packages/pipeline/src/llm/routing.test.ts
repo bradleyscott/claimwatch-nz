@@ -16,6 +16,7 @@ const VERDICT_TIER = [
   "quote-fidelity",
   "nli-audit",
   "grid-materiality",
+  "speakership-classify",
 ] as const;
 
 describe("routing table (ADR-0011)", () => {
