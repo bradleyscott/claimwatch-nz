@@ -68,6 +68,22 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}) {
   });
 }
 
+/** A published verdict, returned with its id so a test can drive the lifecycle on. */
+async function publishVerdictWithId(overrides: Partial<ClaimFixture> = {}) {
+  const claim = await seedClaim(overrides);
+  const pack = await store.appendEvidencePack(claim.claimId, {
+    itemRefs: [],
+    justifications: [],
+    nliOutcome: "pass",
+  });
+  const verdict = await store.writeVerdict(claim.claimId, pack.packId, {
+    provenance: provenance(),
+    verdictClass: "refuted",
+  });
+  await store.logTransition(verdict.verdictId, { from: "DRAFT", to: "PUBLISHED" });
+  return { claim, verdictId: verdict.verdictId };
+}
+
 /** A published verdict, so the claim has a page to read at all. */
 async function publishVerdict(claimId: string): Promise<void> {
   const pack = await store.appendEvidencePack(claimId, {
@@ -246,20 +262,40 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(page?.evidence).toEqual([]);
   });
 
-  it("hides a claim whose latest verdict is not public (FROZEN)", async () => {
-    const claim = await seedClaim();
-    const pack = await store.appendEvidencePack(claim.claimId, {
-      itemRefs: [],
-      justifications: [],
-      nliOutcome: "pass",
-    });
-    const verdict = await store.writeVerdict(claim.claimId, pack.packId, {
-      provenance: provenance(),
-      verdictClass: "supported",
-      confidence: 0.9,
-    });
-    await store.logTransition(verdict.verdictId, { from: "DRAFT", to: "PUBLISHED" });
-    await store.logTransition(verdict.verdictId, { from: "PUBLISHED", to: "FROZEN" });
+  // SITE-MVP §2.3 makes these reachable in prose — "a FROZEN verdict is a fact the
+  // reader should meet on the page, not in a footnote" — and STORE §3 says
+  // contested verdicts render "contested — under review", while the reader served
+  // DRAFT and PUBLISHED only. The consequence was that the 5 Nov freeze would
+  // remove live pages (Sept 2026). The page prints `state ${status}`, so serving
+  // them required no site change.
+  it("serves a frozen verdict, so the freeze cannot remove a live page", async () => {
+    const { claim, verdictId } = await publishVerdictWithId();
+    await store.logTransition(verdictId, { from: "PUBLISHED", to: "FROZEN" });
+
+    const page = await reader.getVerdictPage(claim.claimId);
+    expect(page?.verdictStatus).toBe("FROZEN");
+    // One constant gates the feed too, so a frozen claim stays listable — the
+    // decision was about reachability, not just page rendering.
+    const feed = await reader.getFeed(0, 50);
+    expect(feed.entries.map((e) => e.claimId)).toContain(claim.claimId);
+  });
+
+  it("serves a contested verdict, which the page renders as under review (STORE §3)", async () => {
+    const { claim, verdictId } = await publishVerdictWithId();
+    await store.logTransition(verdictId, { from: "PUBLISHED", to: "CONTESTED" });
+
+    const page = await reader.getVerdictPage(claim.claimId);
+    expect(page?.verdictStatus).toBe("CONTESTED");
+  });
+
+  it("still hides a claim whose latest verdict has no public rendering decision", async () => {
+    // The filter keeps teeth. VALIDATING is reachable in the store's lifecycle
+    // (PUBLISHED → CONTESTED → VALIDATING) but its public treatment is undecided,
+    // so it is excluded by decision rather than by omission — STORE §6 open
+    // question 11.
+    const { claim, verdictId } = await publishVerdictWithId();
+    await store.logTransition(verdictId, { from: "PUBLISHED", to: "CONTESTED" });
+    await store.logTransition(verdictId, { from: "CONTESTED", to: "VALIDATING" });
 
     expect(await reader.getVerdictPage(claim.claimId)).toBeNull();
   });

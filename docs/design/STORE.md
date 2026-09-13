@@ -197,3 +197,4 @@ Store portion done when: L1 store tests pass on the migrated scratch schema · b
 | 8 | Entity seed review workflow (Wikipedia/Electoral Commission cross-links) — owner and timing | Human review required before entity pages render |
 | 9 | Provenance block: raw cost figures vs OTel span refs | Store-lite (refs) vs store-full (figures); Grafana retention vs self-containment |
 | 10 | Evidence rejections published via the raw log or a curated public view | Site-design decision the store shouldn't pre-empt |
+| 11 | Which lifecycle states beyond DRAFT/PUBLISHED/CONTESTED/FROZEN a reader may reach | `site-reader.ts` serves those four, per SITE-MVP §2.3 and §3 above. `VALIDATING`, `MUTATED` and `AUDIT` have no public rendering decision: a verdict in VALIDATING is arguably still contested-and-under-review from the reader's view, but the page's state vocabulary does not name it. Unexercised (STO-R9), so the decision is cheap now and a migration later |

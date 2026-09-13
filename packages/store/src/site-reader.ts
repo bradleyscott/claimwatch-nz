@@ -170,7 +170,23 @@ export interface SiteReader {
 // A verdict a reader may be shown. DRAFT is deliberate: the page's audit
 // vocabulary prints the state, so an unpublished check renders as "DRAFT"
 // rather than being hidden (SITE-MVP §2.3).
-const SITE_VISIBLE_STATUSES = ["DRAFT", "PUBLISHED"] as const;
+//
+// CONTESTED and FROZEN belong here for the same reason, and their absence was a
+// contradiction the page's own copy made visible (Sept 2026). SITE-MVP §2.3 says
+// "a FROZEN verdict is a fact the reader should meet on the page, not in a
+// footnote", and STORE §3 says contested verdicts render "contested — under
+// review" — while the reader served DRAFT and PUBLISHED only. So a verdict whose
+// page was live on 4 Nov would 404 on 5 Nov: the freeze would REMOVE pages,
+// during the election period, for the findings most likely to be cited. The page
+// already prints `state ${verdictStatus}`, so both states render without any
+// site change.
+//
+// Deliberately still excluded: VALIDATING, MUTATED and AUDIT. The page's
+// vocabulary names four states, those three are unexercised (STO-R9), and which
+// of them a reader should reach is not decided — STORE §6 open question 11. A
+// verdict in VALIDATING is arguably still contested-and-under-review from the
+// reader's view, which is exactly why it needs a decision rather than a guess.
+const SITE_VISIBLE_STATUSES = ["DRAFT", "PUBLISHED", "CONTESTED", "FROZEN"] as const;
 
 // evidence_pack.justifications is jsonb (`unknown` to the type system); the
 // write path appends string[]. Parse at the boundary rather than trusting it.
