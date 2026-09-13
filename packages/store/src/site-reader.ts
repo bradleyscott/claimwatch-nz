@@ -25,7 +25,12 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
 import * as s from "./schema/index.ts";
-import { ELIGIBLE_SPEAKERSHIP_CLASSES, SPEAKERSHIP_CLASSES } from "./speakership.ts";
+import {
+  ELIGIBLE_SPEAKERSHIP_CLASSES,
+  GENRES,
+  SPEAKERSHIP_CLASSES,
+  SPEAKERSHIP_METHODS,
+} from "./speakership.ts";
 import { TriageRecord, VERIFICATION_MODES } from "./triage-record.ts";
 
 /**
@@ -110,6 +115,14 @@ export const VerdictPageData = z.object({
    * model describes the row, and `?corpus=all` shows the ineligible ones too.
    */
   speakershipClass: z.enum(SPEAKERSHIP_CLASSES).nullable().default(null),
+  /**
+   * How that class was decided, and the genre that selected the rule
+   * (ADR-0019 §2/§5). The page owes the reader this: "we read the document's own
+   * turn structure" and "a model guessed" are different claims about the same
+   * verdict, and a class without either of these does not reach the page at all.
+   */
+  speakershipMethod: z.enum(SPEAKERSHIP_METHODS).nullable().default(null),
+  genre: z.enum(GENRES).nullable().default(null),
   /**
    * Which check the claim got (claim.verification_mode, VERIFICATION §2.1).
    * Typed to the five modes rather than left as `string`, so the page's mode
@@ -251,6 +264,13 @@ function eligibilityCondition(opts?: SiteReadOptions) {
     // Speakership: ADR-0019's scope rule. `inArray` excludes NULL, which is the
     // fail-closed behaviour the option documents.
     inArray(s.claim.speakershipClass, [...ELIGIBLE_SPEAKERSHIP_CLASSES]),
+    // ...and the decision has to be COMPLETE. ADR-0019 §5 makes the page disclose
+    // how a claim was attributed, and a class with no method or genre behind it
+    // cannot be disclosed honestly — so a half-recorded scope decision is no more
+    // publishable than an absent one. This is also what keeps a lane that sets a
+    // class to make a page render from succeeding: the provenance has to be real.
+    isNotNull(s.claim.speakershipMethod),
+    isNotNull(s.claim.genre),
   );
 }
 
@@ -296,6 +316,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           transcriptTier: s.claim.transcriptTier,
           claimType: s.claim.claimType,
           speakershipClass: s.claim.speakershipClass,
+          speakershipMethod: s.claim.speakershipMethod,
+          genre: s.claim.genre,
           verificationMode: s.claim.verificationMode,
           triageRecord: s.claim.triageRecord,
           spokenAt: s.claim.spokenAt,
@@ -415,6 +437,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         sourceRetrievedAt: row.sourceRetrievedAt ?? null,
         claimType: row.claimType ?? null,
         speakershipClass: row.speakershipClass ?? null,
+        speakershipMethod: row.speakershipMethod ?? null,
+        genre: row.genre ?? null,
         verificationMode: row.verificationMode ?? null,
         triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,

@@ -12,6 +12,7 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
+import { isEligibleSpeakership } from "./speakership.ts";
 import { createTestStore } from "./store.ts";
 import type { ClaimFixture, Store } from "./store-api.ts";
 import { TriageRecord } from "./triage-record.ts";
@@ -76,8 +77,12 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = tru
     text: "Crime is up 30% since 2017.",
     claimType: "statistical",
     // Eligible by default: the site serves claims that are in scope (ADR-0019),
-    // so the fixtures are in scope unless a test says otherwise.
+    // so the fixtures are in scope — with a COMPLETE decision — unless a test
+    // says otherwise. The gate requires the method and genre too, because the
+    // page has to disclose how the claim was attributed.
     speakershipClass: "quoted-actor",
+    speakershipMethod: "structural",
+    genre: "transcript",
     discourseContext: {
       window: "…in the context of law and order debate…",
       attachedProposal: "tougher sentencing",
@@ -307,10 +312,79 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     // attributed (ADR-0019 §5) rather than guessing from the speaker string.
     const page = await reader.getVerdictPage(authorClaim.claimId);
     expect(page?.speakershipClass).toBe("author-claim");
+    expect(page?.speakershipMethod).toBe("structural");
+    expect(page?.genre).toBe("transcript");
     expect(
       (await reader.getVerdictPage(outletProse.claimId, { includeIneligible: true }))
         ?.speakershipClass,
     ).toBe("outlet-prose");
+  });
+
+  it("requires a COMPLETE scope decision — a class with no method or genre does not publish", async () => {
+    // ADR-0019 §5 makes the page disclose how a claim was attributed, and §2 says
+    // the rule is genre-dependent. So an in-scope class with no provenance is not
+    // a publishable decision: it is a claim whose confidence and rule-selection
+    // cannot be stated. This is also the guard against a lane asserting a class
+    // purely to make a page render — the class alone is not enough.
+    const noMethod = await seedClaim({
+      speakershipClass: "quoted-actor",
+      speakershipMethod: null,
+    });
+    await publishVerdict(noMethod.claimId);
+    const noGenre = await seedClaim({ speakershipClass: "author-claim", genre: null });
+    await publishVerdict(noGenre.claimId);
+
+    expect(await reader.getVerdictPage(noMethod.claimId)).toBeNull();
+    expect(await reader.getVerdictPage(noGenre.claimId)).toBeNull();
+    // ...and they are only hidden by the gate, not broken: the corpus view shows
+    // the half-recorded decision rather than pretending it is not there.
+    expect(
+      (await reader.getVerdictPage(noMethod.claimId, { includeIneligible: true }))
+        ?.speakershipClass,
+    ).toBe("quoted-actor");
+    expect(
+      (await reader.getVerdictPage(noGenre.claimId, { includeIneligible: true }))?.genre,
+    ).toBeNull();
+  });
+
+  it("the SQL gate and the speakership rule agree — one rule, two expressions", async () => {
+    // `isEligibleSpeakership` states the rule in TypeScript; the reader states it
+    // in SQL (`inArray` + two `isNotNull`s). Two expressions of one rule drift
+    // silently, and the helper alone is unreachable — nothing calls it, because
+    // the filter has to run in the database to paginate. This is where they meet:
+    // every combination that matters is seeded, then both are asked the same
+    // question and must give the same answer. Without this, adding a required
+    // field to one expression and not the other would publish the difference.
+    const cases: Partial<ClaimFixture>[] = [
+      // Eligible on both counts.
+      { speakershipClass: "quoted-actor", speakershipMethod: "structural", genre: "transcript" },
+      {
+        speakershipClass: "author-claim",
+        speakershipMethod: "classified",
+        genre: "opinion-analysis",
+      },
+      // Class recorded, but out of scope: recorded, never verified (ADR-0019 §1).
+      { speakershipClass: "outlet-prose", speakershipMethod: "classified", genre: "news-report" },
+      { speakershipClass: "unresolved", speakershipMethod: "classified", genre: "news-report" },
+      // A half-recorded decision: in-scope class, no provenance for it.
+      { speakershipClass: "quoted-actor", speakershipMethod: null, genre: "transcript" },
+      { speakershipClass: "quoted-actor", speakershipMethod: "structural", genre: null },
+      // No decision at all — every row ingested before ADR-0019.
+      { speakershipClass: null, speakershipMethod: null, genre: null },
+    ];
+
+    for (const fixture of cases) {
+      const claim = await seedClaim(fixture);
+      await publishVerdict(claim.claimId);
+      const served = (await reader.getVerdictPage(claim.claimId)) !== null;
+      expect(served, `SQL gate disagrees with the rule for ${JSON.stringify(fixture)}`).toBe(
+        isEligibleSpeakership({
+          speakershipClass: fixture.speakershipClass ?? null,
+          speakershipMethod: fixture.speakershipMethod ?? null,
+          genre: fixture.genre ?? null,
+        }),
+      );
+    }
   });
 
   it("reports the pack the CURRENT verdict pins, not an earlier pack for the claim", async () => {

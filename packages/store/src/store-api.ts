@@ -3,7 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
-import type { SpeakershipClass } from "./speakership.ts";
+import type { Genre, SpeakershipClass, SpeakershipMethod } from "./speakership.ts";
 import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {
@@ -52,6 +52,19 @@ export interface ClaimFixture {
    * assessed. `quoted-actor` and `author-claim` are the eligible classes.
    */
   speakershipClass?: SpeakershipClass | null;
+  /**
+   * How that class was decided (ADR-0019 §2): the document's own structure, the
+   * publishing body by construction, or a classifier. Part of the decision, not
+   * metadata about it — a class with no method cannot be disclosed with its
+   * confidence, so it does not publish.
+   */
+  speakershipMethod?: SpeakershipMethod | null;
+  /**
+   * The document's genre (ADR-0019 §2), which selected the eligibility rule.
+   * Stored so the selection is auditable after the fact; a class with no genre
+   * does not publish, for the same reason as the method.
+   */
+  genre?: Genre | null;
   /**
    * Triage's output for the document this claim came from (claim.triage_record)
    * — how many sentences were read, and which were set aside or held. Optional:

@@ -57,6 +57,13 @@
       "when": 1789316792697,
       "tag": "0007_shallow_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789317190971,
+      "tag": "0008_bent_lady_vermin",
+      "breakpoints": true
     }
   ]
 }

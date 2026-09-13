@@ -132,6 +132,13 @@ export const claim = pgTable(
     // `author-claim` are the eligible classes; `outlet-prose` and `unresolved`
     // are recorded, never verified.
     speakershipClass: text("speakership_class"),
+    // How that class was decided, and the genre that selected the rule
+    // (ADR-0019 §2/§5). Both are part of the decision, not metadata about it:
+    // a structural attribution and a classified one carry different confidence,
+    // and the rule itself is genre-dependent — so a class with neither recorded
+    // cannot be disclosed honestly and does not publish (see `speakership.ts`).
+    speakershipMethod: text("speakership_method"),
+    genre: text("genre"),
     // The triage pass's own output for the document this claim came from: how
     // many sentences were classified, which ones were set aside and under which
     // rejection class, and which were held without grading. This is the "what we
@@ -166,6 +173,14 @@ export const claim = pgTable(
     check(
       "speakership_class_valid",
       sql`${t.speakershipClass} IS NULL OR ${t.speakershipClass} IN ('quoted-actor','author-claim','outlet-prose','unresolved')`,
+    ),
+    check(
+      "speakership_method_valid",
+      sql`${t.speakershipMethod} IS NULL OR ${t.speakershipMethod} IN ('structural','by-construction','classified')`,
+    ),
+    check(
+      "genre_valid",
+      sql`${t.genre} IS NULL OR ${t.genre} IN ('news-report','opinion-analysis','press-release','transcript','institutional-post')`,
     ),
   ],
 );

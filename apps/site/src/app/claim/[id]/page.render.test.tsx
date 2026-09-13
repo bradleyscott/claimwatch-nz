@@ -78,6 +78,10 @@ const pageData = {
   // wrote itself (`outlet-prose`) or one with no classification does not reach
   // the public record — the reader's gate, not the page, decides that.
   speakershipClass: "quoted-actor",
+  // ...and a complete decision: the ADR-0019 gate requires the method and genre
+  // too, so a class with no provenance cannot publish (ADR-0019 §5).
+  speakershipMethod: "structural",
+  genre: "transcript",
   publisher: "Newstalk ZB",
   checkedAt: new Date("2026-09-09T09:40:00+12:00"),
   nliOutcome: "pass",

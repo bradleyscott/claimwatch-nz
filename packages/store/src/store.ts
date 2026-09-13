@@ -141,6 +141,8 @@ export class PgStore implements Store {
         claimType: fixture.claimType,
         verificationMode: fixture.verificationMode ?? null,
         speakershipClass: fixture.speakershipClass ?? null,
+        speakershipMethod: fixture.speakershipMethod ?? null,
+        genre: fixture.genre ?? null,
         fingerprint: fixture.fingerprint ?? null,
         discourseContext: fixture.discourseContext,
         triageRecord: fixture.triageRecord ?? null,

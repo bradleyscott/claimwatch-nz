@@ -52,13 +52,61 @@ export const ELIGIBLE_SPEAKERSHIP_CLASSES = ["quoted-actor", "author-claim"] as 
 export const SpeakershipClassSchema = z.enum(SPEAKERSHIP_CLASSES);
 
 /**
- * Whether a claim may be published. A null class means NO decision was recorded —
- * every row ingested before ADR-0019 existed is in that state — and it is
- * deliberately not eligible: publishing a claim whose scope was never assessed is
- * the failure this module exists to stop, so the gate fails closed. The site
- * therefore serves only claims the `attribute` stage positively classified as
- * in scope.
+ * How the class was decided (ADR-0019 §2). Not decoration: the ADR says "a
+ * structural attribution and a classified one carry different confidence", and
+ * §5 makes the page state how a claim was attributed — without this the page
+ * cannot distinguish "we read the document's own turn structure" from "a model
+ * guessed", which is the difference between a disclosure and a decoration.
  */
-export function isEligibleSpeakership(value: string | null | undefined): boolean {
-  return value != null && (ELIGIBLE_SPEAKERSHIP_CLASSES as readonly string[]).includes(value);
+export const SPEAKERSHIP_METHODS = [
+  /** The document's own structure decided it: Hansard speaker markup, caption
+   * turn structure (`transcript_tier`, ADR-0007). Highest confidence. */
+  "structural",
+  /** The publishing body IS the claimant, so no classification is needed: a
+   * government press release's forwarded sentences (ADR-0019 §2). */
+  "by-construction",
+  /** A classifier read the sentence. The default where no structure exists. */
+  "classified",
+] as const;
+export type SpeakershipMethod = (typeof SPEAKERSHIP_METHODS)[number];
+
+/**
+ * The document's genre (ADR-0019 §2). The rule is genre-dependent — a press
+ * release's forwarded sentences are eligible, a news report's are not — so this
+ * is the input that selected the rule, and storing it is what makes the
+ * selection auditable after the fact.
+ */
+export const GENRES = [
+  "news-report",
+  "opinion-analysis",
+  "press-release",
+  "transcript",
+  "institutional-post",
+] as const;
+export type Genre = (typeof GENRES)[number];
+
+/**
+ * Whether a claim may be published. Two things are required, and both matter:
+ *
+ * 1. an eligible class (`quoted-actor` / `author-claim`);
+ * 2. a COMPLETE decision — a method and a genre.
+ *
+ * A null class means no decision was recorded, and it is deliberately not
+ * eligible: publishing a claim whose scope was never assessed is the failure this
+ * module exists to stop, so the gate fails closed. The same applies to a class
+ * with no method or genre: ADR-0019 §5 requires the page to disclose how the
+ * claim was attributed, and a class with no provenance behind it cannot be
+ * disclosed honestly, so a half-recorded decision is not publishable either.
+ */
+export function isEligibleSpeakership(input: {
+  speakershipClass: string | null | undefined;
+  speakershipMethod?: string | null;
+  genre?: string | null;
+}): boolean {
+  return (
+    input.speakershipClass != null &&
+    (ELIGIBLE_SPEAKERSHIP_CLASSES as readonly string[]).includes(input.speakershipClass) &&
+    input.speakershipMethod != null &&
+    input.genre != null
+  );
 }
