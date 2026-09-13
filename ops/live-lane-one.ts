@@ -47,6 +47,13 @@ import {
   runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
+import {
+  ATTRIBUTION_PROMPT,
+  attributeSentences,
+  eligibleSentences,
+  SPEAKERSHIP_SCHEMAS,
+  speakershipFor,
+} from "../packages/pipeline/src/speakership.ts";
 import { splitSentences, triageDocument } from "../packages/pipeline/src/triage.ts";
 import { citationCheck, nliAudit } from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
@@ -163,6 +170,21 @@ const triageLlm = {
       system: promptFor(role),
       user: JSON.stringify(input, null, 2),
       schema: TRIAGE_SCHEMAS[role] ?? (schema as never),
+    });
+    return { ...call, rawOutput: call.raw };
+  },
+};
+
+// The `attribute` stage's bridge: its prompt is the one the stage exports, so the
+// text the provider reads and the prompt version recorded in provenance cannot
+// drift apart.
+const speakershipLlm = {
+  generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
+    const call = await adapter.call({
+      role: role as never,
+      system: ATTRIBUTION_PROMPT,
+      user: JSON.stringify(input, null, 2),
+      schema: SPEAKERSHIP_SCHEMAS[role] ?? (schema as never),
     });
     return { ...call, rawOutput: call.raw };
   },
@@ -303,8 +325,12 @@ async function main(): Promise<void> {
     });
     console.log(`  publication row: ${publication.publicationId}`);
 
-    // 3. Triage.
-    console.log("\n[3/6] triage (live LLM)…");
+    // 3. Attribute, then triage (ADR-0019 §4: eligibility is decided BEFORE
+    // triage reads anything). Triage is handed only the sentences that survived
+    // the scope rule, so it can never be the stage that decides whose words are
+    // ours to check — and a caller cannot forget the rule, because the eligible
+    // set is the only input triage is given.
+    console.log("\n[3/6] attribute + triage (live LLM)…");
     const sentences = splitSentences(doc.text);
     // ADR-0008: the window is the claim's IMMEDIATE context — the containing
     // paragraph, capped around ±300 words — not the document headline. Triage
@@ -333,10 +359,34 @@ async function main(): Promise<void> {
       const start = Math.max(0, before - Math.floor(WINDOW_WORDS / 2));
       return words.slice(start, start + WINDOW_WORDS).join(" ");
     };
+    // The `attribute` stage: whose words is each sentence?
+    const attributionInput = {
+      documentId: publication.publicationId,
+      // Declared, not classified: this lane reads a news feed. The dangerous
+      // direction of a wrong genre is a news report labelled `opinion-analysis`,
+      // which makes the reporter's own assertions eligible — the original defect
+      // through the back door (ADR-0019 §2; genre detection is INGESTION Q13).
+      genre: "news-report" as const,
+      sentences: sentences.map((sentence) => ({ id: sentence.id, text: sentence.text })),
+    };
+    const attribution = await attributeSentences(attributionInput, speakershipLlm as never);
+    const scope = attribution.scope;
+    console.log(
+      `  ${scope.read} sentence(s): ${scope.eligible} in scope, ${scope.excluded} out of scope ` +
+        `(${Object.entries(scope.byClass)
+          .filter(([, count]) => count > 0)
+          .map(([cls, count]) => `${cls} ${count}`)
+          .join(", ")})`,
+    );
+    const inScope = eligibleSentences(attributionInput, attribution);
+    if (inScope.length === 0) {
+      console.log("  no sentence in this document is ours to check — nothing written.");
+      return;
+    }
     const triage = await triageDocument(
       {
         documentId: publication.publicationId,
-        sentences: sentences.map((sentence) => ({
+        sentences: inScope.map((sentence) => ({
           id: sentence.id,
           text: sentence.text,
           window: windowFor(sentence.text),
@@ -673,6 +723,7 @@ async function main(): Promise<void> {
     });
     console.log(`  NLI: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`);
 
+    const sentenceAttribution = speakershipFor(attribution, claim.sourceSentenceId);
     const claimRecord = await store.recordClaim({
       publicationId: publication.publicationId,
       // Content identity (TRI-R13): triage's claim id is derived from the
@@ -681,15 +732,13 @@ async function main(): Promise<void> {
       // this the write is unconditional and re-runs accumulate duplicates —
       // each with its own verdict and trail, and nothing pointing at the first.
       claimKey: claim.claimId,
-      // Deliberately NOT set: `speakershipClass`. The class comes from ingestion's
-      // `attribute` stage (ADR-0019) and this lane has none, so its claims carry a
-      // null class and the reader's gate excludes them from the public record.
-      // That is the correct outcome while the stage is missing — an empty public
-      // record beats one made of verdicts about a journalist's own sentences,
-      // which is what this lane produced before the gate existed. The lane must
-      // not set the class itself: the scope decision belongs to the stage, and a
-      // lane asserting it to make a page render is the anti-pattern the ADR
-      // forbids.
+      // The scope decision, written WHOLE (ADR-0019 §5): the class this sentence
+      // got, how it was decided, and the genre that selected the rule. The
+      // reader's gate requires all three, because a class with no method or genre
+      // cannot be disclosed with its provenance and so is not publishable.
+      speakershipClass: sentenceAttribution?.speakershipClass ?? null,
+      speakershipMethod: attribution.method,
+      genre: attribution.genre,
       utteranceText: claim.text,
       text: claim.text,
       claimType: claim.claimType,
@@ -698,11 +747,24 @@ async function main(): Promise<void> {
       // Triage's own output: what was read, what was set aside, what was held.
       // Comes from triageDocument so the counts cannot drift from the run.
       triageRecord: triage.triageRecord,
-      // When it was said: the article's publication time. Attribution is left
-      // empty rather than guessed — the lane does not diarize (ADR-0002/ADR-0007
-      // attribution is conservative), so the page omits the "who" line.
+      // When it was said: the article's publication time.
       spokenAt: item.publishedAt,
-      attributionCandidates: [],
+      // The named speaker, so the page can say whose claim it assesses instead of
+      // leaving the "who" line empty. `confidence` is required by the shape and
+      // nothing measures it: 1 records that this is the name the text attributes
+      // the words to, NOT that entity resolution is certain. A nullable
+      // confidence would be the honest shape, and it is flagged rather than
+      // quietly chosen (Sept 2026).
+      attributionCandidates: sentenceAttribution?.speaker
+        ? [
+            {
+              name: sentenceAttribution.speaker,
+              kind: "person",
+              confidence: 1,
+              basis: attribution.provenance.promptVersion,
+            },
+          ]
+        : [],
       // Triage's own discourse-context pass (ADR-0008): the extractor reads the
       // window, so the lane passes its result through rather than inventing one.
       // Until this was wired, `attached_proposal` was always null and the verdict

@@ -66,6 +66,12 @@ const SentenceAttribution = z.object({
 
 const AttributionOutput = z.object({ sentences: z.array(SentenceAttribution).min(1) });
 
+/** The real Zod schema for the role, so a live bridge hands the adapter a schema
+ * rather than the port's `{parse}` wrapper (same pattern as `TRIAGE_SCHEMAS`). */
+export const SPEAKERSHIP_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  "speakership-classify": AttributionOutput,
+};
+
 export interface SentenceSpeakership {
   sentenceId: string;
   speakershipClass: SpeakershipClass;
