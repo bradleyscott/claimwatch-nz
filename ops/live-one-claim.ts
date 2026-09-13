@@ -1,4 +1,4 @@
-// One-claim live run (Bradley, Sept 2026): end-to-end through the real
+// One-claim live run (Sept 2026): end-to-end through the real
 // pipeline with the live adapter — ingest a real Beehive release text →
 // triage (checkability + typing via Claude) → verify (stat grid + NLI gate)
 // → verdict written to the store → viewable on the site.
@@ -9,7 +9,11 @@ import { setDefaultResultOrder } from "node:dns";
 
 setDefaultResultOrder("ipv4first");
 
-import { createLiveAdapter, DEFAULT_ROUTING } from "../packages/pipeline/src/llm/live-adapter.ts";
+import {
+  createLiveAdapter,
+  type ProviderCall,
+  type ProviderResult,
+} from "../packages/pipeline/src/llm/live-adapter.ts";
 import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
 import {
   computeStatGrid as computeGrid,
@@ -17,7 +21,6 @@ import {
 } from "../packages/pipeline/src/verification.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
 import { createTestStore } from "../packages/store/src/store.ts";
-import type { VerdictClass } from "../packages/store/src/store-api.ts";
 
 type TriageLlmPort = {
   generateObject<T>(
@@ -67,7 +70,19 @@ async function main(): Promise<void> {
   console.log(`claim: "${CLAIM_TEXT}"`);
 
   // Live adapter bridging both ports.
-  const adapter = createLiveAdapter();
+  // Provenance (HAR-R7): record the roles this run actually invoked, with the
+  // model the adapter reported for each — never a hand-written role/model list.
+  // Every LLM call funnels through `call`, so the manifest cannot claim a step
+  // that did not run.
+  const invokedRoles = new Map<string, string>();
+  const rawAdapter = createLiveAdapter();
+  const adapter = {
+    call: async <T>(providerCall: ProviderCall): Promise<ProviderResult<T>> => {
+      const result = await rawAdapter.call<T>(providerCall);
+      invokedRoles.set(providerCall.role, result.model ?? "unknown");
+      return result;
+    },
+  };
   const triageLlm: TriageLlmPort = {
     generateObject: async (role, input, schema) => {
       const call = await adapter.call({
@@ -112,7 +127,10 @@ async function main(): Promise<void> {
     }
     return;
   }
-  const claim = triage.claims[0];
+  const [claim] = triage.claims;
+  // noUncheckedIndexedAccess: triage guarantees at least one claim, but TS needs
+  // the narrowing spelled out.
+  if (claim == null) return;
 
   // 2. Verify: stat-grid over the fixture series (the fingerprint + context
   // from triage route the mode; the grid arithmetic is pure logic — the LLM
@@ -170,12 +188,15 @@ async function main(): Promise<void> {
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
       provenance: {
         pipelineVersion: "0.1.0-live-run",
-        promptVersions: { triage: "triage@1", adjudication: "adjudication@1" },
-        modelVersions: { adjudication: DEFAULT_ROUTING["triage-typing"].model },
+        promptVersions: Object.fromEntries(
+          [...invokedRoles.keys()].map((role) => [role, `${role}@1`]),
+        ),
+        modelVersions: Object.fromEntries(invokedRoles),
         searchRefs: [],
       },
       verdictClass: grid.verdictClass,
-      confidence: 0.72,
+      // No confidence recorded: nothing in the pipeline measures one yet, and a
+      // placeholder is what made every verdict page read "Confidence: 70%".
     });
     await store.logTransition(verdict.verdictId, {
       from: "DRAFT",

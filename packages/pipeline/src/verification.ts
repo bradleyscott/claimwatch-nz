@@ -351,9 +351,7 @@ const CitationOutput = z.object({
     .object({
       lead: z.string(),
       // LLMs sometimes emit a single paragraph as a string — accept and wrap.
-      paragraphs: z
-        .union([z.array(z.string()), z.string().transform((s) => [s])])
-        .default([]),
+      paragraphs: z.union([z.array(z.string()), z.string().transform((s) => [s])]).default([]),
       pull: z.string(),
     })
     .optional(),
@@ -620,7 +618,14 @@ export async function assembleEvidencePack(
 
 export interface VerdictWriteInput {
   verdictClass: VerdictClass;
-  confidence: number;
+  /**
+   * Omitted until an adjudicator produces one. The column is nullable and the
+   * site publishes nothing for it (SITE-MVP §2.2 rule 2), so a caller with no
+   * measured confidence must leave it out rather than invent a number — the
+   * slices used to hardcode 0.7 here, which is how every page came to show
+   * "Confidence: 70%" (Sept 2026).
+   */
+  confidence?: number;
   provenance: {
     pipelineVersion: string;
     promptVersions: Record<string, string>;
@@ -690,7 +695,7 @@ export async function publicationFlow(
   const verdict = await impl.writeVerdict(claimId, appended.packId, {
     provenance: write.provenance,
     verdictClass: write.verdictClass,
-    confidence: write.confidence,
+    ...(write.confidence != null ? { confidence: write.confidence } : {}),
   });
   await impl.logTransition(verdict.verdictId, {
     from: "DRAFT",

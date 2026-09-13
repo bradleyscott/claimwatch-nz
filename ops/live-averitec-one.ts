@@ -1,10 +1,10 @@
-// One-claim AVeriTeC dev-set slice (Bradley, Sept 2026): a REAL benchmark claim
+// One-claim AVeriTeC dev-set slice (Sept 2026): a REAL benchmark claim
 // from the pinned dev.json through the full pipeline with live LLMs — triage →
 // verify (routed by claim type) → Dataset B prediction → scored against the
 // benchmark label via the pinned eval script's vocabulary. The point is flow
 // validation against real benchmark data, not verdict quality.
 //
-// Usage: bun run ops/live-averitec-one.ts [claimIndex?]
+// Usage: npx tsx ops/live-averitec-one.ts [claimIndex?]
 
 import { setDefaultResultOrder } from "node:dns";
 
@@ -12,7 +12,12 @@ setDefaultResultOrder("ipv4first");
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createLiveAdapter } from "../packages/pipeline/src/llm/live-adapter.ts";
+import type { ZodTypeAny } from "zod";
+import {
+  createLiveAdapter,
+  type ProviderCall,
+  type ProviderResult,
+} from "../packages/pipeline/src/llm/live-adapter.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
@@ -21,6 +26,8 @@ import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidenc
 import {
   RESEARCHER_PROMPT,
   runDeepResearch,
+  type ResearchAssessment,
+  type ResearcherLlm,
 } from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import { triageDocument } from "../packages/pipeline/src/triage.ts";
@@ -57,11 +64,35 @@ function requireEnv(name: string): string {
 
 const DATABASE_URL = requireEnv("DATABASE_URL");
 
-const adapter = createLiveAdapter();
+/**
+ * `SeriesData.authorityTier` is the closed union 1–6, but the store's working
+ * type for a tier is `number`. Narrow it here rather than cast: a bad tier
+ * (0, 7, a parse artefact) must land on 6 = unknown, not be asserted into the
+ * union and published as if it were a real classification.
+ */
+function asSourceTier(tier: number | undefined): 1 | 2 | 3 | 4 | 5 | 6 {
+  return tier === 1 || tier === 2 || tier === 3 || tier === 4 || tier === 5 || tier === 6
+    ? tier
+    : 6;
+}
+
+// Provenance (HAR-R7): record the roles this run actually invoked, with the
+// model the adapter reported for each — never a hand-written role/model list.
+// This is what stops a manifest from claiming a step that did not run (the
+// slices used to record `adjudication@1`, a prompt that does not exist).
+const invokedRoles = new Map<string, string>();
+const rawAdapter = createLiveAdapter();
+const adapter = {
+  call: async <T>(providerCall: ProviderCall): Promise<ProviderResult<T>> => {
+    const result = await rawAdapter.call<T>(providerCall);
+    invokedRoles.set(providerCall.role, result.model ?? "unknown");
+    return result;
+  },
+};
 
 // Port bridges: adapter `raw` → port `rawOutput`; real Zod schemas per role.
-const TRIAGE_SCHEMAS: Record<string, z.ZodTypeAny> = {};
-const VERIFICATION_SCHEMAS: Record<string, z.ZodTypeAny> = {};
+const TRIAGE_SCHEMAS: Record<string, ZodTypeAny> = {};
+const VERIFICATION_SCHEMAS: Record<string, ZodTypeAny> = {};
 {
   // Imported lazily to avoid circulars; the maps are declared at module end of
   // their owners.
@@ -108,8 +139,10 @@ const decomposeLlm = {
   },
 };
 
-const researcherLlm = {
-  assessRound: async (input: unknown) => {
+const researcherLlm: ResearcherLlm = {
+  // Annotated rather than inferred: an inferred return widens the literal
+  // `verdictSignal` to `string`, which is not assignable to the port's union.
+  assessRound: async (input): Promise<ResearchAssessment> => {
     const call = await adapter.call({
       role: "research-assess" as never,
       system: RESEARCHER_PROMPT,
@@ -121,7 +154,7 @@ const researcherLlm = {
             confidence: number;
             gaps: string[];
             refinedQueries?: string[];
-            verdictSignal: string;
+            verdictSignal: "supported" | "refuted" | "not_enough_evidence";
           },
       } as never,
     });
@@ -162,8 +195,7 @@ const PROMPTS: Record<string, string> = {
     'You classify political sentences for checkability AND type the checkable ones. The input contains a "sentences" array with "id" and "text" per sentence. For EVERY sentence return one result. Reply with ONLY JSON: {"results": [{"sentenceId": string, "checkable": true, "claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web"} | {"sentenceId": string, "checkable": false, "rejectionClass": "opinion"|"rhetoric"|"procedure"|"satire"|"pledge-conditional"|"question"}]}. Mode mapping: statistical→stat-grid, citation-backed→citation-check, broadcast-quote→quote-fidelity, institution-citation→citation-check, false-context→provenance, other→open-web.',
   "grid-materiality":
     'You select which grid rows are material to how a claim is deployed. Reply with ONLY JSON: {"materialRows": string[]}.',
-  "citation-compare":
-    `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).
+  "citation-compare": `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).
 Decide the verdict, then EXPLAIN it in plain language. Write for someone with no statistics training — short sentences, no jargon.
 Reply with ONLY JSON (types matter: paragraphs is an ARRAY of strings; tier is a NUMBER):
 {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking",
@@ -243,7 +275,10 @@ async function main(): Promise<void> {
     );
     return;
   }
-  const claim = triage.claims[0];
+  const [claim] = triage.claims;
+  // noUncheckedIndexedAccess: the empty-claims case returned above, but TS needs
+  // the narrowing spelled out.
+  if (claim == null) return;
   console.log(`  → ${claim.claimType} → mode ${claim.mode}`);
 
   // 2. Verify — registry-aware routing (user direction, Sept 2026): open-web
@@ -297,7 +332,7 @@ async function main(): Promise<void> {
     // clearly labelled.
     const series = {
       authorityRef: authority?.authorityRef ?? "averitec-benchmark-qa",
-      authorityTier: (authority?.tier ?? 6) as const,
+      authorityTier: asSourceTier(authority?.tier),
       seriesIdentity: `averitec-${devSet.indexOf(target)}`,
       unit: "qa-pair",
       vintageDate: target.claim_date,
@@ -385,7 +420,7 @@ async function main(): Promise<void> {
           };
         }),
       );
-      const adjudication = await verificationLlm.generateObject(
+      const adjudication = (await verificationLlm.generateObject(
         "citation-compare",
         {
           claim: target.claim,
@@ -397,31 +432,42 @@ async function main(): Promise<void> {
           parse: (v: unknown) =>
             v as { verdict: string; bindingStrictness: string; mismatch: string },
         },
-      ) as { ok: boolean; value?: { verdict: string; mismatch: string; narrative?: { lead: string; paragraphs: string[]; pull: string }; sourceFindings?: Array<{ link: string; tier: number; finding: string }> }; failureClass?: string };
+      )) as {
+        ok: boolean;
+        value?: {
+          verdict: string;
+          mismatch: string;
+          narrative?: { lead: string; paragraphs: string[]; pull: string };
+          sourceFindings?: Array<{ link: string; tier: number; finding: string }>;
+        };
+        failureClass?: string;
+        raw?: string;
+      };
       // Adjudication failure → honest NEI with the failure recorded. Never
       // fabricate a verdict from a missing LLM response.
       if (!adjudication.ok || !adjudication.value) {
         verdictClass = "not_enough_evidence";
         note = `adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question`;
         console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
+        if (adjudication.raw) console.log(`  raw: ${adjudication.raw.slice(0, 600)}`);
       } else {
-      const adj = adjudication.value;
-      verdictClass = adj.verdict;
-      adjudicationMismatch = adj.mismatch || null;
-      researchNarrative = adj.narrative ?? null;
-      researchEvidence = outcome.evidence.slice(0, 5).map((e) => {
-        const finding = (adj.sourceFindings ?? []).find((f) => f.link === e.link);
-        return {
-          title: e.title,
-          link: e.link,
-          snippet: e.snippet,
-          finding: finding?.finding ?? "",
-          tier: finding?.tier ?? null,
-        };
-      });
-      // Reader-facing commentary comes from the adjudicator's narrative —
-      // pipeline meta-commentary (rounds, source lists) stays out of the pack.
-      note = `deep research (${outcome.evidence.length} sources, ${outcome.roundsUsed} rounds, confidence ${outcome.confidence}${outcome.cappedRun ? ", cap-bound" : ""})`;
+        const adj = adjudication.value;
+        verdictClass = adj.verdict;
+        adjudicationMismatch = adj.mismatch || null;
+        researchNarrative = adj.narrative ?? null;
+        researchEvidence = outcome.evidence.slice(0, 5).map((e) => {
+          const finding = (adj.sourceFindings ?? []).find((f) => f.link === e.link);
+          return {
+            title: e.title,
+            link: e.link,
+            snippet: e.snippet,
+            finding: finding?.finding ?? "",
+            tier: finding?.tier ?? null,
+          };
+        });
+        // Reader-facing commentary comes from the adjudicator's narrative —
+        // pipeline meta-commentary (rounds, source lists) stays out of the pack.
+        note = `deep research (${outcome.evidence.length} sources, ${outcome.roundsUsed} rounds, confidence ${outcome.confidence}${outcome.cappedRun ? ", cap-bound" : ""})`;
       }
     }
     console.log(`  open-web → ${verdictClass}`);
@@ -497,7 +543,8 @@ async function main(): Promise<void> {
         : [],
       discourseContext: {
         window: `AVeriTeC dev set, claim_date ${target.claim_date}`,
-        speechContext: target.speaker ? `said by ${target.speaker}` : undefined,
+        // exactOptionalPropertyTypes: omit the key rather than pass `undefined`.
+        ...(target.speaker ? { speechContext: `said by ${target.speaker}` } : {}),
       },
     });
     // Persist the pack with what the research actually produced: the
@@ -522,7 +569,7 @@ async function main(): Promise<void> {
         const item = await store.recordEvidenceItem({
           claimId: claimRecord.claimId,
           authorityRef: new URL(e.link).hostname,
-          seriesIdentity: e.title.slice(0, 60) || e.link,
+          seriesIdentity: e.title || e.link,
           vintageDate: new Date(),
           url: e.link,
           archiveSnapshotUrl: "",
@@ -544,12 +591,15 @@ async function main(): Promise<void> {
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
       provenance: {
         pipelineVersion: "0.1.0-averitec-slice",
-        promptVersions: { triage: "triage@1", adjudication: "adjudication@1" },
-        modelVersions: { adjudication: "claude-sonnet-5" },
+        promptVersions: Object.fromEntries(
+          [...invokedRoles.keys()].map((role) => [role, `${role}@1`]),
+        ),
+        modelVersions: Object.fromEntries(invokedRoles),
         searchRefs: [],
       },
       verdictClass: verdictClass as never,
-      confidence: 0.7,
+      // No confidence recorded: nothing in the pipeline measures one yet, and a
+      // placeholder is what made every verdict page read "Confidence: 70%".
     });
     await store.logTransition(verdict.verdictId, {
       from: "DRAFT",

@@ -83,8 +83,8 @@ describe("scoring run → run file (HARNESS §2.5 step 6)", () => {
     const manifest = buildRunManifest(
       {
         pipelineVersion: "0.1.0",
-        promptVersions: { triage: "triage@1" },
-        modelVersions: { triage: "flash@v1" },
+        promptVersions: { "triage-typing": "triage-typing@1" },
+        modelVersions: { "triage-typing": "flash@v1" },
         gridAxesVersion: "grid-axes-2026-09",
         searchConfig: "brave-primary",
       },
@@ -127,8 +127,8 @@ describe("scoring run → run file (HARNESS §2.5 step 6)", () => {
     const manifest = buildRunManifest(
       {
         pipelineVersion: "0.1.0",
-        promptVersions: { triage: "triage@1" },
-        modelVersions: { triage: "flash@v1" },
+        promptVersions: { "triage-typing": "triage-typing@1" },
+        modelVersions: { "triage-typing": "flash@v1" },
         gridAxesVersion: "grid-axes-2026-09",
         searchConfig: "brave-primary",
       },

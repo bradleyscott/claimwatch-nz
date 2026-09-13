@@ -562,8 +562,11 @@ function makeFixtures(): StoreFixtures {
     }),
     fullProvenance: () => ({
       pipelineVersion: "0.1.0",
-      promptVersions: { triage: "triage@1", adjudication: "adjudication@1" },
-      modelVersions: { adjudication: "model-x@v1" },
+      promptVersions: {
+        "triage-typing": "triage-typing@1",
+        "citation-compare": "citation-compare@1",
+      },
+      modelVersions: { "citation-compare": "model-x@v1" },
       searchRefs: ["brave:query-hash"],
     }),
   };

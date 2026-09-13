@@ -107,7 +107,7 @@ Every evidence URL cited in a label IA-snapshotted at labelling time (URL + time
 
 ### 2.8 Reproducibility
 
-A scoring run carries a **run manifest** — the run is reproducible iff the manifest fully determines it: model versions per role (ADR-0011) · prompt content hashes · dataset versions + series vintages + snapshot timestamps · pinned eval tooling (commit + environment) · retrieval config (provider, depth cap, authority-map version). Two identical-manifest runs may still differ (non-determinism, search drift); the manifest pins everything we control, and the golden-set layer quantifies the residual.
+A scoring run carries a **run manifest** — the run is reproducible iff the manifest fully determines it: model versions per role (ADR-0011) · prompt version hashes (content addresses of the recorded `role@n` strings, validated against the closed `PROMPT_ROLES` vocabulary — CROSS-CUTTING §3) · dataset versions + series vintages + snapshot timestamps · pinned eval tooling (commit + environment) · retrieval config (provider, depth cap, authority-map version). Two identical-manifest runs may still differ (non-determinism, search drift); the manifest pins everything we control, and the golden-set layer quantifies the residual.
 
 ## 3. Interfaces
 

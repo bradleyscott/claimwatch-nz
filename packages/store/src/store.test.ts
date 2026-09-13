@@ -25,7 +25,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-// No committed connection strings (Bradley, Sept 2026): credentials come from
+// No committed connection strings (Sept 2026): credentials come from
 // .env (gitignored — see .env.example) or the CI environment. The database
 // name is infra wiring, not a requirement — createTestStore wipes whichever
 // database it gets.
@@ -142,7 +142,7 @@ describe("verdict versioning", () => {
     });
     expect(v1.version).toBe(1);
     expect(v1.provenance.pipelineVersion).toBeTruthy();
-    expect(v1.provenance.promptVersions.triage).toBeTruthy();
+    expect(v1.provenance.promptVersions["triage-typing"]).toBeTruthy();
   });
 
   it("writes v2 with a structured diff on a validated pack (STO-R2)", async () => {

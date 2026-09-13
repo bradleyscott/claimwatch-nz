@@ -143,9 +143,24 @@ describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
     });
     const tampered = {
       ...complete,
-      promptContentHashes: { adjudication: "deadbeef" },
+      promptContentHashes: { "citation-compare": "deadbeef" },
     } as RunManifest;
     expect(() => assertManifestCompleteness(tampered)).toThrow(/hash/);
+  });
+
+  // Sept 2026: a manifest recorded `adjudication@1` for a prompt role that does
+  // not exist anywhere in the pipeline — provenance for a step that never ran.
+  // The role vocabulary is now closed, so it cannot recur silently.
+  it("rejects provenance for a prompt role the pipeline does not have (HAR-R7)", () => {
+    expect(() =>
+      buildRunManifest(
+        {
+          ...goldenFixture.pinnedVersions,
+          promptVersions: { adjudication: "adjudication@1" },
+        } as never,
+        { runId: "run-1", layer: 2 },
+      ),
+    ).toThrow(/unknown role "adjudication"/);
   });
 });
 

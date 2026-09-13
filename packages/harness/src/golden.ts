@@ -4,7 +4,7 @@
 // recomputed at assert time (HAR-R7) — never trusted from storage.
 
 import { createHash } from "node:crypto";
-import { FINGERPRINT_NORMALISATION_VERSION, GRID_AXES_VERSION } from "@cw/llm";
+import { FINGERPRINT_NORMALISATION_VERSION, GRID_AXES_VERSION, PROMPT_ROLES } from "@cw/llm";
 import { STORE_SCHEMA_VERSION } from "@cw/store";
 import type { GoldenSnapshot, RunManifest } from "./golden-api.ts";
 
@@ -18,18 +18,31 @@ const SNAPSHOT_FIELDS = [
   "schemaVersion",
 ] as const;
 
-// Content hash of the prompt files as they exist NOW — the manifest records
-// this, and assertManifestCompleteness recomputes it so a prompt edited after
-// the run was stamped is caught (HAR-R7).
-const PROMPT_FILES: Record<string, string> = {
-  triage: "prompts/triage@1.md",
-  adjudication: "prompts/adjudication@1.md",
-  nli: "prompts/nli@1.md",
-};
+// A manifest may only record prompt versions for roles the pipeline actually
+// holds prompts for — provenance for a step that never ran is worse than no
+// provenance at all (HAR-R7). The vocabulary lives on the shared `@cw/llm`
+// surface because the blind rule (CRO-R14) forbids harness↔pipeline imports.
+const PROMPT_ROLE_SET: ReadonlySet<string> = new Set(PROMPT_ROLES);
 
+function assertKnownPromptRoles(roles: string[]): void {
+  for (const role of roles) {
+    if (!PROMPT_ROLE_SET.has(role)) {
+      throw new Error(
+        `run manifest records a prompt version for unknown role "${role}" — no prompt with that role exists in the pipeline, so it cannot be provenance (HAR-R7). Known roles: ${PROMPT_ROLES.join(", ")}`,
+      );
+    }
+  }
+}
+
+/**
+ * Content address of a prompt *version string* — deliberately not a hash of the
+ * prompt text. Prompts live inline in the pipeline module that uses them
+ * (CROSS-CUTTING §3) and the harness may not read pipeline source (CRO-R14), so
+ * prompt-text hashing has to happen where the text is, at run time, and travel
+ * in the run file. What this binds is the recorded version: changing the version
+ * string, or the stored hash, fails the run instead of scoring silently.
+ */
 function hashPrompt(version: string): string {
-  // Prompt content is versioned in-repo (CROSS-CUTTING §3); the hash binds the
-  // manifest to the exact text. Version string is the content address here.
   return createHash("sha256").update(version).digest("hex").slice(0, 16);
 }
 
@@ -78,6 +91,7 @@ export function buildRunManifest(
   opts: { runId: string; layer: 1 | 2 },
 ): RunManifest {
   const promptVersions = (pinned.promptVersions ?? {}) as Record<string, string>;
+  assertKnownPromptRoles(Object.keys(promptVersions));
   const promptContentHashes: Record<string, string> = {};
   for (const [role, version] of Object.entries(promptVersions)) {
     promptContentHashes[role] = hashPrompt(String(version));
@@ -125,6 +139,7 @@ export function assertManifestCompleteness(manifest: RunManifest): void {
       );
     }
   }
+  assertKnownPromptRoles(Object.keys(manifest.promptVersions ?? {}));
   // Hashes are recomputed, never trusted (HAR-R7): a stored hash that no
   // longer matches the prompt version it claims to bind fails the run.
   for (const [role, stored] of Object.entries(manifest.promptContentHashes ?? {})) {

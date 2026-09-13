@@ -128,8 +128,8 @@ describe("evidence pack assembly + publication gate", () => {
         confidence: 0.72,
         provenance: {
           pipelineVersion: "0.1.0",
-          promptVersions: { adjudication: "adjudication@1" },
-          modelVersions: { adjudication: "model-x@v1" },
+          promptVersions: { "citation-compare": "citation-compare@1" },
+          modelVersions: { "citation-compare": "model-x@v1" },
           searchRefs: [],
         },
       })) as { verdictId: string; version: number; status: string; verdictClass: string };

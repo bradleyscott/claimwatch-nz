@@ -81,7 +81,7 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 | Config key | Change gated by |
 |---|---|
 | `models.{role}` + `model_versions.{role}` (ADR-0011 routing) | L3 run; ADR-0011 decision rule |
-| `prompts.{task}` (version ref → §3 files) | L2 snapshot diff |
+| `prompts.{role}` (version ref → the prompt inline in its owning module, §3; validated against `PROMPT_ROLES`) | L2 snapshot diff |
 | `grid_axes_version` (pre-declared axes, ADR-0005) | L2 + L3 |
 | `data_vintages` (per authority) | pinned per run |
 | `pipeline_version` | derived (package version + git SHA) |
@@ -94,15 +94,15 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 
 ## 3. Prompt management
 
-Prompts are code (ADR-0012): versioned files under `packages/llm/prompts/`, one per role (triage, fingerprint, citation check, quote-fidelity, adjudication, NLI audit, second-opinion).
+Prompts are code (ADR-0012), **inline in the pipeline module that uses them** (the house convention — e.g. `packages/pipeline/src/search/decompose.ts`) and versioned by a `role@n` string; there is no `packages/llm/prompts/` directory. The role vocabulary is `PROMPT_ROLES` in `packages/llm/src/config.ts`, and it is **closed**: a run manifest recording a prompt version for any other role is rejected (HARNESS §2.8), so provenance can never name a step that does not exist. Adding a role means adding it to `PROMPT_ROLES` *and* writing its prompt — the `adjudication@1` role recorded throughout Sept-2026 slices named a prompt that was never written, which is how every verdict came to carry a fabricated confidence and a provenance line for a step that did not run.
 
 - **Change = PR.** Git history is the version record; no vendor prompt UI (prompt changes are model-equivalent changes per ADR-0011).
-- **Every stored artefact and harness output records the prompt versions used** — first-class provenance.
+- **Every stored artefact and harness output records the prompt versions used** — first-class provenance, and validated against `PROMPT_ROLES` at manifest build time.
 - **Published** on the methodology page — the exact prompt text a verdict used is inspectable.
 - **L2 link:** the ~20-claim golden set runs per PR with pinned prompts; a prompt edit produces a snapshot diff the reviewer reads *before* approving. A change that flips a golden verdict without justification does not merge.
 - **Harness-gated:** any prompt change re-runs L3; the per-stratum gate applies.
 
-**Test risks:** prompt edited without a version bump → L1 asserts file hash matches the recorded version; L2 diff makes mismatches visible · prompt drift between what ran and what was scored → L2 uses the same config surface as production, one source · unreviewed tweak degrades a stratum → L3 gate.
+**Test risks:** prompt edited without a version bump → the manifest's recorded version no longer content-addresses the prompt text, and nothing harness-side can see that (the blind rule keeps the harness from reading pipeline source, so prompt-text hashing has to be produced by the pipeline at run time) · provenance for a role that does not exist → L1 rejects an unknown role in the manifest · prompt drift between what ran and what was scored → L2 uses the same config surface as production, one source · unreviewed tweak degrades a stratum → L3 gate.
 
 ## 4. Secrets & API access
 

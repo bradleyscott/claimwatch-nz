@@ -2,11 +2,15 @@
   "description": "Golden-set L2 corpus: 20 pinned claims spanning lanes and verification modes, with expected verdict classes. Any pipeline change produces a visible behaviour diff against the stored snapshot (TEST-STRATEGY §2 L2). Prompt/model versions are pinned per claim; the snapshot records verdict + confidence + evidence path + justifications.",
   "pinnedVersions": {
     "pipelineVersion": "0.1.0",
-    "promptVersions": { "triage": "triage@1", "adjudication": "adjudication@1", "nli": "nli@1" },
+    "promptVersions": {
+      "triage-typing": "triage-typing@1",
+      "citation-compare": "citation-compare@1",
+      "nli-audit": "nli-audit@1"
+    },
     "modelVersions": {
-      "triage": "flash-class@v1",
-      "adjudication": "sonnet-class@v1",
-      "nli": "flash-class@v1"
+      "triage-typing": "flash-class@v1",
+      "citation-compare": "sonnet-class@v1",
+      "nli-audit": "flash-class@v1"
     },
     "gridAxesVersion": "grid-axes-2026-09",
     "fingerprintNormalisationVersion": "fp-norm-2025-01",

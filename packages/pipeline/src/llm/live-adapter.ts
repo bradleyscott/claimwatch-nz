@@ -5,32 +5,26 @@
 // batch for everything except publish-day verdicts.
 //
 // Transport note: Node's Happy Eyeballs connects via an unreachable IPv6 path
-// to api.anthropic.com (Bun is unaffected). Under Node, the Anthropic provider
-// factory receives an undici fetch pinned to IPv4 (`connect: { family: 4 }`).
-// OpenAI's provider settings in this SDK version expose no custom fetch; under
-// Node the OpenAI smoke is gated off until the SDK ships it (tracked gap).
+// to api.anthropic.com. The Anthropic provider factory therefore receives an
+// undici fetch pinned to IPv4 (`connect: { family: 4 }`). OpenAI's provider
+// settings in this SDK version expose no custom fetch; the OpenAI smoke is
+// gated off until the SDK ships it (tracked gap).
 
 import { setDefaultResultOrder } from "node:dns";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import type { PromptRole } from "@cw/llm";
 import { generateObject } from "ai";
 import type { z } from "zod";
 
 setDefaultResultOrder("ipv4first");
 
-export type PortRole =
-  | "triage-checkability"
-  | "triage-typing"
-  | "triage-fingerprint"
-  | "triage-context"
-  | "grid-materiality"
-  | "citation-compare"
-  | "quote-fidelity"
-  | "nli-audit"
-  | "open-web"
-  | "authority-classify"
-  | "claim-decompose"
-  | "research-assess";
+/**
+ * Runtime port roles, derived from the shared prompt-role vocabulary
+ * (CROSS-CUTTING §2): the pipeline cannot route a role the harness manifest
+ * would reject as having no prompt behind it (HAR-R7).
+ */
+export type PortRole = PromptRole;
 
 export interface ProviderCall {
   role: PortRole;
@@ -100,16 +94,14 @@ async function ipv4FetchForNode(
   )) as unknown as Response;
 }
 
-const runningUnderBun = typeof process.versions.bun === "string";
-
 type FetchFunction = typeof globalThis.fetch;
 
 export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): LiveAdapter {
   const table = { ...DEFAULT_ROUTING, ...(routing ?? {}) };
   // Both provider factories take a custom fetch (typeof globalThis.fetch).
-  // Under Bun the native fetch works; under Node the undici fetch pinned to
-  // IPv4 is required (Happy Eyeballs picks the unreachable IPv6 path).
-  const transport = runningUnderBun ? {} : { fetch: ipv4FetchForNode as unknown as FetchFunction };
+  // Node's undici fetch pinned to IPv4 is required (Happy Eyeballs picks the
+  // unreachable IPv6 path to api.anthropic.com).
+  const transport = { fetch: ipv4FetchForNode as unknown as FetchFunction };
   const anthropic = createAnthropic({ apiKey: apiKeyFor("anthropic"), ...transport });
   const openai = createOpenAI({ apiKey: apiKeyFor("openai"), ...transport });
   const modelFor = (role: PortRole) => {
@@ -140,11 +132,13 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
         const isSchema =
           err.name === "AI_NoObjectGeneratedError" || /schema|parse|json/i.test(err.message ?? "");
         const rawText =
-          (err as { text?: string }).text ?? (err as { cause?: { text?: string } }).cause?.text ?? "";
+          (err as { text?: string }).text ??
+          (err as { cause?: { text?: string } }).cause?.text ??
+          "";
         return {
           ok: false,
           failureClass: isSchema ? "schema-validation" : "llm-refusal",
-          raw: [(err.message ?? ""), rawText].filter(Boolean).join(" | ").slice(0, 1500),
+          raw: [err.message ?? "", rawText].filter(Boolean).join(" | ").slice(0, 1500),
         };
       }
     },

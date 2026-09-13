@@ -53,8 +53,8 @@ const run: RunFile = {
 const manifest: RunManifest = {
   runId: "run-1",
   pipelineVersion: "0.1.0",
-  modelVersions: { adjudication: "model-x@v1" },
-  promptVersions: { adjudication: "adjudication@1" },
+  modelVersions: { "citation-compare": "model-x@v1" },
+  promptVersions: { "citation-compare": "citation-compare@1" },
   datasetVersion: "dev-2024",
   evalToolCommit: "7c62d1ec8df3fb560d6efe2b85fa191135636f81",
   searchConfig: "brave-primary",
