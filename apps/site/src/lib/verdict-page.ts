@@ -732,6 +732,17 @@ function readSection(
       "What we did not check is listed below, so you can judge for yourself how much of the document this finding covers.",
     );
   }
+  // The limit of this section, stated rather than implied (Sept 2026). Deciding
+  // what CAN be checked is a judgement, not a rule, and it is made by a model —
+  // so a re-check of the same document can draw the line differently. Two live
+  // runs of one 47-sentence RNZ article returned 31 claims / 16 set aside and
+  // then 42 / 5. A reader who treats this list as a settled property of the
+  // document is reading a promise the system does not make; what IS stable is
+  // that this page shows the line drawn by the run that produced its verdict,
+  // and that the verdict itself moves only through the public revision path.
+  facts.push(
+    "Deciding what can be checked is a judgement made by a model from a versioned set of instructions, so re-checking the same document can draw this line differently; the verdict itself changes only through the public revision path.",
+  );
   return {
     kind: "read",
     title: "What else was in the document, and what we did not check",

@@ -323,6 +323,14 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(read?.technical).toContain("sentences 11");
     expect(read?.technical).toContain("set aside 2");
     expect(read?.technical).toContain("held 1");
+    // The section states its own limit: what can be checked is a judgement, and
+    // a re-check may draw the line elsewhere. Two live runs of one 47-sentence
+    // article gave 31/16 then 42/5, so a reader who treats this list as a
+    // settled property of the document is reading a promise we do not make.
+    expect(read?.facts.join(" ")).toContain(
+      "Deciding what can be checked is a judgement made by a model",
+    );
+    expect(read?.facts.join(" ")).toContain("public revision path");
   });
 
   it("keeps the claim's own record on the trail when it has no section of its own", () => {
