@@ -25,9 +25,9 @@ import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts"
 import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidence.ts";
 import {
   RESEARCHER_PROMPT,
-  runDeepResearch,
   type ResearchAssessment,
   type ResearcherLlm,
+  runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import { triageDocument } from "../packages/pipeline/src/triage.ts";
@@ -95,11 +95,13 @@ function asSourceTier(tier: number | undefined): 1 | 2 | 3 | 4 | 5 | 6 {
 // This is what stops a manifest from claiming a step that did not run (the
 // slices used to record `adjudication@1`, a prompt that does not exist).
 const invokedRoles = new Map<string, string>();
+const invokedServingModes = new Map<string, string>();
 const rawAdapter = createLiveAdapter();
 const adapter = {
   call: async <T>(providerCall: ProviderCall): Promise<ProviderResult<T>> => {
     const result = await rawAdapter.call<T>(providerCall);
     invokedRoles.set(providerCall.role, result.model ?? "unknown");
+    if (result.servingMode != null) invokedServingModes.set(providerCall.role, result.servingMode);
     return result;
   },
 };
@@ -118,6 +120,16 @@ const VERIFICATION_SCHEMAS: Record<string, ZodTypeAny> = {};
 
 function promptFor(role: string): string {
   return PROMPTS[role] ?? "Reply with ONLY a JSON object matching the requested schema.";
+}
+
+// The routing actually exercised, with the serving mode per role (ADR-0011 rule
+// 3). The routing config is the record; this makes it visible in a live run's
+// output so a tiered table is auditable without reading the adapter.
+function logRouting(): void {
+  for (const [role, model] of invokedRoles) {
+    const mode = invokedServingModes.get(role) ?? "unknown";
+    console.log(`  ${role.padEnd(20)} ${model.padEnd(34)} ${mode}`);
+  }
 }
 
 const triageLlm = {
@@ -227,9 +239,9 @@ If no source states the specific figure, the honest verdict is not_enough_eviden
   "claim-decompose": DECOMPOSITION_PROMPT,
   "research-assess": RESEARCHER_PROMPT,
   "nli-audit":
-    'Check if a justification sentence is entailed by the cited evidence. Reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}.',
+    'Check that justification sentences are entailed by their cited evidence. You receive either a single {"justification", "citedSpan"} pair, or a {"sentences": [...]} array of pairs. For a single pair reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}. For an array, reply with ONLY JSON: {"results": [{"verdict": "pass"|"fail", "failureClass": ...|null}, ...]} — one entry per sentence, in the order given.',
   "authority-classify":
-    'Classify this source as an evidence authority for statistical claims. The authority question is JURISDICTION-RELATIVE: tier 1 = the official statistics office or relevant national government department FOR THE CLAIM\'S JURISDICTION (NZ claims → govt.nz; US claims → census.gov/bls.gov/cdc.gov; India claims → mospi.gov.in). A national statistics office of any country is T1 for that jurisdiction\'s claims and only for them. tier 2 = academia/peer-review in-jurisdiction; tier 3 = major mainstream media in-jurisdiction; tier 5 = NGO/sector body (tier-gap framing); tier 6 = unknown/personal. Return null if not plausibly an evidence authority for the claim\'s jurisdiction. Reply with ONLY JSON: {"tier": number, "rationale": string, "confidence": number} (confidence 0-1), or null.',
+    'Classify EACH candidate as an evidence authority for statistical claims. You receive {"candidates": [{"title", "link", "snippet"}, ...]}. The authority question is JURISDICTION-RELATIVE: tier 1 = the official statistics office or relevant national government department FOR THE CLAIM\'S JURISDICTION (NZ claims → govt.nz; US claims → census.gov/bls.gov/cdc.gov; India claims → mospi.gov.in). A national statistics office of any country is T1 for that jurisdiction\'s claims and only for them. tier 2 = academia/peer-review in-jurisdiction; tier 3 = major mainstream media in-jurisdiction; tier 5 = NGO/sector body (tier-gap framing); tier 6 = unknown/personal. For each candidate, use null when it is not plausibly an evidence authority for the jurisdiction. Reply with ONLY JSON: {"results": [{"tier": number, "rationale": string, "confidence": number} | null, ...]} — one entry per candidate, in the order given.',
 };
 
 function pipelineVerdict(
@@ -440,7 +452,11 @@ async function main(): Promise<void> {
           claim: target.claim,
           sources: evidenceWithText,
           researchGaps: outcome.gaps,
-          researchConfidence: outcome.confidence,
+          // No researchConfidence: the researcher's self-reported number is not a
+          // measurement, and feeding it into the adjudicator invites it into the
+          // verdict's reasoning without anything having calibrated it (the same
+          // class of problem as the phantom `adjudication@1` confidence). The
+          // gaps ARE passed — they are observations about missing evidence.
         },
         {
           parse: (v: unknown) =>
@@ -492,15 +508,40 @@ async function main(): Promise<void> {
     if (domainKey) {
       try {
         const outcome = await discoverAuthority(
-          { domain: domainKey, claimText: target.claim },
+          // claimType gates discovery: a non-statistical claim can never route to
+          // stat-grid, so a persisted authority row would be dead weight bought
+          // with a search and a classification call per organic result.
+          { domain: domainKey, claimType: claim.claimType, claimText: target.claim },
           {
             search: createSerperSearch(requireEnv("SERPER_API_KEY")).search,
-            classifyAuthority: async (candidate) => {
-              const call = await verificationLlm.generateObject("authority-classify", candidate, {
-                parse: (v: unknown) => v as { tier: number; rationale: string; confidence: number },
-              });
-              return (call as { value: { tier: number; rationale: string; confidence: number } })
-                .value;
+            classifyAuthorities: async (candidates) => {
+              const call = await verificationLlm.generateObject(
+                "authority-classify",
+                { candidates },
+                {
+                  parse: (v: unknown) =>
+                    v as {
+                      results: Array<{
+                        tier: number;
+                        rationale: string;
+                        confidence: number;
+                      } | null>;
+                    },
+                },
+              );
+              return (
+                (
+                  call as {
+                    value?: {
+                      results?: Array<{
+                        tier: number;
+                        rationale: string;
+                        confidence: number;
+                      } | null>;
+                    };
+                  }
+                ).value?.results ?? candidates.map(() => null)
+              );
             },
             recordAuthority: (fixture) => store.recordAuthority(fixture),
           },
@@ -607,6 +648,18 @@ async function main(): Promise<void> {
       justifications: packJustifications,
       nliOutcome: nli.verdict === "pass" ? "pass" : "fail",
     });
+    if (nli.verdict !== "pass") {
+      // The publication gate is a gate (VERIFICATION §2.7): the pack above IS the
+      // record of the blocked attempt, and no verdict is written. This script used
+      // to publish regardless, which is how 10 verdicts came to be on the public
+      // site carrying a failed audit — a page that says "the evidence backs the
+      // claim" beside "the second pass did not pass" (Sept 2026).
+      console.log(
+        `\n── publication blocked ──\n  NLI audit: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`,
+      );
+      console.log(`  pack recorded without a verdict: ${pack.packId}`);
+      return;
+    }
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
       provenance: {
         pipelineVersion: "0.1.0-averitec-slice",
@@ -636,6 +689,8 @@ async function main(): Promise<void> {
     });
     validateClaimReview(review);
     console.log(`  verdict v1 written: ${verdict.verdictClass}`);
+    console.log("\n── routing actually exercised (role / model / serving mode) ──");
+    logRouting();
     console.log(`  site: http://localhost:3456/claim/${claimRecord.claimId}`);
     console.log("\n── done — AVeriTeC claim end-to-end ──");
     console.log(JSON.stringify({ prediction, nli: nli.verdict }, null, 2).slice(0, 600));

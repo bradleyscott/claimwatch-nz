@@ -38,6 +38,19 @@ export interface AuthorityVettingLlm {
   } | null>;
 }
 
+/**
+ * Batched classification port: one call classifies every candidate that
+ * survived stage 1. The per-candidate port above cost one LLM call per organic
+ * search result (Serper returns ~10, roughly 8 survive guardrails) — by far the
+ * largest call count in the pipeline, for a task that is one classification per
+ * row. Same model, same taxonomy, more context per call (Sept 2026).
+ */
+export interface BatchedAuthorityVettingLlm {
+  classifyAuthorities(
+    candidates: SearchResult[],
+  ): Promise<Array<{ tier: number; rationale: string; confidence: number } | null>>;
+}
+
 // T1: NZ Crown — central government, parliament, official statistics.
 // T2: NZ academia + peer-review. T3: major NZ media. T5: NGO/sector bodies.
 // T6: unknown (open-web caveats apply).
@@ -79,48 +92,90 @@ function hostOf(link: string): string | null {
   }
 }
 
-export async function vetCandidate(
-  result: SearchResult,
-  llm: AuthorityVettingLlm,
-): Promise<VettedCandidate> {
-  const reject = (reason: string): VettedCandidate => ({
+// Stage-1 guardrails, shared by the single and batched paths so the declared
+// lists have exactly one definition. Returns the rejection reason, or null when
+// the candidate survives to stage 2.
+function stage1Reject(result: SearchResult): string | null {
+  if (!result.link.startsWith("https://")) return "non-https link";
+
+  const host = hostOf(result.link);
+  if (host == null) return "unparseable URL";
+
+  if (ADVOCACY_MARKERS.some((marker) => host.includes(marker))) {
+    return "advocacy source (ADR-0018: claim source, never evidence)";
+  }
+  if (FOREIGN_SUFFIXES.some((suffix) => host.endsWith(suffix)) || FOREIGN_HOSTS.includes(host)) {
+    return "foreign official domain — not an NZ authority";
+  }
+  return null;
+}
+
+function rejected(result: SearchResult, reason: string): VettedCandidate {
+  return {
     link: result.link,
     title: result.title,
     snippet: result.snippet,
     tier: null,
     rejected: true,
     reason,
-  });
-
-  if (!result.link.startsWith("https://")) return reject("non-https link");
-
-  const host = hostOf(result.link);
-  if (host == null) return reject("unparseable URL");
-
-  if (ADVOCACY_MARKERS.some((marker) => host.includes(marker))) {
-    return reject("advocacy source (ADR-0018: claim source, never evidence)");
-  }
-  if (FOREIGN_SUFFIXES.some((suffix) => host.endsWith(suffix)) || FOREIGN_HOSTS.includes(host)) {
-    return reject("foreign official domain — not an NZ authority");
-  }
-
-  // Stage 2: LLM classification — the only judgement step, with recorded
-  // rationale. A refusal/null rejects: no silent accept.
-  const classification = await llm.classifyAuthority(result);
-  if (classification == null) {
-    return reject("classifier declined — not plausibly an NZ evidence authority");
-  }
-
-  return {
-    link: result.link,
-    title: result.title,
-    snippet: result.snippet,
-    tier: classification.tier,
-    rejected: false,
-    reason: "vetted: guardrails passed, classifier assigned tier",
-    rationale: classification.rationale,
-    confidence: classification.confidence,
   };
+}
+
+/**
+ * Vets a batch of candidates with ONE classification call for the whole set
+ * (VER-R14 stage 2). Stage-1 guardrails run first and rejected candidates never
+ * reach the classifier; the classifier's per-index answer is attached in order.
+ * A short or missing answer rejects that candidate — never a silent accept.
+ */
+export async function vetCandidates(
+  results: SearchResult[],
+  llm: BatchedAuthorityVettingLlm,
+): Promise<VettedCandidate[]> {
+  const staged = results.map((result) => ({ result, rejectReason: stage1Reject(result) }));
+  const survivors = staged.filter((s) => s.rejectReason == null).map((s) => s.result);
+
+  // No survivor → no call at all. The fan-out is bounded by real candidates.
+  if (survivors.length === 0) {
+    return staged.map((s) => rejected(s.result, s.rejectReason ?? "rejected"));
+  }
+
+  const classifications = await llm.classifyAuthorities(survivors);
+  let survivorIndex = 0;
+  return staged.map(({ result, rejectReason }) => {
+    if (rejectReason != null) return rejected(result, rejectReason);
+    const classification = classifications[survivorIndex++] ?? null;
+    if (classification == null) {
+      return rejected(result, "classifier declined — not plausibly an NZ evidence authority");
+    }
+    return {
+      link: result.link,
+      title: result.title,
+      snippet: result.snippet,
+      tier: classification.tier,
+      rejected: false,
+      reason: "vetted: guardrails passed, classifier assigned tier",
+      rationale: classification.rationale,
+      confidence: classification.confidence,
+    };
+  });
+}
+
+/**
+ * Single-candidate vetting — the original contract, kept for callers that vet
+ * one candidate at a time. Delegates to {@link vetCandidates} so both paths
+ * share the guardrails and the accept/decline rules.
+ */
+export async function vetCandidate(
+  result: SearchResult,
+  llm: AuthorityVettingLlm,
+): Promise<VettedCandidate> {
+  const [vetted] = await vetCandidates([result], {
+    classifyAuthorities: async (candidates) => [
+      await llm.classifyAuthority(candidates[0] as SearchResult),
+    ],
+  });
+  // noUncheckedIndexedAccess: one input, one output — but the narrowing is explicit.
+  return vetted ?? rejected(result, "no vetting result");
 }
 
 export { TIER_GUIDANCE };

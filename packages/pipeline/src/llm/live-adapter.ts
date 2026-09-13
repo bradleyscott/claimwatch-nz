@@ -4,6 +4,14 @@
 // §2); prompts stay vendor-neutral. Batch-routed per ADR-0011: latency_class:
 // batch for everything except publish-day verdicts.
 //
+// Tiered routing (Sept 2026 cost work): the RESEARCH tier (claim decomposition,
+// per-round evidence grading, authority tiering) runs on an extreme-value model —
+// it is ~80% of the calls per claim and its output is a control signal, not the
+// published verdict. The VERDICT tier (`citation-compare`) and the publication
+// gate (`nli-audit`) stay on the mid tier; `grid-materiality` touches published
+// class boundaries and also stays. Rationale and the harness gate live in
+// ADR-0011's provisional routing note.
+//
 // Transport note: Node's Happy Eyeballs connects via an unreachable IPv6 path
 // to api.anthropic.com. The Anthropic provider factory therefore receives an
 // undici fetch pinned to IPv4 (`connect: { family: 4 }`). OpenAI's provider
@@ -38,7 +46,16 @@ export interface ProviderResult<T> {
   ok: boolean;
   value?: T;
   usage?: { tokensIn: number; tokensOut: number };
+  /**
+   * The model that actually ran, as `provider:model` — the same key the price
+   * map and the harness `modelVersions` use. It used to carry the ROLE name, so
+   * every recorded run claimed the role had produced itself: with one model
+   * everywhere that was merely wrong, with a tiered table it would attribute the
+   * cheap tier's work to the expensive one (Sept 2026).
+   */
   model?: string;
+  /** How the model was served (ADR-0011 rule 3) — recorded on every call. */
+  servingMode?: ServingMode;
   failureClass?: "schema-validation" | "llm-refusal" | "timeout";
   raw?: string;
 }
@@ -47,32 +64,63 @@ export interface LiveAdapter {
   call<T>(providerCall: ProviderCall): Promise<ProviderResult<T>>;
 }
 
+export type Provider = "anthropic" | "openai" | "openrouter";
+
+/**
+ * Serving mode per ADR-0011 rule 3: what actually processes the request. `direct`
+ * is the provider's own inference; `aggregator` is a non-origin host serving the
+ * weights (US-hosted, permitted). Passthrough-to-origin through an aggregator is
+ * treated as the origin operator and is NOT a mode this adapter configures — the
+ * OpenRouter base URL below is its own inference endpoint, never a passthrough
+ * to a Chinese-hosted origin API, which rule 1 excludes for the whole cycle.
+ */
+export type ServingMode = "direct" | "aggregator";
+
+export const SERVING_MODE: Record<Provider, ServingMode> = {
+  anthropic: "direct",
+  openai: "direct",
+  openrouter: "aggregator",
+};
+
 // Role → provider/model routing, per ADR-0011's table. Overridable via config
 // (the harness arbitrates per role on measured performance).
-export const DEFAULT_ROUTING: Record<
-  PortRole,
-  { provider: "anthropic" | "openai"; model: string }
-> = {
+export const DEFAULT_ROUTING: Record<PortRole, { provider: Provider; model: string }> = {
+  // Triage: high-volume structured extraction over mundane text.
   "triage-checkability": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-typing": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-fingerprint": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-context": { provider: "anthropic", model: "claude-sonnet-5" },
+
+  // Verdict tier: the published verdict and the publication gate. Deliberately
+  // NOT the cheap tier — a cheap adjudicator is cheap in the way that matters
+  // least (ADR-0011: calibration over benchmark score). `quote-fidelity` is here
+  // because it produces a published verdict (VERIFICATION §2.4), not a control
+  // signal: wording-critical claims turn on its reading of the caption.
   "grid-materiality": { provider: "anthropic", model: "claude-sonnet-5" },
   "citation-compare": { provider: "anthropic", model: "claude-sonnet-5" },
   "quote-fidelity": { provider: "anthropic", model: "claude-sonnet-5" },
   "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
-  "open-web": { provider: "anthropic", model: "claude-sonnet-5" },
-  "authority-classify": { provider: "anthropic", model: "claude-sonnet-5" },
-  "claim-decompose": { provider: "anthropic", model: "claude-sonnet-5" },
-  "research-assess": { provider: "anthropic", model: "claude-sonnet-5" },
+
+  // Research tier: ~80% of calls per claim, output is a control signal (rounds
+  // and gaps), and its confidence is neither published nor written to a verdict.
+  // `open-web` is the depth-loop control (done/confidence/nextRound), not the
+  // published open-web verdict — that comes from `citation-compare`.
+  "open-web": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
+  "authority-classify": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
+  "claim-decompose": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
+  "research-assess": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
 };
 
-const PROVIDER_ENV: Record<"anthropic" | "openai", string> = {
+const PROVIDER_ENV: Record<Provider, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
 };
 
-export function apiKeyFor(provider: "anthropic" | "openai"): string {
+/** OpenRouter's own inference endpoint (US-hosted). Never a passthrough URL. */
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+export function apiKeyFor(provider: Provider): string {
   const key = process.env[PROVIDER_ENV[provider]];
   if (!key) {
     throw new Error(
@@ -96,23 +144,66 @@ async function ipv4FetchForNode(
 
 type FetchFunction = typeof globalThis.fetch;
 
+type GenerateModel = Parameters<typeof generateObject>[0]["model"];
+
 export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): LiveAdapter {
   const table = { ...DEFAULT_ROUTING, ...(routing ?? {}) };
-  // Both provider factories take a custom fetch (typeof globalThis.fetch).
-  // Node's undici fetch pinned to IPv4 is required (Happy Eyeballs picks the
-  // unreachable IPv6 path to api.anthropic.com).
-  const transport = { fetch: ipv4FetchForNode as unknown as FetchFunction };
-  const anthropic = createAnthropic({ apiKey: apiKeyFor("anthropic"), ...transport });
-  const openai = createOpenAI({ apiKey: apiKeyFor("openai"), ...transport });
-  const modelFor = (role: PortRole) => {
+  // Provider clients are built LAZILY, on first use by the routing table. Keys
+  // are therefore required only for the providers actually selected: a routing
+  // config that sends everything to one provider must not demand the other two
+  // keys, and a test that constructs an adapter must not need any key at all
+  // until it makes a call.
+  const modelFactories = new Map<Provider, (model: string) => GenerateModel>();
+  const modelFactoryFor = (provider: Provider): ((model: string) => GenerateModel) => {
+    const cached = modelFactories.get(provider);
+    if (cached != null) return cached;
+    // Both provider factories take a custom fetch (typeof globalThis.fetch).
+    // Node's undici fetch pinned to IPv4 is required (Happy Eyeballs picks the
+    // unreachable IPv6 path to api.anthropic.com).
+    const transport = { fetch: ipv4FetchForNode as unknown as FetchFunction };
+    let factory: (model: string) => GenerateModel;
+    switch (provider) {
+      case "anthropic": {
+        const client = createAnthropic({ apiKey: apiKeyFor("anthropic"), ...transport });
+        factory = (model) => client(model) as GenerateModel;
+        break;
+      }
+      case "openai": {
+        const client = createOpenAI({ apiKey: apiKeyFor("openai"), ...transport });
+        factory = (model) => client(model) as GenerateModel;
+        break;
+      }
+      case "openrouter": {
+        // OpenRouter is OpenAI-compatible, so it rides the OpenAI provider
+        // factory pointed at OpenRouter's OWN inference endpoint (US-hosted).
+        // This is deliberately not a passthrough URL: ADR-0011 rule 3 treats
+        // passthrough-to-origin as the origin operator, which rule 1 excludes.
+        const client = createOpenAI({
+          apiKey: apiKeyFor("openrouter"),
+          baseURL: OPENROUTER_BASE_URL,
+          ...transport,
+        });
+        factory = (model) => client(model) as GenerateModel;
+        break;
+      }
+    }
+    modelFactories.set(provider, factory);
+    return factory;
+  };
+  const routingFor = (role: PortRole) => {
     const entry = table[role];
-    return entry.provider === "anthropic" ? anthropic(entry.model) : openai(entry.model);
+    if (entry == null) {
+      throw new Error(`no routing entry for role "${role}" — the role has no model behind it`);
+    }
+    return entry;
   };
   return {
     async call<T>(providerCall: ProviderCall): Promise<ProviderResult<T>> {
+      const entry = routingFor(providerCall.role);
+      const modelKey = `${entry.provider}:${entry.model}`;
       try {
         const result = await generateObject({
-          model: modelFor(providerCall.role),
+          model: modelFactoryFor(entry.provider)(entry.model),
           schema: providerCall.schema,
           system: providerCall.system,
           prompt: providerCall.user,
@@ -125,7 +216,8 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
             tokensIn: result.usage.inputTokens ?? 0,
             tokensOut: result.usage.outputTokens ?? 0,
           },
-          model: providerCall.role,
+          model: modelKey,
+          servingMode: SERVING_MODE[entry.provider],
         };
       } catch (e) {
         const err = e as { name?: string; message?: string };
@@ -138,6 +230,8 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
         return {
           ok: false,
           failureClass: isSchema ? "schema-validation" : "llm-refusal",
+          model: modelKey,
+          servingMode: SERVING_MODE[entry.provider],
           raw: [err.message ?? "", rawText].filter(Boolean).join(" | ").slice(0, 1500),
         };
       }

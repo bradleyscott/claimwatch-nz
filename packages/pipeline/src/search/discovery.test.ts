@@ -25,8 +25,10 @@ function stubClassifier(
   classify: (
     candidate: SearchResult,
   ) => { tier: number; rationale: string; confidence: number } | null,
-): DiscoveryDeps["classifyAuthority"] {
-  return async (candidate) => classify(candidate);
+): DiscoveryDeps["classifyAuthorities"] {
+  // Batched seam, per-candidate logic: one call classifies the whole surviving
+  // set, so the stub maps over it exactly as the live bridge does.
+  return async (candidates) => candidates.map((candidate) => classify(candidate));
 }
 
 describe("discovery flow — non-blocking authority persistence", () => {
@@ -37,7 +39,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
       { domain: "covid-mortality", claimText: "More than 225,000 people dead" },
       {
         search,
-        classifyAuthority: classify,
+        classifyAuthorities: classify,
         recordAuthority: async () => {
           throw new Error("should not persist");
         },
@@ -65,7 +67,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
       { domain: "covid-mortality", claimText: "whatever" },
       {
         search,
-        classifyAuthority: stubClassifier((c) =>
+        classifyAuthorities: stubClassifier((c) =>
           c.link.includes("health.govt.nz")
             ? { tier: 1, rationale: "Ministry of Health official data portal", confidence: 0.95 }
             : { tier: 3, rationale: "media", confidence: 0.9 },
@@ -93,7 +95,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
       { domain: "covid-mortality", claimText: "x" },
       {
         search,
-        classifyAuthority: stubClassifier(() => ({ tier: 1, rationale: "x", confidence: 0.9 })),
+        classifyAuthorities: stubClassifier(() => ({ tier: 1, rationale: "x", confidence: 0.9 })),
         recordAuthority: async (fixture) => {
           persisted.push(fixture);
           return { authorityId: "a1", discoveredAt: new Date(), ...fixture };
@@ -105,6 +107,57 @@ describe("discovery flow — non-blocking authority persistence", () => {
     expect(outcome.reason).toContain("no candidate");
   });
 
+  it("classifies the surviving candidates in ONE call, not one per result", async () => {
+    const { search } = stubSearch([
+      { title: "Herald", link: "https://www.nzherald.co.nz/a", snippet: "" },
+      { title: "MoH", link: "https://www.health.govt.nz/b", snippet: "" },
+      { title: "Stats", link: "https://www.stats.govt.nz/c", snippet: "" },
+      { title: "Advocacy", link: "https://www.taxpayers.org.nz/d", snippet: "" },
+    ]);
+    const batches: number[] = [];
+    await discoverAuthority(
+      { domain: "covid-mortality", claimText: "x" },
+      {
+        search,
+        classifyAuthorities: async (candidates) => {
+          batches.push(candidates.length);
+          // The advocacy candidate is guardrail-rejected, so 3 reach the call.
+          return candidates.map(() => ({ tier: 3, rationale: "x", confidence: 0.8 }));
+        },
+        recordAuthority: async (fixture) => ({
+          authorityId: "a1",
+          discoveredAt: new Date(),
+          ...fixture,
+        }),
+      },
+    );
+    expect(batches).toEqual([3]); // single call for the whole surviving set
+  });
+
+  it("skips discovery for a claim type that can never route to stat-grid", async () => {
+    const { calls, search } = stubSearch([
+      { title: "MoH", link: "https://www.health.govt.nz/x", snippet: "" },
+    ]);
+    let classifyCalls = 0;
+    const outcome = await discoverAuthority(
+      { domain: "covid-mortality", claimType: "other", claimText: "x" },
+      {
+        search,
+        classifyAuthorities: async (candidates) => {
+          classifyCalls++;
+          return candidates.map(() => ({ tier: 1, rationale: "x", confidence: 0.9 }));
+        },
+        recordAuthority: async () => {
+          throw new Error("should not persist");
+        },
+      },
+    );
+    expect(outcome.persisted).toBe(false);
+    expect(outcome.reason).toContain("never routes to stat-grid");
+    expect(calls).toHaveLength(0); // no search bought for a dead registry row
+    expect(classifyCalls).toBe(0);
+  });
+
   it("guardrails fire before the classifier — advocacy never reaches the LLM", async () => {
     const { search } = stubSearch([
       { title: "Curia report", link: "https://curia.com/report", snippet: "" },
@@ -114,9 +167,9 @@ describe("discovery flow — non-blocking authority persistence", () => {
       { domain: "covid-mortality", claimText: "x" },
       {
         search,
-        classifyAuthority: async () => {
+        classifyAuthorities: async (candidates) => {
           classifyCalls++;
-          return null;
+          return candidates.map(() => null);
         },
         recordAuthority: async () => {
           throw new Error("should not persist");

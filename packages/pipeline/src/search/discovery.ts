@@ -6,7 +6,7 @@
 
 import { canonicalDomain } from "@cw/store";
 import type { SearchProvider, SearchResult } from "./serper-adapter.ts";
-import { type AuthorityVettingLlm, vetCandidate } from "./vetting.ts";
+import { type BatchedAuthorityVettingLlm, vetCandidates } from "./vetting.ts";
 
 export interface DiscoveryOutcome {
   persisted: boolean;
@@ -17,7 +17,8 @@ export interface DiscoveryOutcome {
 
 export interface DiscoveryDeps {
   search: SearchProvider["search"];
-  classifyAuthority: AuthorityVettingLlm["classifyAuthority"];
+  /** Batched: one call classifies every candidate that survived guardrails. */
+  classifyAuthorities: BatchedAuthorityVettingLlm["classifyAuthorities"];
   recordAuthority: (fixture: {
     domain: string;
     sourceUrl: string;
@@ -44,21 +45,31 @@ function discoveryQuery(domain: string): string {
 }
 
 export async function discoverAuthority(
-  input: { domain: string; claimText: string },
+  input: { domain: string; claimType?: string; claimText: string },
   deps: DiscoveryDeps,
 ): Promise<DiscoveryOutcome> {
+  // Discovery exists for ONE purpose: populating the authority registry so later
+  // claims in the category unlock the stat-grid. `routeMode` reaches stat-grid
+  // only for statistical claims, so for any other type a persisted authority can
+  // never be used — the search, the classification and the row are pure spend
+  // (Sept 2026). Non-statistical claims keep their own lane.
+  if (input.claimType != null && input.claimType !== "statistical") {
+    return {
+      persisted: false,
+      reason: `claim type "${input.claimType}" never routes to stat-grid — discovery skipped`,
+    };
+  }
+
   const domain = canonicalDomain(input.domain);
   const query = discoveryQuery(domain);
 
   const results = await deps.search(query);
   const searchRefs = [`q=${query}`];
 
-  // Guardrails fire inside vetCandidate before the classifier sees anything
-  // (stage 1); survivors get LLM tier classification (stage 2).
+  // Guardrails fire inside vetCandidates before the classifier sees anything
+  // (stage 1); survivors are classified together in ONE call (stage 2).
   const vetted = (
-    await Promise.all(
-      results.map((r) => vetCandidate(r, { classifyAuthority: deps.classifyAuthority })),
-    )
+    await vetCandidates(results, { classifyAuthorities: deps.classifyAuthorities })
   ).filter((v) => !v.rejected && v.tier != null);
 
   if (vetted.length === 0) {

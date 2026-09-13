@@ -112,6 +112,27 @@ Open-weights models (Kimi K3, GLM-5.3, DeepSeek weights via non-Chinese operator
 - **Frontier-max-everything (Fable 5.1 / GPT-5.6 Sol at every step).** Rejected on price-performance: 10–50× the cost for roles where mid-tier measurably suffices; reserved for high-impact verdict escalation instead.
 - **Batch-everything including verdicts.** Rejected as universal policy: batch is the default for ingestion-side and evaluation workloads, but publish-day high-impact verdicts need the realtime lane; the `latency_class` split keeps both available.
 
+## Provisional routing split — research tier (Sept 2026)
+
+**Status of this section: provisional, adopted ahead of the harness run, and reversible by measurement.** It is recorded here rather than left implicit in the code because it deliberately deviates from the decision rule below: a model is now routing in production for roles the harness has not yet scored. The deviation is time-boxed — the L3 run is the gate that confirms or reverses it — and it exists because the roles it covers did not exist when the table above was written.
+
+**What changed.** Two roles added after this ADR were written (`claim-decompose`, `research-assess`) inherited the single global default. Measuring the actual call fan-out showed the research stage is ~80% of calls per claim and ~66% of token spend, and — decisively — that its output is a *control signal*, not a published verdict: its `confidence` is withheld from pages (SIT-R6) and never written to a verdict, and its `verdictSignal` is not consumed at all. The routing table is therefore split (`packages/pipeline/src/llm/live-adapter.ts`):
+
+| Tier | Roles | Model | Why this tier |
+|---|---|---|---|
+| Research | `claim-decompose`, `research-assess`, `authority-classify`, `open-web` (depth control) | **GLM-5.3-Flash** via a US-hosted aggregator | ~80% of calls; failure mode is extra rounds and searches, bounded by caps, degrading to *not enough evidence* |
+| Verdict + gates | `citation-compare`, `quote-fidelity`, `grid-materiality`, `nli-audit` | **Claude Sonnet 5** (unchanged) | The published verdict and the publication gate — this ADR's calibration argument applies in full |
+
+**Serving mode is recorded, not assumed (rule 3).** `SERVING_MODE` maps each provider to `direct` or `aggregator` and every call returns it; the aggregate route is OpenRouter's **own inference endpoint**, never a passthrough URL to an origin operator, which rule 1 excludes for the whole cycle. `routing.test.ts` asserts that no origin-hosted open-weights API can appear in the routing table.
+
+**Cost is now measurable, not asserted (ADR-0012).** `packages/llm/src/prices.ts` carries `PRICE_MAP`/`PRICE_MAP_VERSION`; a routed model with no price row throws instead of costing zero, and `routing.test.ts` fails if the routing table names an unpriced model. Without this, "this model is cheaper" was folklore on our own behalf.
+
+**Structural changes adopted with it** (no model opinion involved, so no harness gate — L2 goldens cover the call-shape changes): one classification call per candidate *set* instead of one per search result; the researcher now sees cumulative evidence instead of only the current round's; one NLI call per pack instead of one per justification; the provider result count is capped; and stat-grid discovery is skipped for claim types that can never route to the stat-grid.
+
+**Measured effect at Sept-2026 volumes:** 15 → 7 calls per claim, **$0.043 → $0.014 per claim (−68%)**, verdict tier unchanged. These are estimates from the call fan-out and the price map, not harness output — no accuracy claim is made here.
+
+**The gate that keeps or kills it:** L2 golden diff per role (a readable diff, not just a green run), then the L3 run on the n≈110 NZ set — per-stratum −5 pt (n≥20) / overall −3 pt blocks adoption and the research tier reverts to the verdict-tier model. The bias probe in the open-weights posture above applies to GLM-5.3-Flash as to any model in the table. Until that run exists, a verdict produced under this routing is a pre-harness verdict, and the first L3 run is what converts this section from provisional to decided.
+
 ## Decision rule for final selection
 
 1. Build the n=100 harness (ADR-0010) with 2–3 candidate models per role.

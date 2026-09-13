@@ -84,10 +84,21 @@ FIRE-style per ADR-0006: question generation beats claim-string search (decompos
 Every justification sentence must be entailed by its cited evidence before publication — not a sampled retrospective check (that exists separately for mutations, ADR-0002).
 
 - NLI pass over (sentence, cited-span) pairs, schema-constrained; non-entailed sentences block publication and route to the review queue.
+- **One call per pack, not per sentence** (Sept 2026): the gate previously cost one sequential call per justification for one gate decision. A batched response that does not carry a verdict for every sentence is treated as a gate failure, never as an implicit pass; a single-justification pack keeps the single-pair call and prompt shape unchanged.
 - Also enforces attribution discipline: no unattributed synthesis; arithmetic stated explicitly (AVeriTeC annotation protocol).
 - Audit failure rate is a page-level Grafana metric.
 - Stated honestly: the auditor is itself an LLM. The harness calibrates it (must-pass/must-fail packs at L1; audit-agreement on labels at L3) — a gate on the worst hallucinations, not proof of entailment.
-- Models per ADR-0011 routing, harness-gated; prompts versioned files; adjudication batch-routed with realtime escalation for publish-day verdicts.
+- Models per ADR-0011 routing, harness-gated; prompts versioned files; adjudication batch-routed with realtime escalation for publish-day verdicts. The **verdict tier and this gate run on the mid-tier model, not the research tier's cheap model** — a gate is exactly where a cheap model is expensive.
+
+### 2.8 Model tiers (ADR-0011 provisional routing, Sept 2026)
+
+The routing table is tiered by *what the output is used for*, not by how hard the task looks:
+
+- **Research tier** (`claim-decompose`, `research-assess`, `authority-classify`, `open-web` depth control) — ~80% of the calls per claim. Its output is a control signal: which questions to search, whether the evidence meets the sufficiency bar, which gaps remain. Its `confidence` is neither published (SIT-R6 withholds confidence entirely) nor written to a verdict, and its `verdictSignal` is not consumed. A weaker model here costs rounds and searches, bounded by `MAX_SEARCHES`/depth cap, and degrades to *not enough evidence* — an honest abstention rather than a fabricated verdict.
+- **Verdict tier** (`citation-compare`, `quote-fidelity`, `grid-materiality`) and the **publication gate** (`nli-audit`) stay on the mid-tier model. `grid-materiality` never authors the grid (VER-R11) but selects which rows count as material, and `quote-fidelity` produces a published verdict.
+- **Evidence-fetch fan-outs are bounded for the same reason the tiers are split:** one search query is one set of organic results, and one classification call covers the whole surviving set (`vetting.ts`), with the result count requested from the provider capped (`SERPER_RESULTS`). Authority discovery is skipped entirely for claim types that can never route to the stat-grid.
+
+Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 → $0.014 per claim, −68%**, with the verdict tier unchanged. These are code-shape estimates from the call fan-out, not harness numbers — the harness run that confirms accuracy parity per role is still outstanding (ADR-0011 rule 3 of its decision rule), and is an L3 gate before launch.
 
 ## 3. Interfaces
 

@@ -443,16 +443,31 @@ export async function quoteFidelityCheck(
 
 // ---------- NLI publication gate (VER-R2, §2.7) ----------
 
+const NLI_FAILURE_CLASSES = [
+  "unattributed-synthesis",
+  "unstated-arithmetic",
+  "authority-by-citation",
+  "hallucinated-content",
+] as const;
+
 const NliCheckOutput = z.object({
   verdict: z.enum(["pass", "fail"]),
-  failureClass: z
-    .enum([
-      "unattributed-synthesis",
-      "unstated-arithmetic",
-      "authority-by-citation",
-      "hallucinated-content",
-    ])
-    .optional(),
+  failureClass: z.enum(NLI_FAILURE_CLASSES).optional(),
+});
+
+// Batched shape: one call audits every (justification, cited-span) pair in the
+// pack. The per-pair verdict is the same shape as the single-pair path, so a
+// failureClass that is not one of the declared classes is a schema failure here
+// rather than a string that has to be coerced into the port's union later.
+const NliBatchOutput = z.object({
+  results: z
+    .array(
+      z.object({
+        verdict: z.enum(["pass", "fail"]),
+        failureClass: z.enum(NLI_FAILURE_CLASSES).optional(),
+      }),
+    )
+    .min(1),
 });
 
 export async function nliAudit(
@@ -475,6 +490,44 @@ export async function nliAudit(
     verdict: "fail",
     ...(value.failureClass !== undefined ? { failureClass: value.failureClass } : {}),
   };
+}
+
+/**
+ * Batched NLI audit: ONE call for the whole pack (VER-R2, §2.7). The gate used
+ * to cost one call per justification sentence, run sequentially; a pack of six
+ * justifications cost six calls and six round-trips for one gate decision. The
+ * audit is now fail-fast over one response, and the `nli-audit` prompt accepts
+ * either a single pair or a `sentences` array. The single-pair contract above is
+ * unchanged and still used when a pack carries one justification.
+ */
+export async function nliAuditBatch(
+  llm: VerificationLlm,
+  input: { sentences: Array<{ justification: string; citedSpan: string }> },
+): Promise<NliCheckResult[]> {
+  const call = await llm.generateObject(
+    "nli-audit",
+    { sentences: input.sentences },
+    { parse: (raw: unknown) => NliBatchOutput.parse(raw) },
+  );
+  if (!call.ok) {
+    throw new Error(`NLI audit failed to run: ${call.failureClass}`);
+  }
+  const results = call.value.results;
+  // A short response is a failure of the gate, not an implicit pass: the
+  // caller must be able to pair every justification with its own verdict.
+  if (results.length !== input.sentences.length) {
+    throw new Error(
+      `NLI audit returned ${results.length} verdict(s) for ${input.sentences.length} justification(s) — refusing to infer the missing ones`,
+    );
+  }
+  return results.map((r) =>
+    r.verdict === "pass"
+      ? { verdict: "pass" as const }
+      : {
+          verdict: "fail" as const,
+          ...(r.failureClass !== undefined ? { failureClass: r.failureClass } : {}),
+        },
+  );
 }
 
 // ---------- open-web loop with confidence-capped depth (VER-R3) ----------
@@ -594,15 +647,28 @@ export async function assembleEvidencePack(
   nli: VerificationLlm,
 ): Promise<AssembledPack> {
   // The NLI audit is the publication gate - it runs BEFORE publication (2.7):
-  // a failing audit blocks the pack from ever reaching a verdict.
-  for (const justification of input.justifications) {
-    const result = await nliAudit(nli, {
-      justification,
-      citedSpan: input.evidenceItems.map((e) => e.seriesIdentity).join("; "),
-    });
+  // a failing audit blocks the pack from ever reaching a verdict. One call
+  // covers the whole pack; a single-justification pack keeps the single-pair
+  // contract (no prompt-shape change on that path).
+  const citedSpan = input.evidenceItems.map((e) => e.seriesIdentity).join("; ");
+  const results =
+    input.justifications.length === 1
+      ? [
+          await nliAudit(nli, {
+            justification: input.justifications[0] as string,
+            citedSpan,
+          }),
+        ]
+      : await nliAuditBatch(nli, {
+          sentences: input.justifications.map((justification) => ({
+            justification,
+            citedSpan,
+          })),
+        });
+  for (const [index, result] of results.entries()) {
     if (result.verdict === "fail") {
       throw new Error(
-        `publication blocked: NLI audit failed (${result.failureClass ?? "entailment"})`,
+        `publication blocked: NLI audit failed (${result.failureClass ?? "entailment"}) on justification ${index + 1}`,
       );
     }
   }

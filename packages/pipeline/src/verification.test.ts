@@ -15,6 +15,7 @@ import {
   citationCheck,
   computeStatGrid,
   nliAudit,
+  nliAuditBatch,
   openWebLoop,
   quoteFidelityCheck,
   recordSeriesRetrieval,
@@ -319,6 +320,53 @@ describe("NLI publication gate (VER-R2)", () => {
     })) as NliCheckResult;
     expect(out.verdict).toBe("fail");
     expect(out.failureClass).toBe(p.failureClass);
+  });
+
+  // Batched gate (Sept 2026): the gate cost one call per justification sentence,
+  // run sequentially, for one gate decision. One call now covers the pack.
+  it("audits a whole pack in ONE call with per-pair verdicts", async () => {
+    const roles: string[] = [];
+    const llm = MockVerificationLlm.scripted((role, input) => {
+      roles.push(role);
+      const req = input as { sentences: Array<{ justification: string }> };
+      // One verdict per sentence, in order: fail the second.
+      return {
+        ok: true,
+        value: {
+          results: req.sentences.map((_, i) =>
+            i === 1
+              ? { verdict: "fail", failureClass: "unstated-arithmetic" }
+              : { verdict: "pass" },
+          ),
+        },
+      };
+    });
+    const results = await nliAuditBatch(llm, {
+      sentences: [
+        { justification: "a", citedSpan: "A" },
+        { justification: "b", citedSpan: "B" },
+        { justification: "c", citedSpan: "C" },
+      ],
+    });
+    expect(roles).toEqual(["nli-audit"]); // one call, not three
+    expect(results.map((r) => r.verdict)).toEqual(["pass", "fail", "pass"]);
+    expect(results[1]?.failureClass).toBe("unstated-arithmetic");
+  });
+
+  it("refuses to infer a verdict for a sentence the audit did not answer", async () => {
+    // A short response is a failure of the gate, never an implicit pass.
+    const llm = MockVerificationLlm.scripted(() => ({
+      ok: true,
+      value: { results: [{ verdict: "pass" }] },
+    }));
+    await expect(
+      nliAuditBatch(llm, {
+        sentences: [
+          { justification: "a", citedSpan: "A" },
+          { justification: "b", citedSpan: "B" },
+        ],
+      }),
+    ).rejects.toThrow(/returned 1 verdict\(s\) for 2 justification\(s\)/);
   });
 });
 

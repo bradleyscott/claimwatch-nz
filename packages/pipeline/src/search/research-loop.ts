@@ -70,6 +70,17 @@ export async function runDeepResearch(
   },
 ): Promise<ResearchOutcome> {
   const evidence: SearchResult[] = [];
+  // What the researcher is shown: CUMULATIVE, not this round's slice. The
+  // sufficiency judgement, the gaps and the confidence are all relative to
+  // everything collected so far — grading round 2 against round 2's three
+  // snippets alone made it re-chase gaps round 1 had already filled, spending
+  // searches, tokens and rounds on evidence it could not see (Sept 2026).
+  const evidenceForResearcher: Array<{
+    title: string;
+    link: string;
+    snippet: string;
+    domain: string;
+  }> = [];
   const seenLinks = new Set<string>();
   let searchesUsed = 0;
   let round = 0;
@@ -87,7 +98,6 @@ export async function runDeepResearch(
   while (round < deps.depthCap && pendingQueries.length > 0 && searchesUsed < MAX_SEARCHES) {
     // Search this round's queries; dedupe by link across rounds.
     const roundQueries = pendingQueries.slice(0, Math.max(0, MAX_SEARCHES - searchesUsed));
-    const collected: Array<{ title: string; link: string; snippet: string; domain: string }> = [];
     for (const query of roundQueries) {
       const results = await deps.search(query);
       searchesUsed += 1;
@@ -101,16 +111,17 @@ export async function runDeepResearch(
         } catch {
           domain = "";
         }
-        collected.push({ title: r.title, link: r.link, snippet: r.snippet, domain });
+        evidenceForResearcher.push({ title: r.title, link: r.link, snippet: r.snippet, domain });
       }
     }
 
-    // The researcher SEES snippets + domains — it can actually judge quality.
+    // The researcher SEES snippets + domains — it can actually judge quality,
+    // and it sees everything collected so far, not just this round.
     assessment = await deps.researcher.assessRound({
       claim: input.claim,
       round,
       questions: input.questions,
-      evidence: collected,
+      evidence: evidenceForResearcher,
       gaps: assessment.gaps,
     });
 

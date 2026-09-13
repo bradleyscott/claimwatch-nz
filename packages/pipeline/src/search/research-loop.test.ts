@@ -188,6 +188,45 @@ describe("deep research loop — decompose, grade, chase gaps (user direction Se
     expect(outcome.verdictSignal).toBe("not_enough_evidence");
   });
 
+  it("shows the researcher the CUMULATIVE evidence, not just the newest round", async () => {
+    // Regression (Sept 2026): `collected` was declared inside the round loop, so
+    // round 2 graded its own snippets while round 1's evidence sat in a different
+    // array. The sufficiency judgement — and therefore the round count, the
+    // searches and the reported confidence — was made on a fragment, which is
+    // what made the loop re-chase gaps it had already filled.
+    const { search } = stubSearch(indiaResults);
+    const seenPerRound: number[] = [];
+    const researcher = stubResearcher((input) => {
+      const req = input as { round: number; evidence: unknown[] };
+      seenPerRound.push(req.evidence.length);
+      if (req.round >= 1) {
+        return { sufficient: true, confidence: 0.9, verdictSignal: "supported" };
+      }
+      return {
+        sufficient: false,
+        confidence: 0.4,
+        gaps: ["which official series?"],
+        refinedQueries: ["India China bilateral trade 2020 percentage change"],
+        verdictSignal: "not_enough_evidence",
+      };
+    });
+    const outcome = await runDeepResearch(
+      {
+        claim: "India's imports increased by 27%.",
+        questions: [
+          {
+            question: "What was the change?",
+            queries: ["India China imports April August 2020 customs"],
+          },
+        ],
+      },
+      { search, researcher, depthCap: 3, resultsPerQuery: 5 },
+    );
+    // Round 1 sees 1 item; round 2 sees that item PLUS the new one.
+    expect(seenPerRound).toEqual([1, 2]);
+    expect(outcome.evidence).toHaveLength(2);
+  });
+
   it("cap on total searches: decomposition x refinement cannot blow the budget", async () => {
     const { calls, search } = stubSearch(indiaResults);
     const researcher = stubResearcher(() => ({

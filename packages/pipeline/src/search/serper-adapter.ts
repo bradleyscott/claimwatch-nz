@@ -13,6 +13,20 @@ export interface SearchProvider {
   search(query: string): Promise<SearchResult[]>;
 }
 
+/**
+ * Results requested per query. Bounded on purpose: every organic result that
+ * survives vetting's stage-1 guardrails costs one tier-classification, so an
+ * unbounded result set (Serper's default is 10) is an unbounded LLM fan-out —
+ * `vetting.ts` now classifies candidates in ONE call, and this keeps the input
+ * to that call, and the search bill, proportional (ADR-0011 cost discipline).
+ */
+export const SERPER_RESULTS = 8;
+
+export interface SerperOptions {
+  /** Organic results to request. Defaults to {@link SERPER_RESULTS}. */
+  num?: number;
+}
+
 interface SerperOrganicItem {
   title?: string;
   link?: string;
@@ -26,7 +40,9 @@ interface SerperOrganicItem {
 export function createSerperSearch(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
+  options: SerperOptions = {},
 ): SearchProvider {
+  const num = options.num ?? SERPER_RESULTS;
   return {
     async search(query: string): Promise<SearchResult[]> {
       const response = await fetchImpl("https://google.serper.dev/search", {
@@ -35,7 +51,7 @@ export function createSerperSearch(
           "X-API-KEY": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ q: query }),
+        body: JSON.stringify({ q: query, num }),
       });
       if (!response.ok) {
         throw new Error(`serper search failed: ${response.status}`);

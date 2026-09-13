@@ -7,7 +7,12 @@
 // Authored BEFORE implementation (TDD red). Do not mutate without approval.
 
 import { describe, expect, it } from "vitest";
-import { createSerperSearch, type SearchProvider, type SearchResult } from "./serper-adapter.ts";
+import {
+  createSerperSearch,
+  SERPER_RESULTS,
+  type SearchProvider,
+  type SearchResult,
+} from "./serper-adapter.ts";
 
 // Mock transport: the adapter's own logic (request shape, response parsing,
 // error mapping) is what L1 tests — not the network.
@@ -82,6 +87,21 @@ describe("serper adapter (VER-R3 retrieval surface)", () => {
     expect(captured[0]?.url).toBe("https://google.serper.dev/search");
     expect((captured[0]?.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k-test");
     expect(JSON.parse(String(captured[0]?.init.body)).q).toBe("crime stats");
+    // Bounded result count: every organic result that survives guardrails is a
+    // candidate in the tier-classification call, so an unbounded result set is an
+    // unbounded fan-out (Sept 2026).
+    expect(JSON.parse(String(captured[0]?.init.body)).num).toBe(SERPER_RESULTS);
+  });
+
+  it("honours an explicit result bound", async () => {
+    const captured: RequestInit[] = [];
+    const fakeFetch: typeof fetch = async (_url, init) => {
+      captured.push((init ?? {}) as RequestInit);
+      return new Response(JSON.stringify({ organic: [] }), { status: 200 });
+    };
+    const provider = createSerperSearch("k-test", fakeFetch, { num: 4 });
+    await provider.search("crime stats");
+    expect(JSON.parse(String(captured[0]?.body)).num).toBe(4);
   });
 });
 
