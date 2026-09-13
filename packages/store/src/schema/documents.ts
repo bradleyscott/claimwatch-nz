@@ -3,8 +3,10 @@
 // retrieval method, content hash, pipeline version. Hash enforces ingest
 // idempotency (STO-R13): same content → same row, never a duplicate.
 
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -78,6 +80,18 @@ export const claim = pgTable(
     utteranceText: text("utterance_text").notNull(),
     text: text("text").notNull(),
     claimType: text("claim_type").notNull(),
+    // Which check this claim got, decided by triage's mode routing BEFORE any
+    // evidence is fetched — the one decision that cannot be made honestly after
+    // the answer is known, and the field the verdict page's mode-aware trail
+    // selects its explanation with (SITE-MVP §2.3, Sept 2026).
+    //
+    // Stored rather than derived: the four non-statistical modes follow
+    // deterministically from `claim_type`, but a statistical claim routes to
+    // stat-grid ONLY on an authority-registry hit and to the open-web loop
+    // otherwise (mode-routing.ts, Sept 2026) — and the registry is not visible
+    // to the site. Null for every row ingested before this column existed, which
+    // the page renders as an absent check rather than guessing one.
+    verificationMode: text("verification_mode"),
     fingerprint: jsonb("fingerprint"),
     fingerprintKey: text("fingerprint_key"),
     embedding: text("embedding"), // pgvector vector; populated by triage phase
@@ -93,6 +107,15 @@ export const claim = pgTable(
     transcriptTier: text("transcript_tier"),
     captionQualityFlag: text("caption_quality_flag"),
     attributionCandidates: jsonb("attribution_candidates").notNull().default([]),
+    // The triage pass's own output for the document this claim came from: how
+    // many sentences were classified, which ones were set aside and under which
+    // rejection class, and which were held without grading. This is the "what we
+    // did not check" disclosure — the honest edge of every verdict, since a
+    // finding about one sentence is not a finding about the interview it came
+    // from. Computed on every run and discarded until Sept 2026; nullable
+    // because rows ingested before it exist, and the page then omits the section
+    // rather than rendering an empty one.
+    triageRecord: jsonb("triage_record"),
     isCuratedFixture: boolean("is_curated_fixture").notNull().default(false),
     pipelineVersion: text("pipeline_version").notNull(),
     promptVersions: jsonb("prompt_versions").notNull().default({}),
@@ -103,5 +126,9 @@ export const claim = pgTable(
     index("claim_fingerprint_idx").on(t.fingerprintKey),
     index("claim_publication_idx").on(t.publicationId),
     index("claim_type_idx").on(t.claimType),
+    check(
+      "verification_mode_valid",
+      sql`${t.verificationMode} IS NULL OR ${t.verificationMode} IN ('stat-grid','citation-check','quote-fidelity','provenance','open-web')`,
+    ),
   ],
 );

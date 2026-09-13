@@ -80,6 +80,13 @@ const pageData = {
   verdictStatus: "PUBLISHED",
   claimPromptVersions: { "triage-typing": "triage-typing@1" },
   claimModelVersion: "claude-sonnet-5",
+  // Deliberately absent in this fixture: it dates from before the columns
+  // existed (`claim.verification_mode` / `claim.triage_record`, Sept 2026), and
+  // null is the state all 25 pre-migration verdicts are in — so this fixture
+  // keeps rendering exactly what it rendered before. The mode-aware section
+  // needs its own fixture with both values set.
+  verificationMode: null,
+  triageRecord: null,
 } as const satisfies VerdictPageData;
 
 async function renderVerdictPage(id: string): Promise<string> {

@@ -7,6 +7,7 @@ export * from "./schema/index.ts";
 export * from "./site-reader.ts";
 export * from "./store.ts";
 export * from "./store-api.ts";
+export * from "./triage-record.ts";
 
 /** Bumped whenever an exported claim/verdict/evidence shape changes (CRO-R13). */
-export const STORE_SCHEMA_VERSION = "0.3.0";
+export const STORE_SCHEMA_VERSION = "0.4.0";

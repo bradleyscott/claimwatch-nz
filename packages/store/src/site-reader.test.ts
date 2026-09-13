@@ -13,7 +13,8 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
 import { createTestStore } from "./store.ts";
-import type { Store } from "./store-api.ts";
+import type { ClaimFixture, Store } from "./store-api.ts";
+import { TriageRecord } from "./triage-record.ts";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -51,7 +52,7 @@ function provenance() {
   };
 }
 
-async function seedClaim() {
+async function seedClaim(overrides: Partial<ClaimFixture> = {}) {
   return store.recordClaim({
     utteranceText: "Crime is up 30% since 2017.",
     text: "Crime is up 30% since 2017.",
@@ -63,7 +64,22 @@ async function seedClaim() {
     },
     attributionCandidates: [{ name: "Hon Sample Minister", kind: "person", confidence: 0.9 }],
     spokenAt: new Date("2026-09-08T00:00:00Z"),
+    ...overrides,
   });
+}
+
+/** A published verdict, so the claim has a page to read at all. */
+async function publishVerdict(claimId: string): Promise<void> {
+  const pack = await store.appendEvidencePack(claimId, {
+    itemRefs: [],
+    justifications: [],
+    nliOutcome: "pass",
+  });
+  const verdict = await store.writeVerdict(claimId, pack.packId, {
+    provenance: provenance(),
+    verdictClass: "refuted",
+  });
+  await store.logTransition(verdict.verdictId, { from: "DRAFT", to: "PUBLISHED" });
 }
 
 describe("site reader (STORE §3, SIT-R14)", () => {
@@ -135,6 +151,60 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(item?.plainReason).toBe("Series shows 12% not 30%.");
     expect(item?.tier).toBe(3);
     expect(item?.retrievedAt).toBeInstanceOf(Date);
+  });
+
+  it("carries the verification mode and the triage record, and leaves both absent when unrecorded", async () => {
+    // Recorded: the two things the mode-aware "how this verdict was made"
+    // section is selected by and justified from.
+    const recorded = await seedClaim({
+      verificationMode: "stat-grid",
+      triageRecord: {
+        sentencesRead: 12,
+        checked: 3,
+        setAside: [
+          { sentenceText: "We will deliver growth.", rejectionClass: "pledge-conditional" },
+        ],
+        held: [{ sentenceText: "Housing will be fixed.", reason: "no deadline has passed" }],
+      },
+    });
+    await publishVerdict(recorded.claimId);
+
+    const page = await reader.getVerdictPage(recorded.claimId);
+    expect(page?.verificationMode).toBe("stat-grid");
+    expect(page?.triageRecord?.sentencesRead).toBe(12);
+    expect(page?.triageRecord?.checked).toBe(3);
+    // Verbatim, not paraphrased: the disclosure is only checkable against the
+    // source document if the sentence is the source's own text.
+    expect(page?.triageRecord?.setAside[0]?.sentenceText).toBe("We will deliver growth.");
+    expect(page?.triageRecord?.setAside[0]?.rejectionClass).toBe("pledge-conditional");
+    expect(page?.triageRecord?.held[0]?.reason).toBe("no deadline has passed");
+
+    // Unrecorded: every row ingested before the columns existed behaves this
+    // way (there is no backfill), and the page must omit both sections rather
+    // than guess a mode or render an empty "nothing was set aside".
+    const bare = await seedClaim();
+    await publishVerdict(bare.claimId);
+    const barePage = await reader.getVerdictPage(bare.claimId);
+    expect(barePage?.verificationMode).toBeNull();
+    expect(barePage?.triageRecord).toBeNull();
+  });
+
+  it("defaults the triage lists when a record omits them", async () => {
+    // The page prints counts AND lists. An interview where nothing was set
+    // aside is a real, reportable state, so the schema fills the arrays rather
+    // than rejecting the record — and the stored jsonb is whatever was written,
+    // so the READ side has to tolerate a record that predates a list field.
+    // Both halves are asserted here: the parse rule, then the round trip.
+    const partial = TriageRecord.parse({ sentencesRead: 4, checked: 1 });
+    expect(partial.setAside).toEqual([]);
+    expect(partial.held).toEqual([]);
+
+    const claim = await seedClaim({ verificationMode: "citation-check", triageRecord: partial });
+    await publishVerdict(claim.claimId);
+    const page = await reader.getVerdictPage(claim.claimId);
+    expect(page?.triageRecord?.checked).toBe(1);
+    expect(page?.triageRecord?.setAside).toEqual([]);
+    expect(page?.triageRecord?.held).toEqual([]);
   });
 
   it("reports the pack the CURRENT verdict pins, not an earlier pack for the claim", async () => {

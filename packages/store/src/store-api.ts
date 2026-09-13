@@ -3,6 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
+import type { TriageRecord, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {
   sourceId: string;
@@ -27,6 +28,20 @@ export interface ClaimFixture {
     | "false-context"
     | "other";
   fingerprint?: Fingerprint | null;
+  /**
+   * Which check triage routed this claim to (claim.verification_mode). Decided
+   * from the claim's wording before any evidence is fetched — see the column
+   * comment for why the site cannot derive it from `claimType` alone. Absent
+   * means "not recorded", which the verdict page renders as an absent check.
+   */
+  verificationMode?: VerificationMode | null;
+  /**
+   * Triage's output for the document this claim came from (claim.triage_record)
+   * — how many sentences were read, and which were set aside or held. Optional:
+   * a caller with only a single sentence to record legitimately has no document
+   * record, and the page then omits the section rather than inventing counts.
+   */
+  triageRecord?: TriageRecord | null;
   discourseContext: DiscourseContext;
   mediaAnchor?: MediaAnchor | null;
   // When the claim was made (broadcast moment / publication date), as opposed

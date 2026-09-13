@@ -25,6 +25,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
 import * as s from "./schema/index.ts";
+import { TriageRecord, VERIFICATION_MODES } from "./triage-record.ts";
 
 /**
  * Connection options for every site read. The site holds no write path to
@@ -99,6 +100,29 @@ export const VerdictPageData = z.object({
   sourceRetrievedAt: z.coerce.date().nullable().default(null),
   /** Store claim type — decides which method the claim got (TRIAGE typing). */
   claimType: z.string().nullable().default(null),
+  /**
+   * Which check the claim got (claim.verification_mode, VERIFICATION §2.1).
+   * Typed to the five modes rather than left as `string`, so the page's mode
+   * table is checked against the same vocabulary the column's CHECK enforces
+   * and a drift between the two fails here rather than rendering an unknown
+   * mode as if it were one of the five.
+   *
+   * Null on every claim recorded before the column existed — there is no
+   * backfill, so this is the state most rows are in, and the page must omit the
+   * mode section rather than guess which check ran.
+   */
+  verificationMode: z.enum(VERIFICATION_MODES).nullable().default(null),
+  /**
+   * Triage's record of how the source document was read (claim.triage_record):
+   * how many sentences were classified, how many became claims, which were set
+   * aside and why, and which are held.
+   *
+   * Null means the page renders NO "what we did not check" section at all —
+   * never an empty one, which would read as "nothing was set aside". Same rule
+   * as every other trail input: an absent record loses a section rather than
+   * inventing one.
+   */
+  triageRecord: TriageRecord.nullable().default(null),
   /** Publisher of the item the claim appeared in (publication.publisher). */
   publisher: z.string().nullable().default(null),
   /**
@@ -189,6 +213,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           speakerName: sql<string | null>`${s.claim.attributionCandidates}->0->>'name'`,
           transcriptTier: s.claim.transcriptTier,
           claimType: s.claim.claimType,
+          verificationMode: s.claim.verificationMode,
+          triageRecord: s.claim.triageRecord,
           spokenAt: s.claim.spokenAt,
           claimRecordedAt: s.claim.createdAt,
           claimPromptVersions: s.claim.promptVersions,
@@ -304,6 +330,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         claimRecordedAt: row.claimRecordedAt ?? null,
         sourceRetrievedAt: row.sourceRetrievedAt ?? null,
         claimType: row.claimType ?? null,
+        verificationMode: row.verificationMode ?? null,
+        triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,
         claimPromptVersions: row.claimPromptVersions ?? {},
         claimModelVersion: row.claimModelVersion ?? null,

@@ -36,6 +36,13 @@
       "when": 1789294647116,
       "tag": "0004_claim_spoken_at",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789312927106,
+      "tag": "0005_lonely_clea",
+      "breakpoints": true
     }
   ]
 }
