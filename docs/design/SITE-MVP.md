@@ -121,6 +121,8 @@ The read path is implemented **in the store package** (`packages/store/src/site-
 | related claims (adjacency, capped) | verdict page |
 | harness accuracy file (build-time read) | methodology page |
 
+**The public record is empty by design until ingestion's `attribute` stage exists.** No code path can produce an eligible claim yet: the speakership classifier (ADR-0019 §1) is not implemented, so every stored claim is unclassified and the gate — which fails closed — serves none of them. "The site serves nothing" is therefore the correct state rather than a breakage, and `?corpus=all` is how the rows are inspected in the meantime. The state is deliberate and dated (Sept 2026); it ends when the `attribute` stage writes `claim.speakership_class`.
+
 The site holds **no write path** to claims/verdicts (the feedback table is the only write) — a structural boundary enforced by package-export rules and the read-only session, not convention.
 
 ### 3.2 ClaimReview JSON-LD
