@@ -461,7 +461,10 @@ async function main(): Promise<void> {
         justification =
           outcome.mismatch ??
           `Compared against ${candidate.link}${outcome.bindingStrictness ? ` (${outcome.bindingStrictness} binding)` : ""}.`;
-        citedSpan = `${candidate.title} — ${candidate.link}`;
+        // The gate gets what the comparison actually read, not just the citation.
+        citedSpan = page.ok
+          ? `${candidate.title} (${candidate.link}): ${page.text.slice(0, 1400)}`
+          : `${candidate.title} — ${candidate.link} (page text unavailable)`;
         evidence.push({
           title: candidate.title,
           link: candidate.link,
@@ -504,6 +507,20 @@ async function main(): Promise<void> {
             };
           }),
         );
+        // What the publication gate is handed as "the evidence": the SAME payload
+        // the adjudicator read — title, link, snippet and page text per source.
+        // Handing it less is what blocked the first full runs: with titles only,
+        // or with a short slice of page text, a justification that reasons across
+        // sources (or asserts what a source does NOT say) cannot be confirmed and
+        // comes back `fail (hallucinated-content)` while the evidence underneath
+        // is sound (Sept 2026). The gate must judge the finding against exactly
+        // the material the finding was made from.
+        citedSpan = withText
+          .map(
+            (source) =>
+              `${source.title}\n${source.link}\nSnippet: ${source.snippet}\nPage text: ${source.pageText}`,
+          )
+          .join("\n\n---\n\n");
         const adjudication = (await verificationLlm.generateObject(
           "citation-compare",
           // No researchConfidence is passed: the researcher's self-reported number
@@ -530,22 +547,30 @@ async function main(): Promise<void> {
         };
 
         if (!adjudication.ok || !adjudication.value) {
-          // An adjudication failure is an honest abstention, never a fabricated
-          // verdict from a missing response.
-          verdictClass = "not_enough_evidence";
-          justification = `Adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question.`;
-          console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
-        } else {
+          // No adjudication means no considered finding, so there is nothing to
+          // gate and nothing to publish. Writing a verdict class here would
+          // manufacture "not enough evidence" out of a failed call, and the
+          // justification available to us is pipeline meta-commentary that the
+          // gate correctly refuses to treat as evidence (it blocked exactly that
+          // on the first full run, Sept 2026). Stop and report instead, naming
+          // the cause: a schema failure on a response this large is usually the
+          // fixed output budget cutting the answer.
+          console.log(
+            `  adjudication failed: ${adjudication.failureClass ?? "unknown"}` +
+              `${(adjudication as { finishReason?: string }).finishReason ? ` (finish_reason: ${(adjudication as { finishReason?: string }).finishReason})` : ""}`,
+          );
+          const raw = (adjudication as { raw?: string }).raw;
+          if (raw) console.log(`  raw: ${raw.slice(0, 300)}`);
+          console.log("  no finding to gate — nothing written.");
+          return;
+        }
+        {
           const value = adjudication.value;
           verdictClass = value.verdict;
           const narrative = value.narrative;
           justification = narrative
             ? [narrative.lead, ...narrative.paragraphs, narrative.pull].join("\n")
             : (value.mismatch ?? "Adjudicated against the retrieved sources.");
-          citedSpan = outcome.evidence
-            .slice(0, 5)
-            .map((source) => source.title)
-            .join("; ");
           for (const source of outcome.evidence.slice(0, 5)) {
             const finding = (value.sourceFindings ?? []).find((f) => f.link === source.link);
             evidence.push({
