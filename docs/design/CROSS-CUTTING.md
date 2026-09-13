@@ -81,6 +81,7 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 | Config key | Change gated by |
 |---|---|
 | `models.{role}` + `model_versions.{role}` (ADR-0011 routing) | L3 run; ADR-0011 decision rule |
+| `price_map_version` (`packages/llm/src/prices.ts`, ADR-0011 pricing) | L1 — a routed model with no price row fails loudly at lookup |
 | `prompts.{role}` (version ref → the prompt inline in its owning module, §3; validated against `PROMPT_ROLES`) | L2 snapshot diff |
 | `grid_axes_version` (pre-declared axes, ADR-0005) | L2 + L3 |
 | `data_vintages` (per authority) | pinned per run |
@@ -89,6 +90,8 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 | `latency_class` routing (batch vs interactive) | L1 |
 
 **The reproducibility contract:** a scoring run's output is stamped with the tuple `(pipeline_version, model_versions, prompt_versions, grid_axes_version, data_vintages, search_config)`. The methodology page renders the published accuracy table *from the harness output file carrying that tuple* — generated, never hand-edited. No provider silent upgrades: any provider model-version change re-runs the harness before adoption (ADR-0011).
+
+**Cost is derived, never pinned (ADR-0012 + ADR-0011):** token counts and the model key are recorded per call; money is computed at aggregation from `PRICE_MAP` (`packages/llm/src/prices.ts`, `PRICE_MAP_VERSION`). A price change is a one-file edit that re-prices recorded history without rewriting it, and a routed model that has no price row throws rather than reporting zero. Two consequences worth stating: cost per role × model is only comparable between runs that name the same `price_map_version`, and adding a model to the routing table without a price row is a lint-level failure, not a silent accounting hole.
 
 **Test risks:** config defaults diverge across dev/CI/slice → L1 asserts the effective config matches a checked-in expected tuple; L2 pins the tuple so drift is a visible verdict diff · run outputs missing the provenance tuple → L1 schema validation fails them; L4a renders only tuple-carrying files · silent provider upgrade → L2 catches behavioural drift; L3 re-runs on version change.
 
