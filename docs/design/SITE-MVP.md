@@ -104,6 +104,8 @@ Site telemetry routes to Grafana via the same OTel stack: request spans, feedbac
 
 ### 3.1 Store reads (site ⇄ store)
 
+The read path is implemented **in the store package** (`packages/store/src/site-reader.ts`, exported as `createSiteReader`) and the site consumes it through the `SiteStore` DI seam. The site holds no SQL and no read-model schema of its own: the shapes below are `@cw/store` exports, and its connection is a read-only Postgres session, so "no write path" holds structurally. A column rename therefore fails `pnpm typecheck` instead of breaking a page at request time.
+
 | Query | Used by |
 |---|---|
 | claim by id (+ verdict + pack + media_anchor) | verdict page, ClaimReview |
@@ -113,7 +115,7 @@ Site telemetry routes to Grafana via the same OTel stack: request spans, feedbac
 | related claims (adjacency, capped) | verdict page |
 | harness accuracy file (build-time read) | methodology page |
 
-The site holds **no write path** to claims/verdicts (the feedback table is the only write) — a structural boundary enforced by package-export rules, not convention.
+The site holds **no write path** to claims/verdicts (the feedback table is the only write) — a structural boundary enforced by package-export rules and the read-only session, not convention.
 
 ### 3.2 ClaimReview JSON-LD
 

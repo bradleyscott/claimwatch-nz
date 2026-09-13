@@ -42,6 +42,21 @@ The slice exercises the store end-to-end on the five lanes and four modes plus h
 
 Retrieval is native: HNSW on `claim.embedding`, `tsvector` FTS — hybrid dense+lexical is two indexes in one database. Hand-written SQL (hybrid retrieval, funnel views) stays typed via Drizzle's `sql` template.
 
+The site's reads are part of this package, not `apps/site` (Sept 2026): `site-reader.ts` holds the read model (Zod-validated `VerdictPageData`/`FeedEntry`) and the only queries the reader plane runs, so "latest verdict per claim" and "the pack this verdict pins" are written once against the schema instead of as string SQL in a consumer. The site's connection is opened read-only at the session level (`default_transaction_read_only`), so "the site has no write path" survives a future query-list mistake.
+
+**Raw SQL is an enumerated exception, not a style choice** (audited Sept 2026). Everything that reads or writes claim/verdict/evidence rows goes through the Drizzle query builder; the `sql` template is used only where the expression is genuinely SQL-shaped (jsonb path extraction, CHECK constraints, `count(*)` projections). The complete list of hand-written statements, each with its reason:
+
+| Where | Statement | Why not the builder |
+|---|---|---|
+| `store.ts` `tryUpdate`/`tryDelete` | `UPDATE`/`DELETE` on an append-only table | The test's subject is the DATABASE guard; the builder would test Drizzle. Sent to the raw pool, not `db.execute`, because Drizzle wraps driver failures and would hide the guard's own `… is append-only` message. |
+| `store.ts` `hasPrivilege` | `has_table_privilege(...)` | Catalog introspection, not a table query. Arguments are bound. |
+| `store.ts` `createTestStore` | `DROP`/`CREATE DATABASE` | Admin DDL on a scratch database, outside a query builder's remit. |
+| `restore-drill.ts` | dump/replay/`COUNT(*)`/hash reads | The artefact IS a portable SQL dump; the drill deliberately does not model the rows it transports. Identifiers come from the schema (`drillTables()`), never from input. |
+| `packages/harness/src/migrate.ts` `enforceGrants` | `CREATE ROLE`, `GRANT`, `REVOKE` | Privilege management, not schema or data; must be re-asserted on every apply and cover tables added by later migrations. |
+| `ops/slice-acceptance.ts` | `has_table_privilege` on the LABELS database | The grant boundary the blind rule rests on (HARNESS §2.4), on a database the store API does not model. |
+
+Every other parallel encoding of a schema fact (the drill's table lists, the store's id-column map) has been deleted and derived from the schema instead; `APPEND_ONLY_TABLES` is the one that cannot be derived (append-only-ness lives in a trigger, not a column type) and is asserted against the database's guard triggers by `store.test.ts`.
+
 ### 2.2 Indexes and reconciliation
 
 | Index | Type | Serves |
@@ -98,7 +113,7 @@ One schema design, two access boundaries: labels are generated from the **same D
 | Consumer | Reads | Writes | Contract |
 |---|---|---|---|
 | Verification engine | claim + context pack, fingerprint matches, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
-| Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role. ClaimReview from store fields; methodology table from harness files, never hand-edited. |
+| Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role, and the read path is the store's own typed read model (`packages/store/src/site-reader.ts`) — the site holds no SQL and its connection is a read-only session. ClaimReview from store fields; methodology table from harness files, never hand-edited. |
 | Harness | verdicts + evidence paths (read-only) | labels, label-set versions, scoring-run outputs | Blind rule: writes labels; pipeline cannot read them. |
 | Graphile Worker | claims, evidence, verdicts (via task handlers) | jobs, job runs, retries | Postgres-backed scheduler + executor (§2.3). Node work runs in worker containers; no separate queue service. |
 | Grafana | funnel views, reconciliation counts, job health | nothing | Store is the reconcilable truth; drift alerts. |
