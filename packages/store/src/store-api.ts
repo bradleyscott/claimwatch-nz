@@ -3,7 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
-import type { Genre, SpeakershipClass, SpeakershipMethod } from "./speakership.ts";
+import type { AttributionCandidate, Genre, SpeakershipClass, SpeakershipMethod } from "./speakership.ts";
 import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {
@@ -37,6 +37,13 @@ export interface ClaimFixture {
    */
   claimKey?: string | null;
   fingerprint?: Fingerprint | null;
+  /**
+   * The canonical normalised key over the claim's parse (`claim.fingerprint_key`,
+   * derived by `canonicalFingerprintKey` in the pipeline). Indexed for
+   * fingerprint matching and near-fingerprint review (TRI-R4). Unwritten until
+   * Sept 2026 because nothing called the fingerprint stage at all.
+   */
+  fingerprintKey?: string | null;
   /**
    * Which check triage routed this claim to (claim.verification_mode). Decided
    * from the claim's wording before any evidence is fetched — see the column
@@ -81,7 +88,7 @@ export interface ClaimFixture {
   transcriptTier?: "publisher-reviewed" | "publisher-auto" | null;
   // Speaker attribution candidates (ADR-0005 entity model): the first
   // candidate renders on the claim card's "who" line.
-  attributionCandidates?: Array<{ name: string; kind: string; confidence: number; basis?: string }>;
+  attributionCandidates?: AttributionCandidate[];
 }
 
 export interface Fingerprint {

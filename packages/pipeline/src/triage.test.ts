@@ -509,15 +509,14 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
     }
   });
 
-  it("calls checkability, and names the stages it does NOT call", async () => {
-    // The full role set, asserted rather than assumed. `triage-typing` and
-    // `triage-fingerprint` are NOT called by document triage: the checkability
-    // call returns `claimType` and `mode` per sentence, so typing is folded into
-    // it, and the fingerprint is not extracted at all — which is why
-    // `claim.fingerprint` is NULL on every row in the store. That is a design
-    // question, not an oversight to fix silently, so it is pinned here: if a
-    // future change wires either stage, this test fails and the decision gets
-    // made deliberately.
+  it("calls checkability and context, and not typing, for non-statistical claims", async () => {
+    // The role set, asserted rather than assumed. `triage-typing` is NOT called:
+    // the checkability call returns `claimType` and `mode` per sentence, so
+    // typing is folded into it. `triage-fingerprint` is not called here either,
+    // because this fixture's sentences are all typed `other` — it runs for
+    // statistical claims only, proven in the fingerprint describe block below.
+    // Pinned so that wiring typing (TRIAGE open question 2) is a deliberate
+    // change rather than an accident.
     const sentences = corpus.sentences.map((s) => ({
       id: s.id,
       text: s.text,
@@ -527,5 +526,154 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
     const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
     await triageDocument({ documentId: "doc-1", sentences }, llm);
     expect([...new Set(roles)].sort()).toEqual(["triage-checkability", "triage-context"]);
+  });
+});
+
+// ---------- the fingerprint stage (TRIAGE §2.1, TRI-R3) ----------
+//
+// `fingerprintFromLlm` had no caller: it was imported by this file and never
+// invoked, so `claim.fingerprint` is null on every row in the store and TRI-R3's
+// degrade path had never run. These tests exercise the stage through the
+// orchestrator, which is where it was missing.
+
+describe("the fingerprint stage runs for statistical claims (TRI-R3)", () => {
+  /** A document whose one sentence is a statistical claim, plus a scripted parse. */
+  const statDoc = {
+    documentId: "doc-stat",
+    sentences: [
+      {
+        id: "s1",
+        text: "Crime is up 30% since 2017.",
+        window: "Law and order: the Minister said crime is up 30% since 2017, and promised action.",
+      },
+    ],
+  };
+
+  function llmWithFingerprint(
+    fingerprint:
+      | {
+          core: string;
+          claimant: string | null;
+          domain: string | null;
+          temporal: string | null;
+          quantity: string | null;
+          source: string | null;
+        }
+      | "fail",
+  ): TriageLlm {
+    return MockTriageLlm.scripted((role, _input) => {
+      switch (role) {
+        case "triage-checkability":
+          return {
+            ok: true,
+            value: {
+              results: [
+                { sentenceId: "s1", checkable: true, claimType: "statistical", mode: "stat-grid" },
+              ],
+            },
+          };
+        case "triage-context":
+          return {
+            ok: true,
+            value: {
+              speaker: "Minister",
+              topic: "crime",
+              proposal: null,
+              attachedProposal: "tougher sentencing",
+              qualifiers: [],
+              argumentDirection: "problem",
+            },
+          };
+        case "triage-fingerprint":
+          return fingerprint === "fail"
+            ? { ok: false, raw: "no parse", failureClass: "schema-validation" }
+            : {
+                ok: true,
+                value: { claimType: "statistical", mode: "stat-grid", sentence: "", fingerprint },
+              };
+        default:
+          return { ok: false, raw: `unexpected role ${role}`, failureClass: "schema-validation" };
+      }
+    });
+  }
+
+  const tuple = {
+    core: "crime up 30% since 2017",
+    claimant: "Minister",
+    domain: "crime-statistics",
+    temporal: "2017-2026",
+    quantity: "30%",
+    source: "police",
+  };
+
+  it("attaches the parse and its canonical key to a statistical claim", async () => {
+    const result = await triageDocument(statDoc, llmWithFingerprint(tuple));
+    const [claim] = result.claims;
+    expect(claim?.claimType).toBe("statistical");
+    expect(claim?.mode).toBe("stat-grid");
+    expect(claim?.fingerprint).toEqual(tuple);
+    // The key is the normalised one, not the raw tuple: it is what dedup and
+    // near-fingerprint review compare on (TRI-R2/R4).
+    expect(claim?.fingerprintKey).toBe(canonicalFingerprintKey(tuple).key);
+    expect(result.failures).toHaveLength(0);
+  });
+
+  it("degrades to `other` when the parse cannot be extracted, and records why", async () => {
+    // TRI-R3: never silently generic. A statistical claim whose number cannot be
+    // parsed cannot be checked against a series, so it routes to the open-web
+    // loop — and the degrade is visible in the funnel rather than appearing as a
+    // claim type that quietly changed.
+    const result = await triageDocument(statDoc, llmWithFingerprint("fail"));
+    const [claim] = result.claims;
+    expect(claim?.claimType).toBe("other");
+    expect(claim?.mode).toBe("open-web");
+    expect(claim?.fingerprint).toBeNull();
+    expect(claim?.fingerprintKey).toBeNull();
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]?.sentenceId).toBe("s1");
+    // The claim still becomes a claim: a failed parse is not a dropped sentence.
+    expect(result.triageRecord.checked).toBe(1);
+  });
+
+  it("does not ask for a parse of a non-statistical claim", async () => {
+    // Quotation claims have no number to parse; asking would be a wasted call
+    // and would put a fingerprint on a claim no series can be matched to.
+    const roles: string[] = [];
+    const llm = MockTriageLlm.scripted((role) => {
+      roles.push(role);
+      if (role === "triage-checkability") {
+        return {
+          ok: true,
+          value: {
+            results: [
+              {
+                sentenceId: "s1",
+                checkable: true,
+                claimType: "broadcast-quote",
+                mode: "quote-fidelity",
+              },
+            ],
+          },
+        };
+      }
+      if (role === "triage-context") {
+        return {
+          ok: true,
+          value: {
+            speaker: null,
+            topic: null,
+            proposal: null,
+            attachedProposal: null,
+            qualifiers: [],
+            argumentDirection: null,
+          },
+        };
+      }
+      return { ok: false, raw: `unexpected ${role}`, failureClass: "schema-validation" };
+    });
+    const result = await triageDocument(statDoc, llm);
+    expect(roles).not.toContain("triage-fingerprint");
+    expect(result.claims[0]?.fingerprint).toBeNull();
+    expect(result.claims[0]?.claimType).toBe("broadcast-quote");
   });
 });

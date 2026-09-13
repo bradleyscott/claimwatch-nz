@@ -586,7 +586,12 @@ export async function triageDocument(
     tokensOut,
   };
   const claims: Array<
-    TypedClaim & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
+    TypedClaim & {
+      sourceSentenceId: string;
+      discourseContext: StoredDiscourseContext;
+      fingerprint: FingerprintTuple | null;
+      fingerprintKey: string | null;
+    }
   > = [];
   const dropLog: Array<DropRecord & { sentenceId: string }> = [];
   const failures: TriageFailureRecord[] = [];
@@ -622,13 +627,46 @@ export async function triageDocument(
         window.trim().length > 0
           ? toStoredDiscourseContext(await contextFromLlm(llm, { window }), window)
           : emptyDiscourseContext();
+      // The fingerprint stage (TRIAGE §2.1) runs for statistical claims only,
+      // because that is the only type whose check needs a parse: the figures
+      // grid is driven by the indicator, population, window and unit the parse
+      // names, so a statistical claim with no parse cannot be checked against a
+      // series at all. It had no caller until Sept 2026, which is why every
+      // `claim.fingerprint` in the store is null and TRI-R4's near-fingerprint
+      // merge had nothing to merge on.
+      //
+      // A failure DEGRADES rather than aborting the document (TRI-R3): the claim
+      // becomes `other` and routes to the open-web loop, which is the honest
+      // reading of "we could not tell what number this is". The failure is also
+      // recorded in `failures`, so a degrade is visible in the funnel instead of
+      // being a claim type that silently changed.
+      let fingerprint: FingerprintTuple | null = null;
+      let fingerprintKey: string | null = null;
+      let effectiveType: ClaimType = claimType as ClaimType;
+      if (claimType === "statistical") {
+        try {
+          fingerprint = await fingerprintFromLlm(llm, { sentence: sentence.text });
+          fingerprintKey = canonicalFingerprintKey(fingerprint).key;
+        } catch (e) {
+          failures.push({
+            failureClass: "schema-validation",
+            rawOutput: e instanceof Error ? e.message : "fingerprint extraction failed",
+            sentenceId: sentence.id,
+          });
+          fingerprint = null;
+          fingerprintKey = null;
+          effectiveType = "other";
+        }
+      }
       claims.push({
         claimId: claimIdFor(sentence.text, sentence.window, result.claimType),
         sourceSentenceId: sentence.id,
-        claimType: claimType as ClaimType,
-        mode: (MODE_BY_TYPE[claimType as ClaimType] ?? result.mode) as VerificationMode,
+        claimType: effectiveType,
+        mode: (MODE_BY_TYPE[effectiveType] ?? result.mode) as VerificationMode,
         text: sentence.text,
         discourseContext,
+        fingerprint,
+        fingerprintKey,
         provenance,
       });
     } else {

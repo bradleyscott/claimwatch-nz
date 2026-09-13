@@ -157,6 +157,22 @@ export class MockTriageLlm implements TriageLlm {
     });
   }
 
+  /**
+   * A scripted mock for a test that needs the WHOLE document flow — checkability,
+   * context and fingerprint — with its own answers per role. Same shape as
+   * `MockVerificationLlm.scripted`; needed once document triage grew past one
+   * call per stage, because the purpose-built factories each fix one role and a
+   * flow test has to satisfy all of them.
+   */
+  static scripted(
+    script: (
+      role: string,
+      input: unknown,
+    ) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
+  ): TriageLlm {
+    return new MockTriageLlm(script);
+  }
+
   static forDocument(
     sentences: Array<{
       id: string;
