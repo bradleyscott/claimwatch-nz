@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Option C · "When, what, and why it matters" (ledger + explainer shelf)</title>
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4;
+    --v-inc:#c47f1d; --v-inc-soft:#fdf8ef; --v-inc-line:#eddfc2; --v-inc-ink:#8a5a12;
+    --v-sup:#15803d;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:26px;padding:13px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:19px;font-size:14px;color:#c3cad4}
+  h1{font-size:15px;font-weight:700;color:#8fb8d8;letter-spacing:.04em;text-transform:uppercase}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:20px 0 12px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin-top:14px}
+  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .quote{font-family:Georgia,"Times New Roman",serif;font-size:27px;line-height:1.27;letter-spacing:-.01em}
+  .who{margin-top:12px;font-size:13.5px;color:var(--mut)}
+  .who b{font-weight:600;color:#3c4654}
+  .who .sep{color:#c6cad1;margin:0 6px}
+  .vword{font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:var(--v-inc-ink)}
+  .vplain{margin-top:8px;font-size:18px;line-height:1.42;font-weight:600;color:#33270f;max-width:640px}
+  .contextcard{background:var(--v-inc-soft);border-color:var(--v-inc-line)}
+  .evline{display:flex;gap:12px;align-items:baseline;font-size:13px;color:var(--mut);padding:7px 0;border-top:1px solid var(--line)}
+  .evline:first-of-type{border-top:0}
+  .evline b{font-size:14px;color:var(--ink);font-weight:700}
+  .evline .vd{margin-left:auto;font-family:"SF Mono",Consolas,monospace;font-size:11.5px;color:var(--faint)}
+
+  /* ================= THE REDESIGNED REGION ================= */
+  .trailcard{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 30px 20px}
+  .trailhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
+  .trailhead h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .trailhead .meta{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:600}
+  .trailhead .meta b{color:var(--ink)}
+
+  /* headline facts, so the shape of the check is legible before any reading */
+  .facts{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;margin-top:14px;overflow:hidden}
+  .fact{padding:12px 14px;border-left:1px solid var(--line)}
+  .fact:first-child{border-left:0}
+  .fact .k{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+  .fact .v{margin-top:4px;font-size:14.5px;font-weight:700;line-height:1.35}
+  .fact .s{margin-top:2px;font-size:11.5px;color:var(--mut);line-height:1.4}
+
+  .techbar{display:flex;align-items:center;gap:9px;margin-top:13px;font-size:12px;color:var(--mut);
+           border:1px dashed var(--line);border-radius:10px;padding:7px 12px;width:fit-content;cursor:pointer}
+  .techbar input{accent-color:var(--blue)}
+  .techbar em{font-style:normal;color:var(--faint)}
+  .tech{display:none}
+  body:has(#showtech:checked) .tech{display:block}
+  body:has(#showtech:checked) .techbar{border-style:solid;background:#faf8f4;color:var(--ink)}
+
+  /* ledger: when | what + what it means */
+  .ledger{margin-top:16px;position:relative}
+  .ledger::before{content:"";position:absolute;left:96px;top:12px;bottom:10px;width:1px;background:var(--line)}
+  .row{display:grid;grid-template-columns:88px 1fr;gap:24px;padding:14px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .when{font-size:12px;font-weight:700;color:var(--mut);line-height:1.35;padding-top:2px}
+  .when span{display:block;font-family:"SF Mono",Consolas,monospace;font-size:11px;font-weight:500;color:var(--faint)}
+  .what{position:relative;padding-left:16px}
+  .what::before{content:"";position:absolute;left:-5.5px;top:7px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--faint)}
+  .row.ans .what::before{border-color:var(--v-inc);border-width:3px}
+  .row.pub .what::before{border-color:var(--v-sup)}
+  .what .st{font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+  .what .sb{margin-top:5px;font-size:13.5px;color:var(--mut);line-height:1.6;max-width:600px}
+  .what .sb a{color:var(--blue);text-decoration:none;font-weight:600}
+  .why{margin-top:7px;font-size:12.5px;color:#8a919b;line-height:1.55;max-width:580px}
+  .why b{color:#6b747f}
+  .why::before{content:"Why it matters: ";font-weight:700;color:#8a919b}
+  .srcs{margin-top:9px;display:grid;gap:7px;max-width:640px}
+  .src{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff}
+  .src .n{font-size:13.5px;font-weight:700}
+  .src .n a{color:var(--blue);text-decoration:none}
+  .src .d{margin-top:2px;font-size:12.5px;color:var(--mut);line-height:1.5}
+  .src .v{margin-top:4px;font-family:"SF Mono",Consolas,monospace;font-size:11px;color:var(--faint)}
+  .tech{margin-top:8px;font-family:"SF Mono",Consolas,monospace;font-size:11px;line-height:1.7;color:#8a919b;
+        background:#faf8f4;border:1px solid var(--line);border-radius:9px;padding:8px 11px;max-width:640px}
+  .tech b{color:#6b747f;font-weight:700}
+
+  /* explainer shelf — the general "how it works" answers, tied to this claim */
+  .shelf{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+  .shelf h3{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .shelf .sub{margin-top:5px;font-size:13px;color:var(--mut);max-width:620px}
+  details.q{margin-top:10px;border:1px solid var(--line);border-radius:12px;background:#fdfcfa}
+  details.q > summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:baseline;padding:13px 16px;font-size:14.5px;font-weight:700}
+  details.q > summary::-webkit-details-marker{display:none}
+  details.q > summary .ch{margin-left:auto;color:var(--faint);font-size:16px;line-height:1;font-weight:400}
+  details.q[open] > summary .ch::after{content:"–"}
+  details.q:not([open]) > summary .ch::after{content:"+"}
+  .qbody{padding:0 16px 15px;font-size:13.5px;color:var(--mut);line-height:1.65;max-width:640px}
+  .qbody + .qbody{padding-top:0}
+  .qbody b{color:var(--ink)}
+  .qbody a{color:var(--blue);text-decoration:none;font-weight:600}
+  .chart{margin-top:12px;padding:12px 14px 8px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .chart .lab{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  .chart .track{position:relative;height:3px;background:var(--line);border-radius:2px;margin:22px 6px 26px}
+  .chart .mk{position:absolute;top:-5px;width:2px;height:13px;background:var(--mut)}
+  .chart .mk span{position:absolute;top:-19px;left:-6px;font-size:10.5px;color:var(--mut);white-space:nowrap;font-weight:600}
+  .chart .mk.down span{top:14px;color:var(--v-inc-ink)}
+  .chart .mk.down{background:var(--v-inc)}
+  .chart .fill{position:absolute;left:0;top:0;height:3px;background:var(--v-inc);border-radius:2px}
+  .trailfoot{display:flex;flex-wrap:wrap;align-items:center;gap:14px;border-top:1px solid var(--line);margin-top:18px;padding-top:14px;font-size:13px;color:var(--mut)}
+  .trailfoot a{color:var(--blue);text-decoration:none;font-weight:600}
+  .contest{font-size:14.5px;margin-top:12px;line-height:1.55;max-width:680px}
+  .contest b{font-weight:800}
+  .footer{padding:26px 0 44px;color:#a5abb4;font-size:12px;text-align:center;line-height:1.6}
+</style></head>
+<body>
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch <span class="fern">NZ</span></div>
+  <nav><span>Live feed</span><span>People</span><span>Parties</span><span>Organisations</span><span>Topics</span><b>How this works</b></nav>
+</div></header>
+
+<div class="wrap">
+  <div class="crumbs">Live feed › Immigration › Claims by Erica Stanford</div>
+  <h1>Option C — “When, what, and why it matters”</h1>
+
+  <!-- ===== page above the redesigned region (unchanged, condensed) ===== -->
+  <div class="card">
+    <div class="microlabel">The claim</div>
+    <div class="quote">“Since I got the job, net migration's dropped from 135,000 to around 24,000.”</div>
+    <div class="who"><b>Erica Stanford</b>, Immigration Minister<span class="sep">·</span>Newstalk ZB, Mike Hosking Breakfast<span class="sep">·</span>8 September 2026</div>
+  </div>
+
+  <div class="card contextcard">
+    <div class="microlabel" style="color:#a58a55">Our verdict</div>
+    <div class="vword">Accurate but incomplete</div>
+    <p class="vplain">The two numbers are right — but the fall was already underway before this government's changes took effect.</p>
+  </div>
+
+  <div class="card">
+    <div class="microlabel">What we checked it against</div>
+    <div class="evline"><b>Stats NZ — international migration, monthly</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Stats NZ — 2025 calendar year release</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Newstalk ZB — the interview page</b><span class="vd">the audio itself</span></div>
+  </div>
+
+  <!-- ================================================================
+       THE REDESIGNED REGION — ledger (when | what, each with a plain
+       "why it matters") + an explainer shelf that answers the general
+       "how does this work" questions using THIS claim as the example.
+       ================================================================ -->
+  <section class="trailcard" aria-label="How this verdict was made">
+    <div class="trailhead">
+      <h2>How this verdict was made</h2>
+      <div class="meta">Checked <b>9 Sep 2026</b> — the day after the interview</div>
+    </div>
+
+    <div class="facts">
+      <div class="fact"><div class="k">Claim made</div><div class="v">8 Sep 2026</div><div class="s">7:42 am, on air</div></div>
+      <div class="fact"><div class="k">Checked</div><div class="v">9 Sep 2026</div><div class="s">1 day, 2½ hours later</div></div>
+      <div class="fact"><div class="k">Sources</div><div class="v">3, all dated</div><div class="s">newest figures 13 Feb 2026</div></div>
+      <div class="fact"><div class="k">Changed since</div><div class="v">Nothing</div><div class="s">0 revisions</div></div>
+    </div>
+
+    <label class="techbar" for="showtech">
+      <input type="checkbox" id="showtech">
+      Show the technical record <em>— model, prompt and pipeline versions</em>
+    </label>
+
+    <div class="ledger">
+
+      <div class="row">
+        <div class="when">Tue 8 Sep<span>7:42 am</span></div>
+        <div class="what">
+          <div class="st">The claim was made on air</div>
+          <div class="sb">Erica Stanford on Newstalk ZB's Mike Hosking Breakfast, at 2:40 in the interview. <a href="#">Hear the claim →</a></div>
+          <div class="why">the exact words and the audio are what we check — not a report of them.</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="when">Tue 8 Sep<span>9:10 am</span></div>
+        <div class="what">
+          <div class="st">We logged the interview and the sentence we would check</div>
+          <div class="sb">The page and its audio were saved with a copy of the wording. The record can be added to afterwards; it can never be edited.</div>
+          <div class="why">logging before checking is what makes the check auditable — the wording cannot be adjusted to fit the answer.</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="when">Tue 8 Sep<span>9:26 am</span></div>
+        <div class="what">
+          <div class="st">We sorted the claim: a number, over a stated window, credited to a policy</div>
+          <div class="sb">That sends it to the official migration series rather than to a news story about migration.</div>
+          <div class="why">the method follows from what the claim is, and is fixed before we know the answer — so the same kind of claim always gets the same kind of check.</div>
+          <div class="tech"><b>method</b> stat-grid · <b>prompts</b> triage-typing@1, triage-fingerprint@1 · <b>model</b> claude-sonnet-5</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="when">Wed 9 Sep<span>8:15 am</span></div>
+        <div class="what">
+          <div class="st">We gathered the official record — 3 sources</div>
+          <div class="srcs">
+            <div class="src">
+              <div class="n"><a href="#">Stats NZ — international migration, monthly series</a></div>
+              <div class="d">135,500 peak in the October 2023 year; 23,200 in the January 2026 year.</div>
+              <div class="v">figures to Jan 2026 · published 13 Feb 2026 · retrieved 9 Sep 2026</div>
+            </div>
+            <div class="src">
+              <div class="n"><a href="#">Stats NZ — 2025 calendar year release</a></div>
+              <div class="d">Net gain of 14,200 in 2025 — lowest calendar year since 2013 outside 2021.</div>
+              <div class="v">figures to Dec 2025 · published 13 Feb 2026 · retrieved 9 Sep 2026</div>
+            </div>
+            <div class="src">
+              <div class="n">Newstalk ZB — the interview page</div>
+              <div class="d">The broadcaster's own account of the interview, kept beside the audio.</div>
+              <div class="v">published 8 Sep 2026 · retrieved 8 Sep 2026</div>
+            </div>
+          </div>
+          <div class="why">each source carries the date of the figures inside it — a claim can be accurate against older data and wrong against newer data, so the date is part of the answer.</div>
+          <div class="tech"><b>items</b> 3 · <b>classes</b> official statistics ×2, broadcast primary ×1 · <b>search queries recorded</b> 4</div>
+        </div>
+      </div>
+
+      <div class="row ans">
+        <div class="when">Wed 9 Sep<span>8:40 am</span></div>
+        <div class="what">
+          <div class="st">The data settled it: “Accurate but incomplete”</div>
+          <div class="sb">Both numbers are in the series. But most of the fall happened before the settings the claim credits took effect, and Stats NZ attributes it to post-pandemic catch-up unwinding.</div>
+          <div class="why">a true number used in a way that changes the picture gets its own verdict here — it is a category, not a mild “mostly true”.</div>
+          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> grid-materiality@2 · <b>verdict version</b> 1</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="when">Wed 9 Sep<span>9:05 am</span></div>
+        <div class="what">
+          <div class="st">A second, independent pass re-read the sources against the verdict</div>
+          <div class="sb">It asked only whether the evidence supports the conclusion. It agreed, so the verdict went forward unchanged.</div>
+          <div class="why">this is what “quality-audited” means: if the second pass disagrees, no verdict is published and the claim goes back for another look.</div>
+          <div class="tech"><b>prompt</b> nli-audit@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
+        </div>
+      </div>
+
+      <div class="row pub">
+        <div class="when">Wed 9 Sep<span>10:12 am</span></div>
+        <div class="what">
+          <div class="st">Published</div>
+          <div class="sb">One day and two and a half hours after the interview. <a href="#">See the change history</a> — every later change is appended, with a public diff.</div>
+          <div class="tech"><b>pipeline</b> 0.1.0 · <b>status</b> PUBLISHED · <b>revisions</b> 0 · <b>verdict id</b> 3c9a…</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- explainer shelf: the general question, answered against this claim -->
+    <div class="shelf">
+      <h3>How this works, in this case</h3>
+      <p class="sub">The same questions come up on every check. Here are the answers, using this claim as the example.</p>
+
+      <details class="q" open>
+        <summary>Why does each source have its own date? <span class="ch"></span></summary>
+        <div class="qbody">
+          Official figures are published in releases, and a release is only as new as its figures. The migration numbers we used were published on <b>13 Feb 2026</b> — about seven months before the claim. We say so because the same claim can be right against the figures available then and wrong against the figures available later.
+        </div>
+        <div class="qbody">
+          <div class="chart">
+            <div class="lab"><span>Oct 2023 · the peak</span><span>Feb 2026 · figures we used</span></div>
+            <div class="track">
+              <div class="fill" style="width:62%"></div>
+              <div class="mk" style="left:0"><span>135,500 peak</span></div>
+              <div class="mk" style="left:34%"><span>settings change</span></div>
+              <div class="mk down" style="left:62%"><span>23,200</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="qbody">We fetch the source again each time a claim is checked, and keep an archived copy of the version we used — so a verdict can always be traced to the exact figures behind it.</div>
+      </details>
+
+      <details class="q" open>
+        <summary>Who makes the call — and could a person change it? <span class="ch"></span></summary>
+        <div class="qbody">
+          The comparison against the official series is worked out by the automated system, then a second pass asks whether the evidence really supports the conclusion. Nobody writes the verdict by hand, and nobody can quietly overwrite one: a change to a verdict is a new version with a public diff and a logged reason. Before the 2026 election, verdicts are frozen from <b>5 Nov</b> and reopen after the results are declared.
+        </div>
+      </details>
+
+      <details class="q" open>
+        <summary>What would change this verdict? <span class="ch"></span></summary>
+        <div class="qbody">
+          Two things. A <b>later release</b> of the migration series — if revised figures moved the peak or the timing, the claim would be re-checked and the verdict could change. Or a <b>contest</b> pointing at a source we should have used. Both produce a new version of this page, keep the old one visible, and record why.
+        </div>
+      </details>
+    </div>
+
+    <div class="trailfoot">
+      <a href="#">How we check claims →</a>
+      <span aria-hidden="true">·</span>
+      <a href="#">What we can't check yet</a>
+    </div>
+    <p class="contest"><b>Think we've got this wrong?</b> <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">Tell us</a> — with a source we should have used. Contests are public, and when one checks out we change the verdict and show the change history.</p>
+  </section>
+  <!-- ================== end redesigned region ================== -->
+
+  <div class="footer">Option C of three · mockup only — the verdict, dates and figures shown are illustrative renderings of how the page would work, not published checks.</div>
+</div>
+</body></html>

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<title>ClaimWatch NZ — Option A · "The full trail" (always-visible dated timeline)</title>
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4;
+    --v-inc:#c47f1d; --v-inc-soft:#fdf8ef; --v-inc-line:#eddfc2; --v-inc-ink:#8a5a12;
+    --v-sup:#15803d;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px}
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{display:flex;align-items:center;gap:26px;padding:13px 0}
+  .logo{font-weight:800;font-size:19px}
+  .logo .fern{color:#8fb8d8}
+  nav{display:flex;gap:19px;font-size:14px;color:#c3cad4}
+  h1{font-size:15px;font-weight:700;color:#8fb8d8;letter-spacing:.04em;text-transform:uppercase}
+  .crumbs{font-size:12.5px;color:var(--mut);padding:20px 0 12px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin-top:14px}
+  .microlabel{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .quote{font-family:Georgia,"Times New Roman",serif;font-size:27px;line-height:1.27;letter-spacing:-.01em}
+  .who{margin-top:12px;font-size:13.5px;color:var(--mut)}
+  .who b{font-weight:600;color:#3c4654}
+  .who .sep{color:#c6cad1;margin:0 6px}
+  .vword{font-size:34px;font-weight:800;letter-spacing:-.025em;line-height:1.02;color:var(--v-inc-ink)}
+  .vplain{margin-top:8px;font-size:18px;line-height:1.42;font-weight:600;color:#33270f;max-width:640px}
+  .contextcard{background:var(--v-inc-soft);border-color:var(--v-inc-line)}
+  .evline{display:flex;gap:12px;align-items:baseline;font-size:13px;color:var(--mut);padding:7px 0;border-top:1px solid var(--line)}
+  .evline:first-of-type{border-top:0}
+  .evline b{font-size:14px;color:var(--ink);font-weight:700}
+  .evline .vd{margin-left:auto;font-family:"SF Mono",Consolas,monospace;font-size:11.5px;color:var(--faint)}
+
+  /* ================= THE REDESIGNED REGION ================= */
+  .trailcard{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 30px 20px}
+  .trailhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
+  .trailhead h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+  .trailhead .meta{margin-left:auto;font-size:12.5px;color:var(--mut);font-weight:600}
+  .trailhead .meta b{color:var(--ink)}
+  .trailintro{margin-top:8px;font-size:13.5px;color:var(--mut);line-height:1.55;max-width:640px}
+  .techbar{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:12px;color:var(--mut);
+           border:1px dashed var(--line);border-radius:10px;padding:8px 12px;width:fit-content;cursor:pointer}
+  .techbar input{accent-color:var(--blue)}
+  .techbar em{font-style:normal;color:var(--faint)}
+
+  /* reveal the machine record when the reader asks (CSS-only, so the mockup works in a browser) */
+  .tech{display:none}
+  body:has(#showtech:checked) .tech{display:block}
+  body:has(#showtech:checked) .techbar{border-style:solid;background:#faf8f4;color:var(--ink)}
+
+  .trail{position:relative;margin-top:16px}
+  .trail::before{content:"";position:absolute;left:114px;top:9px;bottom:26px;width:1px;background:var(--line)}
+  .step{display:grid;grid-template-columns:100px 28px 1fr;padding:15px 0 15px}
+  .step:first-child{padding-top:4px}
+  .when{font-size:12px;font-weight:700;color:var(--mut);padding-top:2px;line-height:1.35}
+  .when span{display:block;font-family:"SF Mono",Consolas,monospace;font-size:11px;font-weight:500;color:var(--faint)}
+  .dot{margin:5px 0 0 8.5px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--faint);z-index:1}
+  .dot.pub{border-color:var(--v-sup)}
+  .dot.ans{border-color:var(--v-inc);border-width:3px}
+  .body .st{font-size:15.5px;font-weight:700;letter-spacing:-.005em}
+  .body .st .tag{margin-left:8px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--v-inc-ink);background:var(--v-inc-soft);border:1px solid var(--v-inc-line);border-radius:6px;padding:2px 6px;vertical-align:2px}
+  .body .sb{margin-top:5px;font-size:13.5px;color:var(--mut);line-height:1.6;max-width:600px}
+  .body .sb a{color:var(--blue);text-decoration:none;font-weight:600}
+  .swhy{margin-top:7px;font-size:12.5px;color:#8a919b;line-height:1.55;border-left:2px solid var(--line);padding-left:10px;max-width:580px}
+  .srcs{margin-top:9px;display:grid;gap:7px;max-width:640px}
+  .src{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:#fff}
+  .src .n{font-size:13.5px;font-weight:700}
+  .src .n a{color:var(--blue);text-decoration:none}
+  .src .d{margin-top:2px;font-size:12.5px;color:var(--mut);line-height:1.5}
+  .src .v{margin-top:4px;font-family:"SF Mono",Consolas,monospace;font-size:11px;color:var(--faint)}
+  .tech{margin-top:8px;font-family:"SF Mono",Consolas,monospace;font-size:11px;line-height:1.7;color:#8a919b;
+        background:#faf8f4;border:1px solid var(--line);border-radius:9px;padding:8px 11px;max-width:640px}
+  .tech b{color:#6b747f;font-weight:700}
+  .trailfoot{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);margin-top:8px;padding-top:15px;font-size:13px;color:var(--mut)}
+  .trailfoot a{color:var(--blue);text-decoration:none;font-weight:600}
+  .trailfoot .ask{margin-left:auto;font-size:13px}
+  .contest{font-size:14.5px;margin-top:14px;line-height:1.55;max-width:680px}
+  .contest b{font-weight:800}
+  .footer{padding:26px 0 44px;color:#a5abb4;font-size:12px;text-align:center;line-height:1.6}
+</style></head>
+<body>
+<header class="site"><div class="wrap sitebar">
+  <div class="logo">ClaimWatch <span class="fern">NZ</span></div>
+  <nav><span>Live feed</span><span>People</span><span>Parties</span><span>Organisations</span><span>Topics</span><b>How this works</b></nav>
+</div></header>
+
+<div class="wrap">
+  <div class="crumbs">Live feed › Immigration › Claims by Erica Stanford</div>
+  <h1>Option A — “The full trail”</h1>
+
+  <!-- ===== page above the redesigned region (unchanged, condensed) ===== -->
+  <div class="card">
+    <div class="microlabel">The claim</div>
+    <div class="quote">“Since I got the job, net migration's dropped from 135,000 to around 24,000.”</div>
+    <div class="who"><b>Erica Stanford</b>, Immigration Minister<span class="sep">·</span>Newstalk ZB, Mike Hosking Breakfast<span class="sep">·</span>8 September 2026</div>
+  </div>
+
+  <div class="card contextcard">
+    <div class="microlabel" style="color:#a58a55">Our verdict</div>
+    <div class="vword">Accurate but incomplete</div>
+    <p class="vplain">The two numbers are right — but the fall was already underway before this government's changes took effect.</p>
+  </div>
+
+  <div class="card">
+    <div class="microlabel">What we checked it against</div>
+    <div class="evline"><b>Stats NZ — international migration, monthly</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Stats NZ — 2025 calendar year release</b><span class="vd">vintage 13 Feb 2026</span></div>
+    <div class="evline"><b>Newstalk ZB — the interview page</b><span class="vd">the audio itself</span></div>
+  </div>
+
+  <!-- ================================================================
+       THE REDESIGNED REGION — replaces: the collapsed "How this verdict
+       was made" accordion, the "Checked 9 Sep 2026 · How we check claims"
+       metarow, and the dashed "produced by our automated pipeline …"
+       paragraph (which repeated the accordion's own title and body).
+       ================================================================ -->
+  <section class="trailcard" aria-label="How this verdict was made">
+    <div class="trailhead">
+      <h2>How this verdict was made</h2>
+      <div class="meta">Checked <b>9 Sep 2026</b> — the day after the interview</div>
+    </div>
+    <p class="trailintro">
+      Everything we did to this claim, in the order we did it. Dates and sources are the record, not a
+      summary of it; each source is linked and carries the date of the figures it contains.
+    </p>
+
+    <label class="techbar" for="showtech">
+      <input type="checkbox" id="showtech">
+      Show the technical record <em>— model, prompt and pipeline versions behind each step</em>
+    </label>
+
+    <div class="trail">
+
+      <div class="step">
+        <div class="when">Tue 8 Sep 2026<span>7:42 am</span></div>
+        <span class="dot"></span>
+        <div class="body">
+          <div class="st">The claim was made</div>
+          <div class="sb">Erica Stanford, Immigration Minister, on Newstalk ZB's Mike Hosking Breakfast, at 2:40 in the interview. <a href="#">Hear the claim →</a></div>
+          <div class="swhy">We check the words that were said, quoted from the record — never someone's summary of them.</div>
+          <div class="tech"><b>anchor</b> start 2:40 · end 2:58 · <b>source</b> newstalkzb.co.nz · <b>wording tier</b> broadcaster summary</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Tue 8 Sep 2026<span>9:10 am</span></div>
+        <span class="dot"></span>
+        <div class="body">
+          <div class="st">We logged the interview, and the wording we would check</div>
+          <div class="sb">The page and its audio were saved with a copy of the exact sentence. From this point the record cannot be changed — only added to.</div>
+          <div class="tech"><b>recorded</b> 2026-09-08T09:10Z · <b>document hash</b> 8f2c41d7… · <b>archive copy</b> kept</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Tue 8 Sep 2026<span>9:26 am</span></div>
+        <span class="dot"></span>
+        <div class="body">
+          <div class="st">We worked out what kind of claim it was — and therefore what to check it against</div>
+          <div class="sb">A number, over a stated time window, credited to a policy change. That routes it to the official migration series rather than to a news story about migration.</div>
+          <div class="swhy">Which method a claim gets is decided by what the claim is, before we know what the answer is. Five of the six claims we drop never get this far.</div>
+          <div class="tech"><b>method</b> stat-grid · <b>prompts</b> triage-typing@1, triage-fingerprint@1 · <b>model</b> claude-sonnet-5</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Wed 9 Sep 2026<span>8:15 am</span></div>
+        <span class="dot"></span>
+        <div class="body">
+          <div class="st">We gathered the official record — 3 sources, each with its own date</div>
+          <div class="sb">Two are the same series at different releases; one is the interview itself. The figures we compared against were published in February.</div>
+          <div class="srcs">
+            <div class="src">
+              <div class="n"><a href="#">Stats NZ — international migration, monthly series</a></div>
+              <div class="d">135,500 peak in the October 2023 year; 23,200 in the January 2026 year.</div>
+              <div class="v">figures to Jan 2026 · published 13 Feb 2026 · retrieved 9 Sep 2026</div>
+            </div>
+            <div class="src">
+              <div class="n"><a href="#">Stats NZ — 2025 calendar year release</a></div>
+              <div class="d">Net gain of 14,200 in 2025 — lowest calendar year since 2013 outside 2021.</div>
+              <div class="v">figures to Dec 2025 · published 13 Feb 2026 · retrieved 9 Sep 2026</div>
+            </div>
+            <div class="src">
+              <div class="n">Newstalk ZB — the interview page</div>
+              <div class="d">The broadcaster's own account of the interview, kept beside the audio.</div>
+              <div class="v">published 8 Sep 2026 · retrieved 8 Sep 2026</div>
+            </div>
+          </div>
+          <div class="tech"><b>items</b> 3 · <b>classes</b> official statistics ×2, broadcast primary ×1 · <b>search queries recorded</b> 4</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Wed 9 Sep 2026<span>8:40 am</span></div>
+        <span class="dot ans"></span>
+        <div class="body">
+          <div class="st">The data settled it <span class="tag">the answer</span></div>
+          <div class="sb">Both numbers are in the series. But most of the fall happened before the settings the claim credits took effect, and Stats NZ attributes it to post-pandemic catch-up unwinding.</div>
+          <div class="swhy">A true number used in a way that changes the picture is its own verdict here — not a milder “mostly true”.</div>
+          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> grid-materiality@2 · <b>verdict version</b> 1</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Wed 9 Sep 2026<span>9:05 am</span></div>
+        <span class="dot"></span>
+        <div class="body">
+          <div class="st">A second pass re-read the sources against the verdict</div>
+          <div class="sb">An independent pass asked only: does this evidence actually support this conclusion? It agreed, so the verdict went forward unchanged.</div>
+          <div class="swhy">If the second pass disagrees, the claim does not publish a verdict at all — it comes back for another look instead.</div>
+          <div class="tech"><b>prompt</b> nli-audit@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="when">Wed 9 Sep 2026<span>10:12 am</span></div>
+        <span class="dot pub"></span>
+        <div class="body">
+          <div class="st">Published</div>
+          <div class="sb">One day and two and a half hours after the interview. Nothing has changed since — <a href="#">see the change history</a>.</div>
+          <div class="tech"><b>pipeline</b> 0.1.0 · <b>status</b> PUBLISHED · <b>revisions</b> 0 · <b>verdict id</b> 3c9a…</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="trailfoot">
+      <a href="#">How we check claims →</a>
+      <span aria-hidden="true">·</span>
+      <a href="#">What we can't check yet</a>
+      <span class="ask"><a href="#">Feedback</a></span>
+    </div>
+    <p class="contest"><b>Think we've got this wrong?</b> <a href="#" style="color:var(--blue);text-decoration:none;font-weight:600">Tell us</a> — with a source we should have used. Contests are public, and when one checks out we change the verdict and show the change history.</p>
+  </section>
+  <!-- ================== end redesigned region ================== -->
+
+  <div class="footer">Option A of three · mockup only — the verdict, dates and figures shown are illustrative renderings of how the page would work, not published checks.</div>
+</div>
+</body></html>
