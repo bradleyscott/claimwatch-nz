@@ -75,6 +75,9 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = tru
     utteranceText: "Crime is up 30% since 2017.",
     text: "Crime is up 30% since 2017.",
     claimType: "statistical",
+    // Eligible by default: the site serves claims that are in scope (ADR-0019),
+    // so the fixtures are in scope unless a test says otherwise.
+    speakershipClass: "quoted-actor",
     discourseContext: {
       window: "…in the context of law and order debate…",
       attachedProposal: "tougher sentencing",
@@ -248,7 +251,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     // of it AVeriTeC evaluation rows written straight into the live store by a
     // slice script. This gate is what keeps that corpus out of the public record
     // without deleting it — the harness and our own inspection still read it
-    // through `includeUnprovenanced` (ING-R10's "fixture records treated as a
+    // through `includeIneligible` (ING-R10's "fixture records treated as a
     // production lane", arriving at the site).
     const documented = await seedClaim();
     await publishVerdict(documented.claimId);
@@ -260,7 +263,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect((await reader.getVerdictPage(documented.claimId))?.claimId).toBe(documented.claimId);
     // ...and the escape hatch is explicit rather than implicit.
     expect(
-      (await reader.getVerdictPage(unprovenanced.claimId, { includeUnprovenanced: true }))?.claimId,
+      (await reader.getVerdictPage(unprovenanced.claimId, { includeIneligible: true }))?.claimId,
     ).toBe(unprovenanced.claimId);
 
     // The feed and the page make the SAME decision — a claim listable but not
@@ -268,9 +271,46 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     const publicFeed = await reader.getFeed(0, 100);
     expect(publicFeed.entries.map((e) => e.claimId)).toContain(documented.claimId);
     expect(publicFeed.entries.map((e) => e.claimId)).not.toContain(unprovenanced.claimId);
-    const corpus = await reader.getFeed(0, 100, { includeUnprovenanced: true });
+    const corpus = await reader.getFeed(0, 100, { includeIneligible: true });
     expect(corpus.entries.map((e) => e.claimId)).toContain(unprovenanced.claimId);
     expect(corpus.entries.length).toBeGreaterThan(publicFeed.entries.length);
+  });
+
+  it("publishes only positively in-scope speakership, and fails closed on unclassified claims", async () => {
+    // ADR-0019's scope rule, enforced where it cannot be skipped. The first live
+    // lane published a verdict about RNZ's own narration — a compound sentence
+    // the reporter synthesised, with no speaker — so `outlet-prose` must not
+    // reach the public record even though the row exists, is published, and has
+    // a document behind it.
+    const outletProse = await seedClaim({ speakershipClass: "outlet-prose" });
+    await publishVerdict(outletProse.claimId);
+    const unresolved = await seedClaim({ speakershipClass: "unresolved" });
+    await publishVerdict(unresolved.claimId);
+    const authorClaim = await seedClaim({ speakershipClass: "author-claim" });
+    await publishVerdict(authorClaim.claimId);
+    // No decision recorded at all — the state every row ingested before
+    // ADR-0019 is in, and the state the live store's 29 claims are in.
+    const unclassified = await seedClaim({ speakershipClass: null });
+    await publishVerdict(unclassified.claimId);
+
+    // Eligible classes publish; ineligible ones are recorded but never served.
+    expect((await reader.getVerdictPage(authorClaim.claimId))?.claimId).toBe(authorClaim.claimId);
+    expect(await reader.getVerdictPage(outletProse.claimId)).toBeNull();
+    expect(await reader.getVerdictPage(unresolved.claimId)).toBeNull();
+    // Fail CLOSED: unclassified is not "probably fine". A claim has to be
+    // positively classified in scope, not merely never judged out of it —
+    // otherwise publishing is the default and the ADR-0019 defect returns
+    // through the back door of an older writer.
+    expect(await reader.getVerdictPage(unclassified.claimId)).toBeNull();
+
+    // The class reaches the read model, so the page can say how a claim was
+    // attributed (ADR-0019 §5) rather than guessing from the speaker string.
+    const page = await reader.getVerdictPage(authorClaim.claimId);
+    expect(page?.speakershipClass).toBe("author-claim");
+    expect(
+      (await reader.getVerdictPage(outletProse.claimId, { includeIneligible: true }))
+        ?.speakershipClass,
+    ).toBe("outlet-prose");
   });
 
   it("reports the pack the CURRENT verdict pins, not an earlier pack for the claim", async () => {

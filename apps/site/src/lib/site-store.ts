@@ -27,16 +27,16 @@ export interface SiteStore {
 }
 
 /**
- * `?corpus=all` on a page switches the reader to the unprovenanced corpus (the
- * AVeriTeC evaluation rows and anything else written straight into the store).
- * The public default is document-provenanced records only — see
- * `SiteReadOptions.includeUnprovenanced` for why, and keep this the ONLY place
- * the query string is interpreted.
+ * `?corpus=all` on a page switches the reader to the records that are NOT
+ * eligible for the public record: no ingested document, or a speakership class
+ * that is out of scope (ADR-0019). The public default is provenance-backed,
+ * positively in-scope claims only — see `SiteReadOptions.includeIneligible` for
+ * why, and keep this the ONLY place the query string is interpreted.
  */
 export function readOptionsFromSearch(
   search: Record<string, string | string[] | undefined> | undefined,
 ): SiteReadOptions {
-  return { includeUnprovenanced: search?.corpus === "all" };
+  return { includeIneligible: search?.corpus === "all" };
 }
 
 /** Fixture-backed store for L4a smoke tests and the empty-store edge case (SIT-R14). */

@@ -50,6 +50,13 @@
       "when": 1789316602464,
       "tag": "0006_hot_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789316792697,
+      "tag": "0007_shallow_christian_walker",
+      "breakpoints": true
     }
   ]
 }

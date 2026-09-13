@@ -1,6 +1,6 @@
 {
-  "id": "81fb9bce-f2e2-4b03-8235-7e59f9c2e3da",
-  "prevId": "c3a5b25d-6b7a-4f19-8ba5-748e0ea26722",
+  "id": "b99b8f2b-f0d8-43b3-8c2c-13991466d118",
+  "prevId": "81fb9bce-f2e2-4b03-8235-7e59f9c2e3da",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -117,6 +117,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
+        },
+        "speakership_class": {
+          "name": "speakership_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "triage_record": {
           "name": "triage_record",
@@ -247,6 +253,10 @@
         "verification_mode_valid": {
           "name": "verification_mode_valid",
           "value": "\"claim\".\"verification_mode\" IS NULL OR \"claim\".\"verification_mode\" IN ('stat-grid','citation-check','quote-fidelity','provenance','open-web')"
+        },
+        "speakership_class_valid": {
+          "name": "speakership_class_valid",
+          "value": "\"claim\".\"speakership_class\" IS NULL OR \"claim\".\"speakership_class\" IN ('quoted-actor','author-claim','outlet-prose','unresolved')"
         }
       },
       "isRLSEnabled": false

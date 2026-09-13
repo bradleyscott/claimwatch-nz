@@ -5,6 +5,7 @@ export * from "./claimreview.ts";
 export * from "./domain.ts";
 export * from "./schema/index.ts";
 export * from "./site-reader.ts";
+export * from "./speakership.ts";
 export * from "./store.ts";
 export * from "./store-api.ts";
 export * from "./triage-record.ts";

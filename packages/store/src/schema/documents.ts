@@ -119,6 +119,19 @@ export const claim = pgTable(
     transcriptTier: text("transcript_tier"),
     captionQualityFlag: text("caption_quality_flag"),
     attributionCandidates: jsonb("attribution_candidates").notNull().default([]),
+    // Whose words this sentence is (ADR-0019): the `attribute` stage's decision,
+    // made at ingestion BEFORE triage reads it, and the eligibility gate on the
+    // public record. The first live lane published a verdict about RNZ's own
+    // narration — a compound sentence the reporter synthesised, with no speaker —
+    // because nothing said which sentences are ours to check.
+    //
+    // Null means NO decision was recorded: every row ingested before the rule
+    // existed, and any writer that has not classified the sentence yet. The
+    // reader treats that as NOT eligible (`speakership.ts`), so a claim cannot
+    // reach the public record by never being assessed. `quoted-actor` and
+    // `author-claim` are the eligible classes; `outlet-prose` and `unresolved`
+    // are recorded, never verified.
+    speakershipClass: text("speakership_class"),
     // The triage pass's own output for the document this claim came from: how
     // many sentences were classified, which ones were set aside and under which
     // rejection class, and which were held without grading. This is the "what we
@@ -145,6 +158,14 @@ export const claim = pgTable(
     check(
       "verification_mode_valid",
       sql`${t.verificationMode} IS NULL OR ${t.verificationMode} IN ('stat-grid','citation-check','quote-fidelity','provenance','open-web')`,
+    ),
+    // ADR-0019 §1's four classes. The CHECK is the schema-side half of the
+    // eligibility rule: `speakership.ts` decides which are publishable, and a
+    // value outside the vocabulary cannot be written at all (the site gate and
+    // the pipeline classifier both derive from that one list).
+    check(
+      "speakership_class_valid",
+      sql`${t.speakershipClass} IS NULL OR ${t.speakershipClass} IN ('quoted-actor','author-claim','outlet-prose','unresolved')`,
     ),
   ],
 );

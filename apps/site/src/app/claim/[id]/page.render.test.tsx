@@ -73,6 +73,11 @@ const pageData = {
   claimRecordedAt: new Date("2026-09-09T09:26:00+12:00"),
   sourceRetrievedAt: new Date("2026-09-09T09:10:00+12:00"),
   claimType: "statistical",
+  // ADR-0019's eligibility input, and eligible here: the claim is a resolvable
+  // quoted actor's, which is why the page renders at all. A claim the outlet
+  // wrote itself (`outlet-prose`) or one with no classification does not reach
+  // the public record — the reader's gate, not the page, decides that.
+  speakershipClass: "quoted-actor",
   publisher: "Newstalk ZB",
   checkedAt: new Date("2026-09-09T09:40:00+12:00"),
   nliOutcome: "pass",

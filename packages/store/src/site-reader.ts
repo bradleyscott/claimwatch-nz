@@ -25,6 +25,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
 import * as s from "./schema/index.ts";
+import { ELIGIBLE_SPEAKERSHIP_CLASSES, SPEAKERSHIP_CLASSES } from "./speakership.ts";
 import { TriageRecord, VERIFICATION_MODES } from "./triage-record.ts";
 
 /**
@@ -101,6 +102,15 @@ export const VerdictPageData = z.object({
   /** Store claim type — decides which method the claim got (TRIAGE typing). */
   claimType: z.string().nullable().default(null),
   /**
+   * Whose words the claim is (claim.speakership_class, ADR-0019 §1), and the
+   * reason the page can say who said it. Null on every claim classified before
+   * the rule existed — and those do not reach the page at all, because the
+   * reader's gate requires one of the two eligible classes. So in practice this
+   * is non-null on any page that renders; it is nullable here because the read
+   * model describes the row, and `?corpus=all` shows the ineligible ones too.
+   */
+  speakershipClass: z.enum(SPEAKERSHIP_CLASSES).nullable().default(null),
+  /**
    * Which check the claim got (claim.verification_mode, VERIFICATION §2.1).
    * Typed to the five modes rather than left as `string`, so the page's mode
    * table is checked against the same vocabulary the column's CHECK enforces
@@ -163,24 +173,33 @@ export type FeedEntry = z.infer<typeof FeedEntry>;
  */
 export interface SiteReadOptions {
   /**
-   * Include records with no ingested document behind them
-   * (`claim.publication_id is null`).
+   * Include records that are NOT eligible for the public record: no ingested
+   * document behind them, or a speakership class that is out of scope.
    *
-   * Off by default. The site serves checks of something we actually ingested —
-   * ADR-0008's `publication → segment → claim` hierarchy is what makes a check
-   * traceable to a document a reader can open. Records without one are the
-   * AVeriTeC evaluation corpus (and anything else a slice script writes
-   * straight into the store): real rows, deliberately kept for the harness and
-   * for our own inspection, but not the public record. The live store held 26
-   * published verdicts on 2026-09-13 of which 25 had no publication and 19 cited
-   * no evidence — the feed showed the same claim text up to twelve times with
-   * contradictory classes, which is ING-R10's "fixture records treated as a
-   * production lane" arriving at the site (Sept 2026).
+   * Off by default, and the default is the whole point:
    *
-   * The escape hatch is the site's `?corpus=all`; it exists so the corpus stays
-   * reachable without making it the default.
+   * - **Document provenance** (ADR-0008's `publication → segment → claim`) is what
+   *   makes a check traceable to something a reader can open. Records without it
+   *   are the AVeriTeC evaluation corpus and anything else a slice script wrote
+   *   straight into the store. On 2026-09-13 the live store served 26 published
+   *   verdicts of which 25 had no publication and 19 cited no evidence, with one
+   *   claim text appearing twelve times carrying contradictory classes — ING-R10's
+   *   "fixture records treated as a production lane" reaching the public site.
+   * - **Speakership** (ADR-0019) decides whether the sentence was ours to check at
+   *   all. The first live lane published a verdict about RNZ's own narration: a
+   *   compound sentence the reporter synthesised, with no speaker, so the verdict
+   *   could not say whose claim it assessed. Only `quoted-actor` and `author-claim`
+   *   publish; `outlet-prose` and `unresolved` are recorded, never verified.
+   *
+   * The gate FAILS CLOSED: a null speakership class means no decision was
+   * recorded (every row ingested before ADR-0019 existed), and those do not
+   * publish either. A claim has to be positively classified as in scope, not
+   * merely unclassified.
+   *
+   * The escape hatch is the site's `?corpus=all`, so the corpus stays reachable
+   * for inspection without becoming the default and without deleting anything.
    */
-  includeUnprovenanced?: boolean;
+  includeIneligible?: boolean;
 }
 
 /**
@@ -219,13 +238,20 @@ export interface SiteReader {
 const SITE_VISIBLE_STATUSES = ["DRAFT", "PUBLISHED", "CONTESTED", "FROZEN"] as const;
 
 /**
- * The document-provenance condition, or nothing when the caller asked for the
- * unprovenanced corpus. Kept as one function so the two queries cannot drift:
- * a claim invisible on its own page but listable in the feed (or the reverse)
- * is worse than either choice.
+ * The public-record gate. Two conditions, both decided upstream and both
+ * recorded rather than inferred — the site cannot work out for itself whether a
+ * claim came from a document or whether it was ours to check, so it must not
+ * guess.
  */
-function provenanceCondition(opts?: SiteReadOptions) {
-  return opts?.includeUnprovenanced ? undefined : isNotNull(s.claim.publicationId);
+function eligibilityCondition(opts?: SiteReadOptions) {
+  if (opts?.includeIneligible) return undefined;
+  return and(
+    // Document provenance: a check traceable to something a reader can open.
+    isNotNull(s.claim.publicationId),
+    // Speakership: ADR-0019's scope rule. `inArray` excludes NULL, which is the
+    // fail-closed behaviour the option documents.
+    inArray(s.claim.speakershipClass, [...ELIGIBLE_SPEAKERSHIP_CLASSES]),
+  );
 }
 
 // evidence_pack.justifications is jsonb (`unknown` to the type system); the
@@ -269,6 +295,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           speakerName: sql<string | null>`${s.claim.attributionCandidates}->0->>'name'`,
           transcriptTier: s.claim.transcriptTier,
           claimType: s.claim.claimType,
+          speakershipClass: s.claim.speakershipClass,
           verificationMode: s.claim.verificationMode,
           triageRecord: s.claim.triageRecord,
           spokenAt: s.claim.spokenAt,
@@ -308,7 +335,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           and(
             eq(s.claim.claimId, claimId),
             inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES),
-            provenanceCondition(opts),
+            eligibilityCondition(opts),
           ),
         )
         .limit(1);
@@ -387,6 +414,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         claimRecordedAt: row.claimRecordedAt ?? null,
         sourceRetrievedAt: row.sourceRetrievedAt ?? null,
         claimType: row.claimType ?? null,
+        speakershipClass: row.speakershipClass ?? null,
         verificationMode: row.verificationMode ?? null,
         triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,
@@ -427,7 +455,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           ),
         )
         .where(
-          and(inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES), provenanceCondition(opts)),
+          and(inArray(s.verdictVersion.status, SITE_VISIBLE_STATUSES), eligibilityCondition(opts)),
         )
         .orderBy(desc(s.verdictVersion.createdAt))
         .offset(page * pageSize)

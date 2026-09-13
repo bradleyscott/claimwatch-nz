@@ -3,6 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
+import type { SpeakershipClass } from "./speakership.ts";
 import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {
@@ -43,6 +44,14 @@ export interface ClaimFixture {
    * means "not recorded", which the verdict page renders as an absent check.
    */
   verificationMode?: VerificationMode | null;
+  /**
+   * Whose words this sentence is (ADR-0019 §1), decided by the `attribute`
+   * stage before triage reads it. Optional and nullable: absent means NO
+   * eligibility decision was recorded, which the reader treats as not
+   * publishable — a claim cannot reach the public record by never being
+   * assessed. `quoted-actor` and `author-claim` are the eligible classes.
+   */
+  speakershipClass?: SpeakershipClass | null;
   /**
    * Triage's output for the document this claim came from (claim.triage_record)
    * — how many sentences were read, and which were set aside or held. Optional:
