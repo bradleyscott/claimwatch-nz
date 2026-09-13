@@ -33,6 +33,12 @@ Model routing per ADR-0011: triage/typing/fingerprint is the high-volume structu
 
 Sentence-level; the window conditions but never makes a non-claim checkable. Classes: checkable / not-checkable (opinion, rhetoric, procedure, satire — satire is triaged *out*, never "checked") / pledge-conditional (→ "pledge — not yet checkable", checkable only as consistency claims). Output is decision + retained evidence (sentence, window span, rejection class). The prompt is a versioned artefact.
 
+**Call bound (TRI-R12, Sept 2026).** The call returns one result per sentence, so its response grows with the document while the adapter's output budget is fixed — an unbounded request is a truncation waiting for the first long article. The document is therefore split into chunks of at most **20 sentences or 6000 characters** (whichever binds first), and a chunk whose response fails schema validation is retried at **half size** before the document is failed. A document that fits in one chunk still makes exactly one call with the unchanged payload. Consequences worth stating:
+
+- `triage_record.sentences_read` counts the whole document across chunks, so a partially-read document can never publish as a fully-read one: a chunk that still fails after halving aborts the run rather than shrinking the denominator silently.
+- Token counts are summed across chunks; the run's provenance records **one** model, so chunks that disagree (an ADR-0011 escalation mid-document) fail loudly instead of recording the first chunk's model for all of them.
+- Truncation is named where it happens: the adapter surfaces `finish_reason`, so a cut response reads as `finish_reason: length` rather than "the model did not return a response".
+
 ### 2.3 Claim typing (mode routing)
 
 | Type | Routes to | Signal |

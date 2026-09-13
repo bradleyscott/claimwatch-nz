@@ -403,6 +403,48 @@ export const TRIAGE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   "triage-context": ContextOutput,
 };
 
+type CheckabilityResult = z.infer<typeof DocumentLlmOutput>["results"][number];
+type TriageSentence = TriageDocumentInput["sentences"][number];
+
+/**
+ * Bounds on the checkability fan-out (TRI-R12). The call returns ONE result per
+ * sentence, so the response grows with the document while the adapter's output
+ * budget is fixed — a real 47-sentence news article (~8.5 KB of results)
+ * truncated at the 2048-token default and surfaced as `schema-validation — the
+ * model did not return a response`, naming the symptom and not the cause
+ * (Sept 2026). Both the sentence count and the input characters are bounded:
+ * one very long sentence is still one result but unbounded prompt text.
+ */
+const CHECKABILITY_CHUNK_SENTENCES = 20;
+const CHECKABILITY_CHUNK_CHARS = 6000;
+
+/**
+ * Split the document into calls small enough to answer in one response. A
+ * document that fits is one chunk, so the single-chunk path issues exactly the
+ * call it issued before this existed — which is what keeps the L2 goldens and
+ * the ops slices unchanged.
+ */
+function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
+  const chunks: TriageSentence[][] = [];
+  let current: TriageSentence[] = [];
+  let chars = 0;
+  for (const sentence of sentences) {
+    const size = sentence.text.length + (sentence.window?.length ?? 0);
+    if (
+      current.length > 0 &&
+      (current.length >= CHECKABILITY_CHUNK_SENTENCES || chars + size > CHECKABILITY_CHUNK_CHARS)
+    ) {
+      chunks.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(sentence);
+    chars += size;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
 export async function triageDocument(
   doc: TriageDocumentInput,
   llm: TriageLlm,
@@ -413,26 +455,70 @@ export async function triageDocument(
     triageRecord: TriageRecord;
   }
 > {
-  const call = await llm.generateObject(
-    "triage-checkability",
-    { sentences: doc.sentences },
-    { parse: (raw: unknown) => DocumentLlmOutput.parse(raw) },
-  );
-  if (!call.ok) {
+  const results: CheckabilityResult[] = [];
+  const models = new Set<string>();
+  let tokensIn = 0;
+  let tokensOut = 0;
+
+  const runChunk = async (chunk: TriageSentence[]): Promise<void> => {
+    const call = await llm.generateObject(
+      "triage-checkability",
+      { sentences: chunk },
+      { parse: (raw: unknown) => DocumentLlmOutput.parse(raw) },
+    );
+    if (!call.ok) {
+      // A chunk that overflows the output budget is retried at half size rather
+      // than failing the document: a schema failure here IS the truncation
+      // signal, so the retry turns a hard failure into a slower success. Bounded
+      // by the halving — `chunk.length > 1` is what terminates it.
+      if (call.failureClass === "schema-validation" && chunk.length > 1) {
+        const mid = Math.ceil(chunk.length / 2);
+        await runChunk(chunk.slice(0, mid));
+        await runChunk(chunk.slice(mid));
+        return;
+      }
+      // Truncation is named where it happens: this message is what made a
+      // 2048-token cut look like a model that refused to answer.
+      throw new Error(
+        `triage failed: ${call.failureClass}` +
+          `${call.finishReason ? ` (finish_reason: ${call.finishReason})` : ""} — raw: ${
+            call.rawOutput?.slice(0, 400) ?? "none"
+          }`,
+      );
+    }
+    results.push(...call.value.results);
+    models.add(call.model);
+    tokensIn += call.usage.tokensIn;
+    tokensOut += call.usage.tokensOut;
+  };
+
+  for (const chunk of checkabilityChunks(doc.sentences)) {
+    await runChunk(chunk);
+  }
+
+  // One provenance record has to describe every chunk, so the chunks must agree
+  // on the model. ADR-0011's tiered routing makes a mid-document escalation
+  // possible, and recording the first chunk's model would name a model that
+  // produced only part of the triage — the same class of misattribution as the
+  // phantom `adjudication@1` role. Fail loudly; per-chunk provenance is a store
+  // shape change and wants its own decision (Sept 2026).
+  if (models.size > 1) {
     throw new Error(
-      `triage failed: ${call.failureClass} — raw: ${call.rawOutput?.slice(0, 400) ?? "none"}`,
+      `triage spans ${models.size} models (${[...models].join(", ")}) — triage provenance records one model per document; per-chunk provenance is not modelled`,
     );
   }
   const provenance: TriageProvenance = {
     promptVersion: PROMPT_VERSIONS["triage-checkability"],
-    model: call.model,
-    tokensIn: call.usage.tokensIn,
-    tokensOut: call.usage.tokensOut,
+    model: [...models][0] ?? "unknown",
+    // Summed across chunks: ADR-0012 computes cost at aggregation from the price
+    // map, so the thing to accumulate is tokens, not money.
+    tokensIn,
+    tokensOut,
   };
   const claims: Array<TypedClaim & { sourceSentenceId: string }> = [];
   const dropLog: Array<DropRecord & { sentenceId: string }> = [];
   const failures: TriageFailureRecord[] = [];
-  for (const result of call.value.results) {
+  for (const result of results) {
     const sentence = doc.sentences.find((s) => s.id === result.sentenceId);
     if (!sentence) continue;
     if (result.checkable) {
@@ -466,6 +552,11 @@ export async function triageDocument(
       });
     }
   }
+  // Document order, not completion order: the verdict page renders the set-aside
+  // list in array order and invites the reader to judge the boundary themselves,
+  // which a chunk-ordered list quietly defeats.
+  const index = new Map(doc.sentences.map((sentence, i) => [sentence.id, i]));
+  dropLog.sort((a, b) => (index.get(a.sentenceId) ?? 0) - (index.get(b.sentenceId) ?? 0));
   return {
     claims,
     dropLog,

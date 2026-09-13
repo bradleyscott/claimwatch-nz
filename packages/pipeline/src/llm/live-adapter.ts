@@ -56,6 +56,14 @@ export interface ProviderResult<T> {
   model?: string;
   /** How the model was served (ADR-0011 rule 3) — recorded on every call. */
   servingMode?: ServingMode;
+  /**
+   * Why generation stopped. `length` means the response was cut at the output
+   * budget, which is the difference between a truncated answer and a model that
+   * refused: the checkability fan-out truncated at the 2048-token default and
+   * the only signal was `schema-validation — the model did not return a
+   * response`, which names neither the cause nor the fix (Sept 2026).
+   */
+  finishReason?: string;
   failureClass?: "schema-validation" | "llm-refusal" | "timeout";
   raw?: string;
 }
@@ -218,6 +226,7 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           },
           model: modelKey,
           servingMode: SERVING_MODE[entry.provider],
+          finishReason: result.finishReason,
         };
       } catch (e) {
         const err = e as { name?: string; message?: string };
@@ -232,6 +241,10 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           failureClass: isSchema ? "schema-validation" : "llm-refusal",
           model: modelKey,
           servingMode: SERVING_MODE[entry.provider],
+          // Available on the SDK's no-object error; absent for a transport error.
+          ...((e as { finishReason?: string }).finishReason != null
+            ? { finishReason: String((e as { finishReason?: string }).finishReason) }
+            : {}),
           raw: [err.message ?? "", rawText].filter(Boolean).join(" | ").slice(0, 1500),
         };
       }

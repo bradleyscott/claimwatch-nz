@@ -14,6 +14,8 @@ export type LlmCallResult<T> =
       failureClass: "schema-validation" | "llm-refusal" | "timeout";
       rawOutput?: string;
       model?: string;
+      /** Why generation stopped — `length` marks a truncated response. */
+      finishReason?: string;
     };
 
 export interface TriageLlm {

@@ -28,7 +28,7 @@ import type {
   TriageResult,
   TypedClaim,
 } from "./triage-api.ts";
-import { MockTriageLlm } from "./triage-llm.ts";
+import { type LlmCallResult, MockTriageLlm, type TriageLlm } from "./triage-llm.ts";
 
 // ---------- sentence splitting ----------
 
@@ -301,5 +301,117 @@ describe("re-triage idempotency (TRI-R13)", () => {
     for (const claim of a.claims) {
       expect(idsBySentence.get(claim.sourceSentenceId)).toBe(claim.claimId);
     }
+  });
+});
+
+// The checkability call returns one result per sentence, so the response grows
+// with the document while the adapter's output budget is fixed. A real
+// 47-sentence RNZ article truncated at the 2048-token default and surfaced as
+// `schema-validation — the model did not return a response` (Sept 2026); every
+// fixture then in L1 was 3-5 sentences, so nothing reached the bound. These pin
+// the bound and its failure mode (TRI-R12).
+class BudgetedCheckabilityLlm implements TriageLlm {
+  /** Sentences per call, in call order — the fan-out shape, observable. */
+  readonly calls: number[] = [];
+
+  constructor(
+    private readonly failsAbove: number,
+    private readonly modelFor: (callIndex: number) => string = () => "mock-model-a",
+  ) {}
+
+  async generateObject<T>(
+    role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
+    input: unknown,
+    schema: { parse(value: unknown): T },
+  ): Promise<LlmCallResult<T>> {
+    if (role !== "triage-checkability") throw new Error(`unexpected role: ${role}`);
+    const sentences = (input as { sentences: Array<{ id: string; text: string }> }).sentences;
+    const model = this.modelFor(this.calls.length);
+    this.calls.push(sentences.length);
+    if (sentences.length > this.failsAbove) {
+      // What an output-budget truncation looks like at this port.
+      return {
+        ok: false,
+        failureClass: "schema-validation",
+        rawOutput: "No object generated: the model did not return a response.",
+        model,
+        finishReason: "length",
+      };
+    }
+    return {
+      ok: true,
+      value: schema.parse({
+        results: sentences.map((s) => ({
+          sentenceId: s.id,
+          checkable: false,
+          rejectionClass: "opinion",
+        })),
+      }),
+      usage: { tokensIn: 10, tokensOut: 5 },
+      model,
+    };
+  }
+}
+
+describe("checkability fan-out bounds (TRI-R12)", () => {
+  const doc = (n: number) => ({
+    documentId: "long-doc",
+    sentences: Array.from({ length: n }, (_, i) => ({
+      id: `s${i}`,
+      text: `Sentence number ${i} of a long document that must not be lost.`,
+      window: "window text",
+    })),
+  });
+
+  it("classifies every sentence of a document too long for one call", async () => {
+    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY);
+    const result = await triageDocument(doc(47), llm);
+
+    // Chunked, not one unbounded call — and no sentence is dropped in the split.
+    expect(llm.calls.length).toBeGreaterThan(1);
+    expect(llm.calls.reduce((a, b) => a + b, 0)).toBe(47);
+    expect(result.triageRecord.sentencesRead).toBe(47);
+    expect(result.dropLog).toHaveLength(47);
+    // Document order, not chunk-completion order: the page renders this list in
+    // array order and tells the reader to judge the boundary themselves.
+    expect(result.dropLog.map((d) => d.sentenceId)).toEqual(
+      doc(47).sentences.map((s) => s.id),
+    );
+    // Provenance accumulates across chunks (ADR-0012: tokens, not money).
+    expect(result.provenance.tokensOut).toBe(5 * llm.calls.length);
+    expect(result.provenance.tokensIn).toBe(10 * llm.calls.length);
+  });
+
+  it("a document inside one chunk makes exactly one call with the unchanged payload", async () => {
+    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY);
+    await triageDocument(doc(5), llm);
+    // This is what keeps every pre-existing fixture and L2 golden unchanged.
+    expect(llm.calls).toEqual([5]);
+  });
+
+  it("retries a truncated chunk at half size instead of failing the document", async () => {
+    // A budget of 10 rejects the 20-sentence chunks and accepts their halves.
+    const llm = new BudgetedCheckabilityLlm(10);
+    const result = await triageDocument(doc(47), llm);
+
+    expect(llm.calls).toContain(20);
+    expect(llm.calls).toContain(10);
+    expect(result.triageRecord.sentencesRead).toBe(47);
+    expect(result.dropLog).toHaveLength(47);
+  });
+
+  it("names the truncation when a chunk cannot be split further", async () => {
+    // Budget of 0: even a single-sentence chunk fails, so the halving stops.
+    const llm = new BudgetedCheckabilityLlm(0);
+    await expect(triageDocument(doc(3), llm)).rejects.toThrow(/finish_reason: length/);
+  });
+
+  it("refuses to record one model for chunks served by different models", async () => {
+    // ADR-0011 escalation can split a document across tiers. Storing the first
+    // chunk's model would name a model that produced only part of the triage.
+    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY, (i) =>
+      i === 0 ? "anthropic:claude-sonnet-5" : "openrouter:z-ai/glm-5.3-flash",
+    );
+    await expect(triageDocument(doc(47), llm)).rejects.toThrow(/spans 2 models/);
   });
 });
