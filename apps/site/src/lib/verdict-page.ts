@@ -190,22 +190,24 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
 // ---------------------------------------------------------------------------
 // "How this verdict was made" — the dated trail (SITE-MVP §2.3, Sept 2026)
 // ---------------------------------------------------------------------------
+//
+// House style for this block, decided after a first pass wrote far too much:
+// every line is either a fact about THIS claim (its dates, its counts, its
+// sources, its verdict) or — at most one per step — a single short sentence that
+// explains the stage. Nothing restates the verdict card above or the methodology
+// page, and the technical record is part of the reader's default view: no
+// toggle, no collapsed content, nothing to click to see how a check was made.
+// The reasoning behind that: an audit record a reader has to ask for is one most
+// readers never see, and this block exists precisely to be seen.
 
-/**
- * The trail's four drawers, in order. Four rather than one-per-system-step
- * because the store records a timestamp per *document* (claim, publication,
- * evidence pack, verdict) and not per pipeline call — grouping is what keeps the
- * dates on this page true rather than plausible.
- */
+/** The trail's four steps, in order. */
 export type TrailStepId = "made" | "logged" | "compared" | "decided";
 
 export interface TrailSource {
   title: string;
   /** Source link-out; null when the row carried no URL. */
   url: string | null;
-  /** What this source says that bears on the claim. */
-  finding: string;
-  /** "figures of 30 Jun 2026 · retrieved 9 Sep 2026" */
+  /** "dated 30 Jun 2026 · fetched 9 Sept 2026" */
   dates: string;
 }
 
@@ -216,26 +218,23 @@ export interface TrailStep {
   /** "7:42 am", "9:10–9:26 am". Empty alongside `dayLabel`. */
   timeLabel: string;
   title: string;
-  /** Shown while the drawer is closed: the facts, without a click. */
-  hint: string;
-  body: Array<{ heading: string; text: string }>;
-  /** Plain "why it matters" line. */
-  why: string;
+  /** The step's variable facts, one line each. */
+  facts: string[];
   sources: TrailSource[];
+  /** One short line, where the stage needs one. Null when the facts suffice. */
+  note: string | null;
   /**
-   * Monospace audit line — the one place technical vocabulary is permitted
-   * (SITE-MVP §2.2 rule 4). Rendered behind the trail's single "show the
-   * technical record" control, never in the reader's default view.
+   * The audit line: prompt/model/pipeline versions, source codes, timestamps.
+   * Always rendered — it is the reason this block is trustworthy.
    */
   technical: string;
-  /** "answer" fills the rail marker on the step that reached the verdict. */
+  /** Filled marker on the step that reached the verdict. */
   mark: "none" | "answer";
 }
 
 export interface VerdictTrail {
-  /** "Checked 9 Sep 2026 — the day after the claim" */
+  /** "Checked 9 Sept 2026 — the day after the claim" */
   headline: string;
-  intro: string;
   steps: TrailStep[];
 }
 
@@ -305,57 +304,36 @@ function relativeToClaim(claimMadeAt: Date, checkedAt: Date): string {
 }
 
 /**
- * What the claim IS decides what it gets checked against (TRIAGE's typing step) —
- * stated in the reader's words, and pointedly without naming the machinery.
- * `short` completes "we sorted it as …"; `check` completes "so it is checked
- * against …". An unrecognised or absent type says so instead of guessing.
+ * What the claim IS decides what it gets checked against (TRIAGE's typing step),
+ * said as the check the reader is watching happen. Written as plain sentences on
+ * purpose: the first version read "a number over a period → the official series"
+ * and "no routine shape → the open web", which is our internal framing — the
+ * reader has no reason to know we think in claim shapes at all.
  */
-const METHOD_BY_CLAIM_TYPE: Record<
-  string,
-  { short: string; check: string; hint: string; mode: string }
-> = {
+const METHOD_BY_CLAIM_TYPE: Record<string, { check: string; mode: string }> = {
   statistical: {
-    short: "a claim about a number, over a stated period",
-    check: "the official series for that number, rather than a news story about it",
-    hint: "a number over a stated period → the official series",
+    check: "Checked against the official figures for that number.",
     mode: "stat-grid",
   },
-  "citation-backed": {
-    short: "a claim that cites a source",
-    check: "the source it cites",
-    hint: "a claim citing a source → that source",
-    mode: "citation-check",
-  },
+  "citation-backed": { check: "Checked against the source it cites.", mode: "citation-check" },
   "institution-citation": {
-    short: "a claim attributed to an institution",
-    check: "that institution's own record",
-    hint: "a claim attributed to an institution → its own record",
+    check: "Checked against that institution's own record.",
     mode: "citation-check",
   },
-  "broadcast-quote": {
-    short: "something said in a broadcast",
-    check: "the words as they were recorded",
-    hint: "words said in a broadcast → the recording",
-    mode: "quote-fidelity",
-  },
+  "broadcast-quote": { check: "Checked against the recording.", mode: "quote-fidelity" },
   "false-context": {
-    short: "a claim carrying its own context",
-    check: "whether that context holds",
-    hint: "a claim carrying its own context → whether it holds",
+    check: "Checked against whether the context around it holds.",
     mode: "provenance",
   },
   other: {
-    short: "a claim outside the shapes we handle routinely",
-    check: "the open web — our least reliable method, and the one most worth contesting",
-    hint: "no routine shape → the open web",
+    check:
+      "Checked against whatever we could find online — our least reliable method, and the one most worth contesting.",
     mode: "open-web",
   },
 };
 
 const UNTYPED_METHOD = {
-  short: "a checkable claim",
-  check: "the official record for it, or the open web where no record covers it",
-  hint: "a checkable claim → the official record for it",
+  check: "Checked against the official record for it.",
   mode: "not recorded",
 };
 
@@ -363,18 +341,16 @@ const UNTYPED_METHOD = {
 const DECISION_PHRASE: Record<VerdictClass, string> = {
   supported: "backs the claim as it was made.",
   refuted: "does not support the claim as it was made.",
-  not_enough_evidence:
-    "does not settle the claim either way — it stays an open question rather than getting a confident answer.",
-  conflicting_cherry_picking:
-    "backs the numbers but not the way they are framed — a real figure used in a way that changes the picture.",
+  not_enough_evidence: "does not settle the claim either way.",
+  conflicting_cherry_picking: "backs the numbers but not the framing.",
 };
 
 /**
- * Which drawer a recorded prompt role belongs to, by name prefix. The site reads
+ * Which step a recorded prompt role belongs to, by name. The site reads
  * provenance keys as opaque strings (it may not import pipeline source — the
- * package boundary in AGENTS.md), so this is deliberately a mapping over the
- * published role names, not a type import. Roles that match nothing are still
- * printed, on the final step, rather than being dropped.
+ * package boundary in AGENTS.md), so this is a mapping over the published role
+ * names, not a type import. Roles that match nothing are still printed, on the
+ * final step, rather than being dropped.
  */
 const ROLES_BY_STEP: Record<TrailStepId, string[]> = {
   made: [],
@@ -390,34 +366,29 @@ const ROLES_BY_STEP: Record<TrailStepId, string[]> = {
   decided: ["grid-materiality", "nli-audit"],
 };
 
-/** Every role the drawers above account for, by name. */
+/** Every role the steps above account for, by name. */
 const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(ROLES_BY_STEP).flat());
 
-/**
- * The recorded roles belonging to one drawer. Roles this site does not
- * recognise go on the final step: a role recorded in the store must never be
- * invisible to a reader just because this mapping has not heard of it.
- */
-function promptRolesFor(step: TrailStepId, promptVersions: Record<string, string>): string[] {
-  return Object.keys(promptVersions).filter((role) =>
+function promptRolesFor(step: TrailStepId, versions: Record<string, string>): string[] {
+  return Object.keys(versions).filter((role) =>
     step === "decided"
       ? ROLES_BY_STEP.decided.includes(role) || !KNOWN_ROLES.has(role)
       : ROLES_BY_STEP[step].includes(role),
   );
 }
 
-/** "role@1, other-role@1" for the roles that belong to one drawer. */
-function promptVersionsFor(step: TrailStepId, promptVersions: Record<string, string>): string[] {
-  return promptRolesFor(step, promptVersions)
-    .map((role) => promptVersions[role] ?? role)
+/** "role@1, other-role@1" for the roles that belong to one step. */
+function promptVersionsFor(step: TrailStepId, versions: Record<string, string>): string[] {
+  return promptRolesFor(step, versions)
+    .map((role) => versions[role] ?? role)
     .filter((value) => value.length > 0);
 }
 
-function modelVersionsFor(step: TrailStepId, modelVersions: Record<string, string>): string[] {
-  return promptRolesFor(step, modelVersions).map((role) => `${role}: ${modelVersions[role]}`);
+function modelVersionsFor(step: TrailStepId, versions: Record<string, string>): string[] {
+  return promptRolesFor(step, versions).map((role) => `${role}: ${versions[role]}`);
 }
 
-/** The earliest and latest of a set of instants — the drawer's own span. */
+/** The earliest and latest of a set of instants — the step's own span. */
 function spanOf(instants: Array<Date | null | undefined>): { from: Date; to: Date } | null {
   const times = instants.filter((value): value is Date => value instanceof Date);
   if (times.length === 0) return null;
@@ -425,7 +396,7 @@ function spanOf(instants: Array<Date | null | undefined>): { from: Date; to: Dat
   return { from: new Date(Math.min(...settled)), to: new Date(Math.max(...settled)) };
 }
 
-/** "9:10–9:26 am" when the drawer's events are on different clock times. */
+/** "9:10–9:26 am" when the step's events are on different clock times. */
 function timeRange(span: { from: Date; to: Date } | null): { dayLabel: string; timeLabel: string } {
   if (!span) return { dayLabel: "", timeLabel: "" };
   const dayLabel = nzDayLabel(span.to);
@@ -459,22 +430,29 @@ function readableDate(value: string): string {
   return nzDate(parsed, dateOnly ? "UTC" : NZ_ZONE);
 }
 
+/** Joins the parts of a line that exist, so optional fields never leave a gap. */
+function line(parts: Array<string | null>): string {
+  return parts.filter((part): part is string => part !== null && part.length > 0).join(" · ");
+}
+
 /**
- * Build the trail (SITE-MVP §2.3). Steps whose dates the store does not hold
- * are omitted rather than rendered with a guessed one — a page that says "we
- * logged it on the 8th" when nothing recorded that is worse than a page whose
- * trail starts at the verdict.
+ * Build the trail (SITE-MVP §2.3). Steps whose dates the store does not hold are
+ * omitted rather than rendered with a guessed one — a page that says "we logged
+ * it on the 8th" when nothing recorded that is worse than a page whose trail
+ * starts at the verdict.
  *
- * Public copy goes through the register check (`assertRegisterSafe`) so a
- * template edit cannot leak internal vocabulary onto a public page (SIT-R4).
+ * Public copy goes through the register check (`assertRegisterSafe`), so a
+ * template edit cannot leak internal vocabulary onto a public page (SIT-R4). The
+ * technical lines are the sanctioned exception (§2.2 rule 4) and are not
+ * scanned.
  */
 export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
   const steps: TrailStep[] = [];
   const method =
     (input.claimType ? METHOD_BY_CLAIM_TYPE[input.claimType] : undefined) ?? UNTYPED_METHOD;
-  // The claim's own record and the verdict's provenance are two sides of the
-  // same run: merged for bucketing, so a role written onto the claim (triage)
-  // and one written onto the verdict (the check) both reach their drawer.
+  // The claim's own record and the verdict's provenance are two sides of the same
+  // run: merged for bucketing, so a role written onto the claim (triage) and one
+  // written onto the verdict (the check) both reach their step.
   const promptVersions: Record<string, string> = {
     ...input.promptVersions,
     ...input.claimPromptVersions,
@@ -482,85 +460,51 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
 
   // 1 · the claim was made — needs the claim's own date (claim.spoken_at).
   if (input.claimMadeAt) {
-    const where = [
-      input.publisher ?? null,
-      input.mediaAnchor ? `at ${clipOffset(input.mediaAnchor.startS)} in the recording` : null,
-    ]
-      .filter((part): part is string => part !== null)
-      .join(" · ");
-    const who = [input.speaker, input.speakerAffiliation].filter(Boolean).join(", ");
     steps.push({
       id: "made",
       dayLabel: nzDayLabel(input.claimMadeAt),
       timeLabel: nzTimeLabel(input.claimMadeAt),
-      title: "The claim was made",
-      hint: where.length > 0 ? where : "in the record we found it in",
-      body: [
-        ...(who.length > 0 ? [{ heading: "", text: `${who}.` }] : []),
-        {
-          heading: "",
-          text: "The wording we check is quoted from the record itself, never from a report of it.",
-        },
+      title: "Claim made",
+      facts: [
+        line([
+          input.publisher,
+          input.mediaAnchor ? `clip from ${clipOffset(input.mediaAnchor.startS)}` : null,
+        ]) || "in the record we logged",
       ],
-      why: "We check the words that were actually said — checking someone's summary would be checking a different claim.",
       sources: [],
-      technical: [
-        `claim spoken ${input.claimMadeAt.toISOString()}`,
+      note: null,
+      technical: line([
+        `spoken ${input.claimMadeAt.toISOString()}`,
         input.mediaAnchor
           ? `clip ${clipOffset(input.mediaAnchor.startS)}–${clipOffset(input.mediaAnchor.endS)}`
           : null,
-        input.publisher ? `publication ${input.publisher}` : null,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
+        input.publisher,
+      ]),
       mark: "none",
     });
   }
 
-  // 2 · we logged it, and sorted it — needs a recorded ingestion time.
+  // 2 · we logged it and sorted it — needs a recorded ingestion time.
   const loggedSpan = spanOf([input.sourceRetrievedAt, input.claimRecordedAt]);
   if (loggedSpan) {
     const range = timeRange(loggedSpan);
-    // One recorded instant for both events (they land in the same minute on a
-    // short ingest) reads as a bug if the heading repeats the clock time, so it
-    // says what is true instead: both happened at that moment.
-    const sameInstant = loggedSpan.from.getTime() === loggedSpan.to.getTime();
     steps.push({
       id: "logged",
       dayLabel: range.dayLabel,
       timeLabel: range.timeLabel,
-      title: "We logged it, and worked out what to check it against",
-      hint: method.hint,
-      body: [
-        {
-          heading: `Logged at ${nzTimeLabel(loggedSpan.from)}, before any checking began`,
-          text: "The claim was saved with the record it came from. From this point it can be added to but not edited — so the wording cannot be adjusted to fit the answer.",
-        },
-        ...(input.transcriptTier === "publisher-auto"
-          ? [
-              {
-                heading: "",
-                text: "The wording comes from a transcript published automatically, which can contain errors.",
-              },
-            ]
-          : []),
-        {
-          heading: sameInstant
-            ? "Sorted at the same moment"
-            : `Sorted at ${nzTimeLabel(loggedSpan.to)}`,
-          text: `We sorted it as ${method.short}, so it is checked against ${method.check}.`,
-        },
-      ],
-      why: "The method follows from what the claim is, and is fixed before we know the answer — so the same kind of claim always gets the same kind of check.",
+      title: "Logged and sorted",
+      facts: [method.check],
       sources: [],
-      technical: [
+      note:
+        input.transcriptTier === "publisher-auto"
+          ? "This wording came from an automatic transcript and can contain errors."
+          : null,
+      technical: line([
         `recorded ${loggedSpan.from.toISOString()}`,
         `method ${method.mode}`,
         input.claimModelVersion ? `model ${input.claimModelVersion}` : null,
         `prompts ${promptVersionsFor("logged", promptVersions).join(", ") || "none recorded"}`,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
+      ]),
       mark: "none",
     });
   }
@@ -568,133 +512,100 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
   // 3 · what we compared it against — one row per stored source.
   if (input.evidence.length > 0) {
     const count = input.evidence.length;
-    const vintages = input.evidence
-      .map((item) => item.vintageDate)
-      .filter((value) => value.length > 0)
-      .sort();
-    const newest = vintages.at(-1) ?? null;
-    const sources: TrailSource[] = input.evidence.map((item) => ({
-      title: item.seriesIdentity,
-      url: item.url && item.url.length > 0 ? item.url : null,
-      finding: item.plainReason,
-      dates: [
-        item.vintageDate ? `dated ${readableDate(item.vintageDate)}` : null,
-        item.retrievedAt ? `retrieved ${nzDate(item.retrievedAt)}` : null,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
-    }));
-    const datedSources = input.evidence.map((item) => item.retrievedAt);
-    const sourcesSpan = spanOf(datedSources);
-    const sourcesRange = timeRange(sourcesSpan);
+    const newest =
+      input.evidence
+        .map((item) => item.vintageDate)
+        .filter((value) => value.length > 0)
+        .sort()
+        .at(-1) ?? null;
+    const sourcesRange = timeRange(spanOf(input.evidence.map((item) => item.retrievedAt)));
     steps.push({
       id: "compared",
       dayLabel: sourcesRange.dayLabel,
       timeLabel: sourcesRange.timeLabel,
-      title: `What we compared it against — ${count} source${count === 1 ? "" : "s"}`,
-      hint: [
-        `${count} source${count === 1 ? "" : "s"}`,
-        newest ? `newest of them dated ${readableDate(newest)}` : null,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
-      body: [],
-      sources,
-      why: "Each source carries the date of the figures it holds — the same claim can hold up against older figures and fail against newer ones, so the date is part of the answer.",
-      technical: [
-        `evidence items ${count}`,
-        `prompts ${promptVersionsFor("compared", promptVersions).join(", ") || "none recorded"}`,
-        input.sourceCodes ? `evidence source codes: ${input.sourceCodes}` : null,
-        `search queries recorded ${input.searchRefs.length}`,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
+      title: "We gathered the evidence",
+      facts: [
+        `${count} source${count === 1 ? "" : "s"}${newest ? `, newest dated ${readableDate(newest)}` : ""}`,
+      ],
+      // Titles and dates only: what each source SAYS is the evidence card's job,
+      // directly above. Repeating it here was the single biggest block of text
+      // on the page and it said nothing the reader had not just read.
+      sources: input.evidence.map((item) => ({
+        title: item.seriesIdentity,
+        url: item.url && item.url.length > 0 ? item.url : null,
+        dates: line([
+          item.vintageDate ? `dated ${readableDate(item.vintageDate)}` : null,
+          item.retrievedAt ? `fetched ${nzDate(item.retrievedAt)}` : null,
+        ]),
+      })),
+      note: "A claim can hold up against old figures and fail against new ones.",
+      technical: line([
+        `items: ${count}`,
+        input.sourceCodes ? `source codes: ${input.sourceCodes}` : null,
+        `search queries: ${input.searchRefs.length}`,
+        `prompts: ${promptVersionsFor("compared", promptVersions).join(", ") || "none recorded"}`,
+      ]),
       mark: "none",
     });
   }
 
-  // 4 · the verdict, the second pass on the reasoning, and publishing.
+  // 4 · the verdict, the second pass and publication.
   const decidedSpan = spanOf([input.checkedAt, input.publishedAt]);
   const range = timeRange(decidedSpan);
-  const body: Array<{ heading: string; text: string }> = [];
   const count = input.evidence.length;
-  const decidedText =
-    count > 0
-      ? `Against ${count} source${count === 1 ? "" : "s"}, the evidence ${DECISION_PHRASE[input.verdictClass]}`
-      : input.verdictClass === "not_enough_evidence"
-        ? "The sources we could use did not settle it, so it stays an open question rather than getting a confident answer."
-        : "This check rested on the record above rather than on an outside source.";
-  if (decidedSpan) {
-    body.push({
-      heading: `Decided at ${nzTimeLabel(decidedSpan.from)}`,
-      text: decidedText,
-    });
-  }
-  // The publication gate has no timestamp of its own in the store — the pack
-  // carries one `created_at` for the whole check — so this paragraph is dated by
-  // its position (after deciding, before publishing) rather than by a clock time
-  // it would be borrowing from the step above.
-  if (input.nliOutcome === "pass") {
-    body.push({
-      heading: "Second pass, before publishing",
-      text: "An independent pass re-read the sources against the verdict and asked only whether the evidence supports the conclusion. It agreed, so the verdict went forward unchanged.",
-    });
-  } else if (input.nliOutcome) {
-    body.push({
-      heading: "Second pass, before publishing",
-      text: "An independent pass re-read the sources against the verdict and did not agree, so this is published as an open question rather than a settled one.",
-    });
-  }
-  body.push({
-    heading: `Published at ${nzTimeLabel(input.publishedAt)}`,
-    text: "Nothing has changed since. A later change would be added as a new version of this page, with the reason and the difference shown, and this one kept visible.",
-  });
   const revisions = Math.max(0, input.verdictVersion - 1);
+  const facts: string[] = [
+    count > 0
+      ? `Against ${count} source${count === 1 ? "" : "s"}: the evidence ${DECISION_PHRASE[input.verdictClass]}`
+      : input.verdictClass === "not_enough_evidence"
+        ? "No usable source found: it stays an open question."
+        : "This check rested on the record above.",
+  ];
+  if (input.nliOutcome === "pass") {
+    facts.push("A second pass re-read the sources and agreed.");
+  } else if (input.nliOutcome) {
+    facts.push("A second pass re-read the sources and did not agree.");
+  }
+  facts.push(
+    revisions === 0
+      ? "Nothing has changed since."
+      : `Revised ${revisions} time${revisions === 1 ? "" : "s"} since.`,
+  );
   steps.push({
     id: "decided",
     dayLabel: range.dayLabel,
     timeLabel: range.timeLabel,
-    title: "The verdict, a second pass on the reasoning, and publishing",
-    hint: `${VERDICT_LABELS[input.verdictClass].plainLabel} · published ${nzTimeLabel(input.publishedAt)}`,
-    body,
-    why: "Publishing the reasoning as well as the answer is the point: it is the part a reader can check for themselves.",
+    title: "Decided and published",
+    facts,
     sources: [],
-    technical: [
+    note: null,
+    technical: line([
       `pipeline ${input.pipelineVersion}`,
-      `verdict version ${input.verdictVersion}`,
-      `status ${input.verdictStatus}`,
+      `verdict v${input.verdictVersion}`,
+      input.verdictStatus,
       `revisions ${revisions}`,
       `prompts ${promptVersionsFor("decided", promptVersions).join(", ") || "none recorded"}`,
       modelVersionsFor("decided", input.modelVersions).length > 0
         ? `models ${modelVersionsFor("decided", input.modelVersions).join(", ")}`
         : null,
-    ]
-      .filter((part): part is string => part !== null)
-      .join(" · "),
+    ]),
     mark: "answer",
   });
 
-  // Register guard: the public half of the trail only. The technical lines are
-  // the sanctioned exception (§2.2 rule 4) and are not scanned.
   const publicCopy = steps
     .flatMap((step) => [
       step.title,
-      step.hint,
-      step.why,
-      ...step.body.map((part) => `${part.heading} ${part.text}`),
-      ...step.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
+      ...step.facts,
+      step.note ?? "",
+      ...step.sources.map((source) => `${source.title} ${source.dates}`),
     ])
     .join("\n");
   assertRegisterSafe(publicCopy);
 
-  const headline = input.claimMadeAt
-    ? `Checked ${nzDate(input.publishedAt)} — ${relativeToClaim(input.claimMadeAt, input.publishedAt)}`
-    : `Checked ${nzDate(input.publishedAt)}`;
-
   return {
-    headline,
-    intro:
-      "Everything we did to this claim, in the order we did it. Open any step for what we looked at and why; the dates are when it happened, and every source is linked.",
+    headline: input.claimMadeAt
+      ? `Checked ${nzDate(input.publishedAt)} — ${relativeToClaim(input.claimMadeAt, input.publishedAt)}`
+      : `Checked ${nzDate(input.publishedAt)}`,
     steps,
   };
 }

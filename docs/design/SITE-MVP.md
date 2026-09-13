@@ -16,7 +16,7 @@ The "sufficient to publicise and get feedback" surface from VALIDATION-SLICE: th
 | 4 | Entity pages | person / party / institution pages with verdict distributions |
 | 5 | Methodology page | four-verdict schema + AVeriTeC mapping + pipeline description + the **accuracy table generated from the harness output file** |
 | 6 | Feedback widget | thumbs + free text + optional email; feedback *about the site*, not claim intake |
-| 7 | Per-claim trail | the dated, sourced account of how the verdict was made — four steps (claim made → logged and sorted → what we compared it against → the verdict, second pass and publication), each with its sources and dates; prompt/pipeline versions behind one control |
+| 7 | Per-claim trail | the dated, sourced account of how the verdict was made — four steps (claim made → logged and sorted → we gathered the evidence → decided and published), each with its sources, dates and audit line, all visible |
 
 **Out of scope** (follow-on slices): contestation UI · submissions · argument-chain views · debate-night live tracker · newsletters · reliability profiles. Concretely: no contest form or "disagree?" flow (the methodology page may *name* that contestation exists post-slice), no argument graphs, no real-time views, no scorecard aggregates beyond verdict-distribution counts.
 
@@ -58,7 +58,7 @@ Two registers are a hard rule: **public layperson pages** vs **internal technica
 | "As deployed" tag | `claim.deployment_context` (ADR-0008) |
 | Hear it / watch it | `claim.media_anchor` — rendered only when present (§3.3) |
 | Evidence pack | items with source link + plain-language description of the source (the stored code stays in the trail's technical record) + plain reasoning; rendered strongest source first, with rows no check has classified last |
-| Trail ("How this verdict was made") | `claim.spoken_at`, `publication.retrieved_at`, `claim.created_at`, `claim.claim_type`, `evidence_item.vintage_date` + `retrieved_at`, `evidence_pack.created_at`/`nli_outcome`, `verdict_version.created_at`/`version`/`status`, provenance versions — rendered as four dated steps, each with a plain "why it matters" line; the versions sit behind one control (Sept 2026) |
+| Trail ("How this verdict was made") | `claim.spoken_at`, `publication.retrieved_at`, `claim.created_at`, `claim.claim_type`, `evidence_item.vintage_date` + `retrieved_at`, `evidence_pack.created_at`/`nli_outcome`, `verdict_version.created_at`/`version`/`status`, provenance versions — rendered as four dated steps of one line each: the step's own facts, its sources, and its audit line (Sept 2026) |
 | Related claims | fingerprint/pgvector adjacency — last; chains de-scoped |
 
 Ordering is a design invariant, not a suggestion: verdict visible without scrolling (UX finding 1); show-your-work after the answer (finding 6). The §5 register/snapshot tests assert section order, not just presence.
@@ -84,7 +84,7 @@ pipeline ──writes──▶ Postgres (packages/store)
 - **Feed**: recency-ranked; facets filter server-side via URL params (shareable, crawlable). Pagination, not infinite scroll — every card URL-addressable.
 - **Entity pages**: header + verdict distribution (counts per class — a bar of segments, not a score) + claim list. Publisher-level framing avoided to stay within claims-not-persons.
 - **Methodology page**: what ClaimWatch is and isn't → four-verdict schema with the AVeriTeC mapping stated verbatim → how verification works per mode, plainly → the generated accuracy table → known gaps (audio-only out of scope; caption claims flagged; Māori-language out of scope).
-- **Trail (replaces the provenance block, Sept 2026)**: the dated account of this claim's check — four collapsed steps, each stating what happened, when, against what, and why it matters; every step carries its own sources with the date of the figures they hold. The technical record (prompt/model/pipeline versions, source codes, hashes) is present in the HTML but shown only when the reader ticks one control, so the technical register stays visually secondary. A step whose date the store does not hold is **omitted**, never guessed; the block is server-rendered and the drawers work without JavaScript (`<noscript>` reveals them), because an audit record behind a script is not an audit record.
+- **Trail (replaces the provenance block, Sept 2026)**: the dated account of this claim's check — four steps, each stating what happened to *this* claim at *that* stage: the step's own facts, the sources it used with the date of the figures they hold, and its audit line (prompt/model/pipeline versions, source codes, search counts). **Everything is visible by default** — no drawers, no reveal control, nothing collapsed — on the rule that an audit record a reader has to ask for is one most readers never see; the technical register stays visually secondary by size and colour instead. A step whose date the store does not hold is **omitted**, never guessed. House style: a line is either a fact about this claim or, at most one per step, a single short sentence explaining the stage — nothing restates the verdict card above or `/methodology`, and internal framing ("no routine shape → the open web") is not published as if it were plain English.
 
 ### 2.6 SEO and crawlability
 

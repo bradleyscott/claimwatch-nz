@@ -189,7 +189,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(bareSourceCode(publicCopyOf(html))).toBeNull();
     // Whereas provenance still carries the codes, for anyone auditing against
     // the published classifier. An uncoded row contributes no code.
-    expect(html).toContain("evidence source codes: T1, T6");
+    expect(html).toContain("source codes: T1, T6");
   });
 
   it("renders the trail — every step, its date and its audit line — in the initial HTML (SITE-MVP §2.3)", async () => {
@@ -198,25 +198,32 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // against the claim's own date...
     expect(html).toContain("How this verdict was made");
     expect(html).toContain("Checked 9 Sept 2026 — the day after the claim");
-    // ...carries all four dated steps...
+    // ...carries all four dated steps, in short, jargon-free titles...
     for (const step of [
-      "The claim was made",
-      "We logged it, and worked out what to check it against",
-      "What we compared it against — 3 sources",
-      "The verdict, a second pass on the reasoning, and publishing",
+      "Claim made",
+      "Logged and sorted",
+      "We gathered the evidence",
+      "Decided and published",
     ]) {
       expect(html).toContain(step);
     }
     expect(html).toContain("Tue 8 Sept");
     expect(html).toContain("7:42 am");
-    // ...keeps the whole audit record in the response for no-JS readers and
-    // unfurlers, even though the drawers are... (Radix unmounts closed content,
-    // so `forceMount` is what makes this true)
-    expect(html).toContain("evidence source codes: T1, T6");
+    // ...says what each step actually did to this claim...
+    expect(html).toContain("Checked against the official figures for that number.");
+    expect(html).toContain("3 sources, newest dated 2 Aug 2026");
+    expect(html).toContain(
+      "Against 3 sources: the evidence backs the numbers but not the framing.",
+    );
+    expect(html).toContain("A second pass re-read the sources and agreed.");
+    // ...carries the sources themselves, dated...
+    expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
+    // ...and the audit line is in the reader's default view: no control to
+    // reveal it, nothing collapsed, nothing fetched client-side.
+    expect(html).toContain("source codes: T1, T6");
     expect(html).toContain("revisions 0");
-    // ...and closes the loop a reader came for: why each source has a date.
-    expect(html).toContain("Each source carries the date of the figures it holds");
-    expect(html).toContain("Second pass, before publishing");
+    expect(html).not.toContain("Show the technical record");
+    expect(html).not.toContain('type="checkbox"');
   });
 
   it("states the explained-away duplication exactly once (the old footer paragraph is gone)", async () => {
@@ -231,17 +238,18 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(contest).toHaveLength(1);
   });
 
-  it("keeps the technical record out of the reader's default view, with no JavaScript needed to reveal it", async () => {
+  it("keeps the technical record in the reader's view rather than behind a control", async () => {
     const html = await renderVerdictPage(claimId);
-    // The toggle is a real checkbox, and the CSS rule that reveals the record is
-    // keyed on its checked state — so it works with scripts disabled.
-    expect(html).toContain('id="trail-tech-record"');
-    expect(html).toContain('type="checkbox"');
-    expect(html).toContain("Show the technical record");
-    // Every technical line carries the marker that hidden-until-checked CSS (and
-    // the register scan) keys on.
+    // One audit line per step, marked so the register scan can exclude it — the
+    // marker is a scan key, not a hiding mechanism (globals.css has no rule for
+    // it; there is nothing to reveal and nothing to click).
     const lines = html.match(/data-provenance-line/g) ?? [];
-    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines).toHaveLength(4);
+    // Nothing left over from the collapsed version: no reveal checkbox, no
+    // drawer body wrapper, no closed accordion content.
+    expect(html).not.toContain("trail-tech-record");
+    expect(html).not.toContain("data-trail-body");
+    expect(html).not.toContain('data-slot="accordion-content"');
   });
 
   it("renders the evidence strongest source first, unclassified last (SITE-MVP §2.3)", async () => {
@@ -284,7 +292,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(bareSourceCode("checked 2026-06-30")).toBeNull();
     // A code inside the provenance block is excluded by publicCopyOf, not by
     // this matcher — asserted where the block is built, above.
-    expect(bareSourceCode("evidence source codes: T1, T6")).not.toBeNull();
+    expect(bareSourceCode("source codes: T1, T6")).not.toBeNull();
   });
 
   it("keeps the technical register out of the rendered public copy (SIT-R4)", async () => {

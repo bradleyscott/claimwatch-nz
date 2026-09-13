@@ -207,37 +207,9 @@
 }
 
 /*
- * The trail's drawers and technical record (SITE-MVP §2.2 rule 4, §2.3).
- *
- * Radix unmounts closed accordion content unless `forceMount` is set, and with
- * `forceMount` it leaves visibility to the consumer — so both rules below live
- * here rather than in the component. Keying off the accordion ITEM's own
- * `data-state` matters: the vendored primitive forwards `className` to an inner
- * wrapper, so a `data-[state=…]` utility written in `verdict-trail.tsx` would
- * never match the element that carries the state.
- *
- * The technical record (prompt, model and pipeline versions) is the one place
- * internal vocabulary is permitted on a public page, and it stays visually
- * secondary: in the HTML always, behind one checkbox, shown only when asked.
- * Deliberately CSS-only (`:has()`, supported in every current browser) so the
- * audit record costs the page no JavaScript, works with scripts disabled, and
- * stays in the initial response for unfurlers and anyone reading page source.
- *
- * The `<noscript>` block in `components/verdict-trail.tsx` reveals both when
- * React never runs: a reader without JavaScript cannot open a drawer or tick the
- * box, so hiding the record from them would put the transparency feature behind
- * a script. If `:has()` is ever a problem, the fallback is to show the lines
- * always — never to fetch them client-side.
+ * The trail (SITE-MVP §2.3) needs no CSS of its own: every step, its sources and
+ * its technical record are always rendered (an audit line a reader has to ask
+ * for is one most readers never see). The `data-provenance-line` attribute in
+ * `components/verdict-trail.tsx` is not a styling hook — the register scan keys
+ * on it to exclude the one region allowed internal vocabulary (SIT-R4).
  */
-[data-provenance-line] {
-  display: none;
-}
-
-.trail:has(#trail-tech-record:checked) [data-provenance-line] {
-  display: block;
-}
-
-/* A closed drawer's body: in the HTML, out of the reader's default view. */
-[data-slot="accordion-item"][data-state="closed"] [data-trail-body] {
-  display: none;
-}

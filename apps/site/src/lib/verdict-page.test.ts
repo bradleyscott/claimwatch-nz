@@ -171,6 +171,12 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
   it("dates every step the store can date, in the order the work happened", () => {
     const { trail } = recorded({ verdictClass: "conflicting_cherry_picking" });
     expect(trail.steps.map((step) => step.id)).toEqual(["made", "logged", "compared", "decided"]);
+    expect(trail.steps.map((step) => step.title)).toEqual([
+      "Claim made",
+      "Logged and sorted",
+      "We gathered the evidence",
+      "Decided and published",
+    ]);
     expect(trail.steps[0]?.dayLabel).toBe("Tue 8 Sept");
     expect(trail.steps[0]?.timeLabel).toBe("7:42 am");
     // A range inside one half of the day shares its meridiem.
@@ -208,11 +214,38 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     expect(trail.headline).toBe("Checked 9 Sept 2026");
   });
 
-  it("puts the load-bearing facts on the closed drawer, so nothing important needs a click", () => {
+  it("states each step's own facts, and repeats nothing from the verdict card", () => {
     const { trail } = recorded({ verdictClass: "conflicting_cherry_picking" });
-    expect(trail.steps[2]?.hint).toBe("1 source · newest of them dated 31 Jan 2026");
-    expect(trail.steps[3]?.hint).toBe("Accurate but incomplete · published 10:12 am");
-    expect(trail.steps[1]?.hint).toBe("a number over a stated period → the official series");
+    // What it is (speaker, verdict word, plain summary) belongs to the cards
+    // above; each step carries only what happened to THIS claim at THAT stage.
+    expect(trail.steps[0]?.facts).toEqual(["Newstalk ZB"]);
+    expect(trail.steps[1]?.facts).toEqual([
+      "Checked against the official figures for that number.",
+    ]);
+    expect(trail.steps[2]?.facts).toEqual(["1 source, newest dated 31 Jan 2026"]);
+    expect(trail.steps[3]?.facts).toEqual([
+      "Against 1 source: the evidence backs the numbers but not the framing.",
+      "A second pass re-read the sources and agreed.",
+      "Nothing has changed since.",
+    ]);
+    const publicCopy = trail.steps
+      .flatMap((step) => [step.title, ...step.facts, step.note ?? ""])
+      .join(" ");
+    expect(publicCopy).not.toContain("Accurate but incomplete");
+    expect(publicCopy).not.toContain("Hon Sample Minister");
+  });
+
+  it("keeps the claim's clip offset and publisher on the first step", () => {
+    const { trail } = recorded({
+      verdictClass: "supported",
+      mediaAnchor: {
+        mediaUrl: "https://zb.co.nz/x",
+        startS: 160,
+        endS: 178,
+        deepLink: "https://zb.co.nz/x?t=160s",
+      },
+    });
+    expect(trail.steps[0]?.facts).toEqual(["Newstalk ZB · clip from 2:40"]);
   });
 
   it("says which dates a source carries, and links it", () => {
@@ -222,32 +255,34 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     expect(source?.url).toBe("https://www.stats.govt.nz/migration");
     // Date-only vintages are calendar dates, so they must not slide a day when
     // the New Zealand offset is applied.
-    expect(source?.dates).toBe("dated 31 Jan 2026 · retrieved 9 Sept 2026");
+    expect(source?.dates).toBe("dated 31 Jan 2026 · fetched 9 Sept 2026");
+    // What each source SAYS stays on the evidence card above, not here.
+    expect(JSON.stringify(trail.steps[2])).not.toContain("135,500");
   });
 
   it("attributes the recorded prompt roles to the step they belong to (HAR-R7)", () => {
     const { trail } = recorded({ verdictClass: "supported" });
     const logged = trail.steps[1]?.technical ?? "";
-    const decided = trail.steps[3]?.technical ?? "";
+    const declared = trail.steps[3]?.technical ?? "";
     expect(logged).toContain("method stat-grid");
+    expect(logged).toContain("model claude-sonnet-5");
     expect(logged).toContain("triage-typing@1");
     expect(logged).not.toContain("grid-materiality@2");
-    expect(decided).toContain("pipeline 0.1.0");
-    expect(decided).toContain("verdict version 1");
-    expect(decided).toContain("revisions 0");
-    expect(decided).toContain("grid-materiality@2");
-    expect(decided).toContain("nli-audit@1");
+    expect(declared).toContain("pipeline 0.1.0");
+    expect(declared).toContain("verdict v1");
+    expect(declared).toContain("revisions 0");
+    expect(declared).toContain("grid-materiality@2");
+    expect(declared).toContain("nli-audit@1");
     // A role this page has never heard of is printed, not dropped: provenance
     // the reader cannot see is provenance that may as well not exist.
-    expect(decided).toContain("brand-new-role@1");
+    expect(declared).toContain("brand-new-role@1");
   });
 
   it("reads honestly when there was nothing to compare the claim against", () => {
     const { trail } = recorded({ verdictClass: "not_enough_evidence", evidence: [] });
     expect(trail.steps.map((step) => step.id)).toEqual(["made", "logged", "decided"]);
-    const text = (trail.steps.at(-1)?.body ?? []).map((part) => part.text).join(" ");
-    expect(text).toContain("did not settle it");
-    expect(text).not.toContain("Against 0 sources");
+    expect(trail.steps.at(-1)?.facts[0]).toBe("No usable source found: it stays an open question.");
+    expect(JSON.stringify(trail)).not.toContain("Against 0 sources");
   });
 
   it("keeps internal vocabulary out of the public half of the trail (SIT-R4)", () => {
@@ -255,9 +290,9 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     const publicCopy = trail.steps
       .flatMap((step) => [
         step.title,
-        step.hint,
-        step.why,
-        ...step.body.map((part) => `${part.heading} ${part.text}`),
+        ...step.facts,
+        step.note ?? "",
+        ...step.sources.map((source) => `${source.title} ${source.dates}`),
       ])
       .join("\n");
     // A technical failure class, a model name and the internal method name are
@@ -265,6 +300,19 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     for (const internal of ["nli-audit", "claude-", "stat-grid", "tier"]) {
       expect(publicCopy.toLowerCase()).not.toContain(internal);
     }
+  });
+
+  it("warns when the wording came from an automatic transcript", () => {
+    const { trail } = recorded({ verdictClass: "supported", transcriptTier: "publisher-auto" });
+    expect(trail.steps[1]?.note).toBe(
+      "This wording came from an automatic transcript and can contain errors.",
+    );
+    // The only explainer line otherwise: why the sources carry dates.
+    const { trail: plain } = recorded({ verdictClass: "supported" });
+    expect(plain.steps[2]?.note).toBe(
+      "A claim can hold up against old figures and fail against new ones.",
+    );
+    expect(plain.steps.filter((step) => step.note !== null)).toHaveLength(1);
   });
 });
 
