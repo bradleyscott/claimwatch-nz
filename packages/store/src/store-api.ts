@@ -3,7 +3,12 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
-import type { AttributionCandidate, Genre, SpeakershipClass, SpeakershipMethod } from "./speakership.ts";
+import type {
+  AttributionCandidate,
+  Genre,
+  SpeakershipClass,
+  SpeakershipMethod,
+} from "./speakership.ts";
 import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
 
 export interface PublicationFixture {

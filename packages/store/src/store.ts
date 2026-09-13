@@ -9,7 +9,9 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate as migrateDb } from "drizzle-orm/node-postgres/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
+import { z } from "zod";
 import * as s from "./schema/index.ts";
+import { AttributionCandidate } from "./speakership.ts";
 import type {
   AuthorityFixture,
   AuthorityRecord,
@@ -151,7 +153,9 @@ export class PgStore implements Store {
         spokenAt: fixture.spokenAt ?? null,
         transcriptTier: fixture.transcriptTier ?? null,
         pipelineVersion: "test",
-        attributionCandidates: fixture.attributionCandidates ?? [],
+        attributionCandidates: z
+          .array(AttributionCandidate)
+          .parse(fixture.attributionCandidates ?? []),
       })
       // Idempotent on content identity (TRI-R13): a re-ingest of the same
       // document finds the claim it already made. Without this, a re-triage

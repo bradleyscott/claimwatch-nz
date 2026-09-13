@@ -86,6 +86,37 @@ export const GENRES = [
 export type Genre = (typeof GENRES)[number];
 
 /**
+ * An actor the sentence's own text attributes the words to (ADR-0005's entity
+ * model, ADR-0019 §3's taxonomy).
+ *
+ * The shape is deliberately loose about everything except the name, because the
+ * stage that produces it can only honestly state the name:
+ *
+ * - `kind` (person | party | institution) is optional — the live lane writes a
+ *   bare name, and inventing a kind to satisfy a type is the placeholder problem
+ *   in miniature.
+ * - `confidence` is optional and NEVER defaulted. The first wired lane wrote `1`
+ *   to satisfy a required `number`, which is precisely the placeholder-confidence
+ *   pattern this project already removed once: a fabricated 1 reads as certainty
+ *   and nothing measures it. A name the text attributes is not a resolved entity
+ *   — entity resolution is a separate step with its own accuracy, and until
+ *   something calibrates it the honest value is absent. The page's "who" line
+ *   reads `name` and is unaffected.
+ * - `basis` records what produced the name (`speakership-classify@1`), which is
+ *   the provenance that actually exists today.
+ *
+ * Validated at the write boundary, so a candidate with no name cannot be stored
+ * rather than being discovered by whichever consumer reads it first.
+ */
+export const AttributionCandidate = z.object({
+  name: z.string().min(1),
+  kind: z.string().min(1).nullish(),
+  confidence: z.number().min(0).max(1).nullish(),
+  basis: z.string().min(1).nullish(),
+});
+export type AttributionCandidate = z.infer<typeof AttributionCandidate>;
+
+/**
  * Whether a claim may be published. Two things are required, and both matter:
  *
  * 1. an eligible class (`quoted-actor` / `author-claim`);

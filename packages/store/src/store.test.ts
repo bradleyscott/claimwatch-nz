@@ -206,6 +206,33 @@ describe("claim records", () => {
       unit: expect.any(String),
     });
   });
+
+  it("accepts an attribution candidate that states only the name and its basis (ADR-0005)", async () => {
+    // What the live lane actually writes: the text attributes the words to a
+    // name, and `basis` records what produced it. No `kind`, and above all no
+    // confidence — a fabricated `1` would read as a resolved entity when nothing
+    // has resolved it. The old shape REQUIRED both, so the lane had to invent
+    // them; the shape now matches what can be honestly known.
+    const claim = await store.recordClaim({
+      ...store.fixtures.statClaim(),
+      attributionCandidates: [{ name: "Mark Mitchell", basis: "speakership-classify@1" }],
+    });
+    const [stored] = claim.attributionCandidates ?? [];
+    expect(stored?.name).toBe("Mark Mitchell");
+    expect(stored?.confidence ?? null).toBeNull();
+  });
+
+  it("rejects an attribution candidate with no name, at the write boundary", async () => {
+    // A nameless candidate is unusable — the verdict page's "who" line reads the
+    // name — so it fails where it is written rather than wherever it is read
+    // first (AGENTS: Zod at every boundary).
+    await expect(
+      store.recordClaim({
+        ...store.fixtures.statClaim(),
+        attributionCandidates: [{ name: "", basis: "speakership-classify@1" }],
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 describe("evidence and vintages", () => {

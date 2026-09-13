@@ -88,7 +88,10 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = tru
       attachedProposal: "tougher sentencing",
       speechContext: "said in the House",
     },
-    attributionCandidates: [{ name: "Hon Sample Minister", kind: "person", confidence: 0.9 }],
+    // The live lane's actual shape: a name and what produced it. No kind, no
+    // confidence — nothing has resolved the entity, and the page names the
+    // speaker from the name alone (ADR-0005; see `AttributionCandidate`).
+    attributionCandidates: [{ name: "Hon Sample Minister", basis: "speakership-classify@1" }],
     spokenAt: new Date("2026-09-08T00:00:00Z"),
     ...overrides,
   });
