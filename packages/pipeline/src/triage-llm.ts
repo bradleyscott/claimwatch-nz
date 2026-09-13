@@ -165,8 +165,35 @@ export class MockTriageLlm implements TriageLlm {
       rejectionClass?: string;
       window: string;
     }>,
+    /**
+     * What the discourse-context pass should return for every window. Triage
+     * runs that pass per checkable claim (TRIAGE §2.3), so a document mock has
+     * to answer it — and a caller that wants the deployment framing to flow
+     * through to the claim supplies it here rather than asserting on nulls.
+     */
+    context: {
+      speaker?: string | null;
+      topic?: string | null;
+      attachedProposal?: string | null;
+      argumentDirection?: "problem" | "success" | null;
+    } = {},
   ): TriageLlm {
-    return new MockTriageLlm((_role, input) => {
+    return new MockTriageLlm((role, input) => {
+      // The context pass reads a window, not a sentence list, and answers with
+      // the ADR-0008 field set — never with the document's results shape.
+      if (role === "triage-context") {
+        return {
+          ok: true,
+          value: {
+            speaker: context.speaker ?? null,
+            topic: context.topic ?? null,
+            proposal: null,
+            attachedProposal: context.attachedProposal ?? null,
+            qualifiers: [],
+            argumentDirection: context.argumentDirection ?? null,
+          },
+        };
+      }
       const doc = input as { sentences?: Array<{ id: string; text: string; window?: string }> };
       const out: Array<Record<string, unknown>> = [];
       for (const s of doc.sentences ?? []) {

@@ -42,7 +42,7 @@ export interface ClaimFixture {
    * record, and the page then omits the section rather than inventing counts.
    */
   triageRecord?: TriageRecordInput | null;
-  discourseContext: DiscourseContext;
+  discourseContext: StoredDiscourseContext;
   mediaAnchor?: MediaAnchor | null;
   // When the claim was made (broadcast moment / publication date), as opposed
   // to when we ingested it. Absent means "not recorded", never "unknown date
@@ -63,7 +63,17 @@ export interface Fingerprint {
   unit: string;
 }
 
-export interface DiscourseContext {
+/**
+ * The STORED discourse-context shape (ADR-0008), as `claim.discourse_context`
+ * holds it. Deliberately not named `DiscourseContext`: triage has a type of that
+ * name covering the same material with different field names, and the two being
+ * identically named is what let the boundary between them go unwritten for so
+ * long — `contextFromLlm` ran in tests only, and nothing mapped its output into
+ * this shape, so `attached_proposal` was always null and the verdict page's "as
+ * deployed" line could never render (Sept 2026). The mapping is
+ * `toStoredDiscourseContext` in `packages/pipeline/src/triage.ts`.
+ */
+export interface StoredDiscourseContext {
   speechContext?: string | null;
   policyTopic?: string | null;
   attachedProposal?: string | null;

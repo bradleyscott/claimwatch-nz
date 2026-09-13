@@ -374,9 +374,7 @@ describe("checkability fan-out bounds (TRI-R12)", () => {
     expect(result.dropLog).toHaveLength(47);
     // Document order, not chunk-completion order: the page renders this list in
     // array order and tells the reader to judge the boundary themselves.
-    expect(result.dropLog.map((d) => d.sentenceId)).toEqual(
-      doc(47).sentences.map((s) => s.id),
-    );
+    expect(result.dropLog.map((d) => d.sentenceId)).toEqual(doc(47).sentences.map((s) => s.id));
     // Provenance accumulates across chunks (ADR-0012: tokens, not money).
     expect(result.provenance.tokensOut).toBe(5 * llm.calls.length);
     expect(result.provenance.tokensIn).toBe(10 * llm.calls.length);
@@ -413,5 +411,121 @@ describe("checkability fan-out bounds (TRI-R12)", () => {
       i === 0 ? "anthropic:claude-sonnet-5" : "openrouter:z-ai/glm-5.3-flash",
     );
     await expect(triageDocument(doc(47), llm)).rejects.toThrow(/spans 2 models/);
+  });
+});
+
+// ---------- the orchestrator's role set (Sept 2026) ----------
+//
+// `contextFromLlm` had TRI-R5/TRI-R6 tests and no caller for weeks, so
+// `discourse_context.attached_proposal` was null on every real claim and the
+// verdict page's "as deployed" section could not render. Each stage was covered
+// in isolation and nothing asserted that the orchestrator ran them, which is a
+// failure mode L1 cannot see by construction. These tests assert the CALL SET,
+// so a stage that stops being invoked fails here rather than silently not
+// existing in production.
+
+/** Wraps a TriageLlm and records every role the orchestrator asks for. */
+function recordingRoles(inner: TriageLlm, roles: string[]): TriageLlm {
+  return {
+    generateObject: async (role, input, schema) => {
+      roles.push(role);
+      return inner.generateObject(role, input, schema);
+    },
+  } as TriageLlm;
+}
+
+describe("the orchestrator runs the stages the spec says it runs", () => {
+  const corpus = JSON.parse(readFixture("triage-checkability.json")) as {
+    sentences: Array<{
+      id: string;
+      text: string;
+      expected: string;
+      rejectionClass?: string;
+      window: string;
+    }>;
+  };
+
+  it("runs the discourse-context pass, once per checkable claim", async () => {
+    const sentences = corpus.sentences.map((s) => ({
+      id: s.id,
+      text: s.text,
+      window: s.window,
+    }));
+    const roles: string[] = [];
+    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
+    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
+    const checkable = corpus.sentences.filter((s) => s.expected === "checkable").length;
+
+    expect(checkable).toBeGreaterThan(0);
+    expect(roles.filter((role) => role === "triage-context")).toHaveLength(checkable);
+    // And the context it read reaches the claim, carrying the window verbatim as
+    // the artefact it was read from (TRIAGE §3.2) — not the sentence text.
+    for (const claim of result.claims) {
+      const source = sentences.find((s) => s.id === claim.sourceSentenceId);
+      expect(claim.discourseContext.window).toBe(source?.window);
+    }
+  });
+
+  it("carries the deployment framing through to the claim", async () => {
+    // The value the verdict page's "as deployed" line renders (SITE-MVP §2.2).
+    const sentences = corpus.sentences.map((s) => ({
+      id: s.id,
+      text: s.text,
+      window: s.window,
+    }));
+    const llm = MockTriageLlm.forDocument(corpus.sentences, {
+      attachedProposal: "the announced housing package",
+      argumentDirection: "problem",
+      speaker: "Minister",
+      topic: "housing",
+    });
+    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
+    const [claim] = result.claims;
+    expect(claim?.discourseContext.attachedProposal).toBe("the announced housing package");
+    // Field names are the STORED ones — the two contracts differ, and nothing but
+    // this boundary maps between them.
+    expect(claim?.discourseContext.argumentDirection).toBe("problem");
+    expect(claim?.discourseContext.speechContext).toBe("Minister");
+    expect(claim?.discourseContext.policyTopic).toBe("housing");
+  });
+
+  it("does not read context from a sentence with no window, and claims no framing", async () => {
+    // ADR-0008: framing comes from window text or not at all. Reading it off the
+    // claim itself would manufacture a deployment context out of nothing.
+    const sentences = corpus.sentences.map((s) => ({ id: s.id, text: s.text }));
+    const roles: string[] = [];
+    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
+    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
+    expect(roles).not.toContain("triage-context");
+    for (const claim of result.claims) {
+      expect(claim.discourseContext).toEqual({
+        window: "",
+        speechContext: null,
+        policyTopic: null,
+        attachedProposal: null,
+        argumentDirection: null,
+        contextQualifiers: null,
+      });
+    }
+  });
+
+  it("calls checkability, and names the stages it does NOT call", async () => {
+    // The full role set, asserted rather than assumed. `triage-typing` and
+    // `triage-fingerprint` are NOT called by document triage: the checkability
+    // call returns `claimType` and `mode` per sentence, so typing is folded into
+    // it, and the fingerprint is not extracted at all — which is why
+    // `claim.fingerprint` is NULL on every row in the store. That is a design
+    // question, not an oversight to fix silently, so it is pinned here: if a
+    // future change wires either stage, this test fails and the decision gets
+    // made deliberately.
+    const sentences = corpus.sentences.map((s) => ({
+      id: s.id,
+      text: s.text,
+      window: s.window,
+    }));
+    const roles: string[] = [];
+    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
+    await triageDocument({ documentId: "doc-1", sentences }, llm);
+    expect([...new Set(roles)].sort()).toEqual(["triage-checkability", "triage-context"]);
   });
 });

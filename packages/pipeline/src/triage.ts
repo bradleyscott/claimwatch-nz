@@ -9,7 +9,7 @@ import { FINGERPRINT_NORMALISATION_VERSION } from "@cw/llm";
 // The published shape of triage's own output lives in @cw/store, which the
 // pipeline may import and the site may too (AGENTS.md boundaries) — so the
 // record written here and the record rendered there are one definition.
-import type { RejectionClass, TriageRecord } from "@cw/store";
+import type { RejectionClass, StoredDiscourseContext, TriageRecord } from "@cw/store";
 import { z } from "zod";
 import type {
   CanonicalFingerprintKey,
@@ -162,7 +162,57 @@ const ContextOutput = z.object({
   proposal: z.string().nullable(),
   attachedProposal: z.string().nullable(),
   qualifiers: z.array(z.string()).default([]),
+  // TRIAGE §3.2 has always listed `argument_direction` ("stance over window;
+  // null when not confident") and the stored shape has always had a field for
+  // it — but the extraction schema never asked for it, so it could only ever be
+  // null. Added Sept 2026 with the prompt change; hence the version bump.
+  argumentDirection: z.enum(["problem", "success"]).nullable().default(null),
 });
+
+export type ContextOutputShape = z.infer<typeof ContextOutput>;
+
+/**
+ * Triage's discourse context → the shape the store holds (ADR-0008).
+ *
+ * Two contracts, different field names, and nothing mapped between them: that
+ * is why `contextFromLlm` had no caller for so long. The stored shape is the
+ * published one (the verdict page reads `attachedProposal` for its "as
+ * deployed" line, and `speechContext` for the who-line), so the mapping lives
+ * here at the boundary rather than either side being renamed.
+ *
+ * The window is carried through verbatim — it is the auditable artefact the
+ * context was read from (TRIAGE §3.2), not a derived value.
+ */
+export function toStoredDiscourseContext(
+  context: ContextOutputShape,
+  window: string,
+): StoredDiscourseContext {
+  return {
+    window,
+    speechContext: context.speaker,
+    policyTopic: context.topic,
+    attachedProposal: context.attachedProposal,
+    argumentDirection: context.argumentDirection,
+    contextQualifiers: context.qualifiers.length > 0 ? context.qualifiers.join("; ") : null,
+  };
+}
+
+/**
+ * The stored context for a sentence that had NO window to read. Every field null
+ * rather than omitted, on ADR-0008's rule that absent is data: the page then
+ * shows no "as deployed" line, which is the truth, rather than a line derived
+ * from the claim itself.
+ */
+export function emptyDiscourseContext(window = ""): StoredDiscourseContext {
+  return {
+    window,
+    speechContext: null,
+    policyTopic: null,
+    attachedProposal: null,
+    argumentDirection: null,
+    contextQualifiers: null,
+  };
+}
 
 const MODE_BY_TYPE: Record<ClaimType, VerificationMode> = {
   statistical: "stat-grid",
@@ -177,7 +227,9 @@ const PROMPT_VERSIONS = {
   "triage-checkability": "triage-checkability@1",
   "triage-typing": "triage-typing@1",
   "triage-fingerprint": "triage-fingerprint@1",
-  "triage-context": "triage-context@1",
+  // @2: the extraction now asks for `argumentDirection`. A prompt edit is a
+  // model-equivalent behaviour change, so the version moves with it.
+  "triage-context": "triage-context@2",
 } as const;
 
 function claimIdFor(text: string, window: string | undefined, claimType: string): string {
@@ -354,6 +406,7 @@ export async function contextFromLlm(
     proposal: value.proposal,
     attachedProposal: value.attachedProposal,
     qualifiers: value.qualifiers,
+    argumentDirection: value.argumentDirection,
     provenance: {
       promptVersion: PROMPT_VERSIONS["triage-context"],
       model: call.model,
@@ -445,16 +498,25 @@ function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
   return chunks;
 }
 
+/**
+ * What document triage produces: the triage result, plus the per-claim discourse
+ * context it read (ADR-0008) and the record the verdict page publishes
+ * (SITE-MVP §2.3). Declared as a named type so a consumer cannot hold the result
+ * typed as `TriageResult` and miss the fields the store write needs — which is
+ * how `attached_proposal` stayed null for so long.
+ */
+export type TriageDocumentResult = TriageResult & {
+  claims: Array<
+    TypedClaim & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
+  >;
+  dropLog: Array<DropRecord & { sentenceId: string }>;
+  triageRecord: TriageRecord;
+};
+
 export async function triageDocument(
   doc: TriageDocumentInput,
   llm: TriageLlm,
-): Promise<
-  TriageResult & {
-    claims: Array<TypedClaim & { sourceSentenceId: string }>;
-    dropLog: Array<DropRecord & { sentenceId: string }>;
-    triageRecord: TriageRecord;
-  }
-> {
+): Promise<TriageDocumentResult> {
   const results: CheckabilityResult[] = [];
   const models = new Set<string>();
   let tokensIn = 0;
@@ -515,7 +577,9 @@ export async function triageDocument(
     tokensIn,
     tokensOut,
   };
-  const claims: Array<TypedClaim & { sourceSentenceId: string }> = [];
+  const claims: Array<
+    TypedClaim & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
+  > = [];
   const dropLog: Array<DropRecord & { sentenceId: string }> = [];
   const failures: TriageFailureRecord[] = [];
   for (const result of results) {
@@ -534,12 +598,29 @@ export async function triageDocument(
       ).includes(result.claimType as ClaimType)
         ? (result.claimType as ClaimType)
         : "other";
+      // The discourse-context pass (TRIAGE §2.3, ADR-0008) runs HERE, per
+      // checkable claim, and only when there is a window to read. It had no
+      // caller at all until Sept 2026: `contextFromLlm` was exercised by its own
+      // tests and by nothing else, so every stored `attached_proposal` was null
+      // and the verdict page's "as deployed" line could never render on a real
+      // claim. A stage the orchestrator forgets is a stage that does not exist,
+      // however well covered in isolation.
+      //
+      // No window → no call, and an all-null context, because ADR-0008 forbids
+      // inferring deployment framing from anything but window text: the honest
+      // reading of a missing window is "absent", never "read it off the claim".
+      const window = sentence.window ?? "";
+      const discourseContext =
+        window.trim().length > 0
+          ? toStoredDiscourseContext(await contextFromLlm(llm, { window }), window)
+          : emptyDiscourseContext();
       claims.push({
         claimId: claimIdFor(sentence.text, sentence.window, result.claimType),
         sourceSentenceId: sentence.id,
         claimType: claimType as ClaimType,
         mode: (MODE_BY_TYPE[claimType as ClaimType] ?? result.mode) as VerificationMode,
         text: sentence.text,
+        discourseContext,
         provenance,
       });
     } else {

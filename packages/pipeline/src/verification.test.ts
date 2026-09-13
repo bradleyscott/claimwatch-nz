@@ -39,7 +39,10 @@ const gridFixture = JSON.parse(readFixture("verification-grid.json")) as {
     id: string;
     claim: string;
     fingerprint: Record<string, string | null>;
-    discourseContext?: { attachedProposal?: string; argumentDirection?: string };
+    discourseContext?: {
+      attachedProposal?: string;
+      argumentDirection?: "problem" | "success" | null;
+    };
     expected: Record<string, unknown>;
   }>;
 };

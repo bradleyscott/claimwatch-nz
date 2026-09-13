@@ -99,6 +99,12 @@ export interface DiscourseContext {
   proposal: string | null;
   attachedProposal: string | null;
   qualifiers: string[];
+  /**
+   * Stance over the window — problem-vs-success framing (TRIAGE §3.2), null when
+   * the pass is not confident. It was specified from the start and extracted by
+   * nothing until Sept 2026, so every stored value was null.
+   */
+  argumentDirection: "problem" | "success" | null;
   provenance: TriageProvenance;
 }
 
