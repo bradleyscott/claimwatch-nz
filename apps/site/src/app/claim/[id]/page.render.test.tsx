@@ -218,6 +218,12 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("A second pass re-read the sources and agreed.");
     // ...carries the sources themselves, dated...
     expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
+    expect(html).toContain("The cited window shows +11.6%, per-capita +1.9%.");
+    // ...and the key that explains every value in those audit lines is in the
+    // same server-rendered response, not behind a script.
+    expect(html).toContain("What the technical record means");
+    expect(html).toContain("the version of each set of instructions the check used");
+    expect(html).toContain("locked for the election period");
     // ...and the audit line is in the reader's default view: no control to
     // reveal it, nothing collapsed, nothing fetched client-side.
     expect(html).toContain("source codes: T1, T6");
@@ -246,10 +252,11 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     const lines = html.match(/data-provenance-line/g) ?? [];
     expect(lines).toHaveLength(4);
     // Nothing left over from the collapsed version: no reveal checkbox, no
-    // drawer body wrapper, no closed accordion content.
+    // drawer body wrapper, no accordion at all (the only disclosure left on the
+    // page is the key, a native <details>).
     expect(html).not.toContain("trail-tech-record");
     expect(html).not.toContain("data-trail-body");
-    expect(html).not.toContain('data-slot="accordion-content"');
+    expect(html).not.toContain('data-slot="accordion"');
   });
 
   it("renders the evidence strongest source first, unclassified last (SITE-MVP §2.3)", async () => {

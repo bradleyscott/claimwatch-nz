@@ -207,9 +207,80 @@ export interface TrailSource {
   title: string;
   /** Source link-out; null when the row carried no URL. */
   url: string | null;
+  /** What this source says that bears on the claim (evidence_item.plain_finding). */
+  finding: string;
   /** "dated 30 Jun 2026 · fetched 9 Sept 2026" */
   dates: string;
 }
+
+/**
+ * The key to the technical record, rendered under the trail (Sept 2026). Every
+ * label and every opaque value those lines can contain is defined here, in plain
+ * words, because a record nobody can read is not a disclosure. Kept as data
+ * rather than prose in the component so the register check can scan it: the key
+ * is public copy like any other, and it must not smuggle in the vocabulary it
+ * exists to explain.
+ */
+export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string }> = [
+  {
+    term: "spoken",
+    meaning: "when the claim was made, taken from the source's own date.",
+  },
+  {
+    term: "recorded",
+    meaning:
+      "when our system logged that step, to the second. The page shows times in New Zealand time.",
+  },
+  {
+    term: "clip",
+    meaning: "where in the recording the claim appears.",
+  },
+  {
+    term: "method",
+    meaning:
+      "which kind of check ran — chosen from the claim itself, before we know the answer. “stat-grid” compares a number against the official figures over several time windows; “citation-check” reads the source the claim cites; “quote-fidelity” compares the words against the recording; “provenance” checks the context a claim carries; “open-web” means no official record covers it, so we searched online — our least reliable method.",
+  },
+  {
+    term: "model / models",
+    meaning: "which model answered a step's question, recorded per step.",
+  },
+  {
+    term: "prompts",
+    meaning:
+      "the version of each set of instructions the check used, written name@version. A new number means the instructions changed; both are kept, so a verdict can always be re-checked against the instructions that produced it.",
+  },
+  {
+    term: "pipeline",
+    meaning: "the version of the whole ClaimWatch system that produced this verdict.",
+  },
+  {
+    term: "verdict v1",
+    meaning:
+      "this page's version. v2 or higher means the verdict changed after it was first published; the earlier version stays visible.",
+  },
+  {
+    term: "revisions",
+    meaning: "how many times it has changed since first publication.",
+  },
+  {
+    term: "PUBLISHED",
+    meaning:
+      "the verdict's state. DRAFT means still being checked and not public; CONTESTED means someone has challenged it; FROZEN means locked for the election period, from 5 Nov 2026 until the results are declared.",
+  },
+  {
+    term: "items",
+    meaning: "how many pieces of evidence the check stored for this claim.",
+  },
+  {
+    term: "source codes",
+    meaning:
+      "what kind of source each one is — official figures, research, a newsroom. The plain-words key to those codes is on the evidence card above; the codes themselves are what the check wrote down.",
+  },
+  {
+    term: "search queries",
+    meaning: "how many web searches the check ran while gathering evidence.",
+  },
+];
 
 export interface TrailStep {
   id: TrailStepId;
@@ -527,12 +598,10 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
       facts: [
         `${count} source${count === 1 ? "" : "s"}${newest ? `, newest dated ${readableDate(newest)}` : ""}`,
       ],
-      // Titles and dates only: what each source SAYS is the evidence card's job,
-      // directly above. Repeating it here was the single biggest block of text
-      // on the page and it said nothing the reader had not just read.
       sources: input.evidence.map((item) => ({
         title: item.seriesIdentity,
         url: item.url && item.url.length > 0 ? item.url : null,
+        finding: item.plainReason,
         dates: line([
           item.vintageDate ? `dated ${readableDate(item.vintageDate)}` : null,
           item.retrievedAt ? `fetched ${nzDate(item.retrievedAt)}` : null,
@@ -592,14 +661,17 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
     mark: "answer",
   });
 
-  const publicCopy = steps
-    .flatMap((step) => [
+  const publicCopy = [
+    ...steps.flatMap((step) => [
       step.title,
       ...step.facts,
       step.note ?? "",
-      ...step.sources.map((source) => `${source.title} ${source.dates}`),
-    ])
-    .join("\n");
+      ...step.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
+    ]),
+    // The key is public copy too — the one place internal values are named, so it
+    // must not itself smuggle in vocabulary it exists to explain.
+    ...TECHNICAL_RECORD_KEY.flatMap((entry) => [entry.term, entry.meaning]),
+  ].join("\n");
   assertRegisterSafe(publicCopy);
 
   return {

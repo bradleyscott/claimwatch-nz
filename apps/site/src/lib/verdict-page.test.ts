@@ -6,6 +6,7 @@ import {
   anchorHref,
   assertRegisterSafe,
   buildVerdictPageModel,
+  TECHNICAL_RECORD_KEY,
   VERDICT_LABELS,
   type VerdictClass,
   type VerdictPageInput,
@@ -248,16 +249,62 @@ describe("the trail: how this verdict was made (SITE-MVP §2.3)", () => {
     expect(trail.steps[0]?.facts).toEqual(["Newstalk ZB · clip from 2:40"]);
   });
 
-  it("says which dates a source carries, and links it", () => {
+  it("carries each source's own finding, link and dates", () => {
     const { trail } = recorded({ verdictClass: "supported" });
     const [source] = trail.steps[2]?.sources ?? [];
     expect(source?.title).toBe("international-migration-monthly");
     expect(source?.url).toBe("https://www.stats.govt.nz/migration");
+    // What this source says about the claim — the reader should not have to go
+    // back up to the evidence card to find out.
+    expect(source?.finding).toBe("Net migration peaked at 135,500 in the October 2023 year.");
     // Date-only vintages are calendar dates, so they must not slide a day when
     // the New Zealand offset is applied.
     expect(source?.dates).toBe("dated 31 Jan 2026 · fetched 9 Sept 2026");
-    // What each source SAYS stays on the evidence card above, not here.
-    expect(JSON.stringify(trail.steps[2])).not.toContain("135,500");
+  });
+
+  it("defines every value the technical lines can print, in plain words", () => {
+    // The key exists so the audit lines are readable, not just present: every
+    // label the builder emits must be defined, or the record is a riddle.
+    const terms = TECHNICAL_RECORD_KEY.map((entry) => entry.term);
+    for (const label of [
+      "spoken",
+      "recorded",
+      "clip",
+      "method",
+      "model / models",
+      "prompts",
+      "pipeline",
+      "verdict v1",
+      "revisions",
+      "PUBLISHED",
+      "items",
+      "source codes",
+      "search queries",
+    ]) {
+      expect(terms).toContain(label);
+    }
+    // Every meaning is a sentence, and the ones naming internal values explain
+    // them rather than repeating them.
+    for (const entry of TECHNICAL_RECORD_KEY) {
+      expect(entry.meaning.length).toBeGreaterThan(20);
+    }
+    const method = TECHNICAL_RECORD_KEY.find((entry) => entry.term === "method");
+    for (const value of [
+      "stat-grid",
+      "citation-check",
+      "quote-fidelity",
+      "provenance",
+      "open-web",
+    ]) {
+      expect(method?.meaning).toContain(value);
+    }
+    // The key is public copy: it goes through the same register check as the
+    // trail, so it cannot smuggle in the vocabulary it exists to explain.
+    expect(() =>
+      assertRegisterSafe(
+        TECHNICAL_RECORD_KEY.flatMap((entry) => [entry.term, entry.meaning]).join("\n"),
+      ),
+    ).not.toThrow();
   });
 
   it("attributes the recorded prompt roles to the step they belong to (HAR-R7)", () => {
