@@ -24,12 +24,16 @@ Slice scope: triage runs on every ingested document. The false-context set skips
 ```
 [document record + attribution candidates + dedupe inputs]
   → sentence split (deterministic; cue-span-preserving for captions)
-  → per-sentence LLM triage: checkable?
+  → per-sentence LLM triage: checkable? (+ claim type + mode, one call)
        ├─ no  → drop-log record (retained, evaluable)
-       └─ yes → typing + fingerprint → context extraction → claim record → verification queue + store
+       └─ yes → context extraction → claim record → verification queue + store
 ```
 
-Model routing per ADR-0011: triage/typing/fingerprint is the high-volume structured-extraction role (Flash-class, batch-priced, harness-gated); the context pass is separate, Flash-class, short-circuits cleanly.
+**What the orchestrator actually calls (Sept 2026).** The diagram above is the contract; this is the implementation, stated because the two had drifted: document triage makes `triage-checkability` calls (one per chunk, each returning `claimType` and `mode` per sentence) and one `triage-context` call per checkable claim whose sentence has a window. It does **not** call `triage-typing` — typing is folded into the checkability call, which returns the type and mode — and it does **not** call `triage-fingerprint`, so `claim.fingerprint` is null on every row and TRIAGE §2.1's fingerprint step is unmet.
+
+That drift was invisible for weeks because every stage has its own passing tests and nothing asserted the *call set*. `contextFromLlm` was exercised by its TRI-R5/TRI-R6 tests and called by nothing, so `attached_proposal` was null on every real claim and the verdict page's "as deployed" line (a required section, SITE-MVP §2.2 rule 1) could not render. A test in `triage.test.ts` now pins the role set and fails if a stage stops being called — and it pins the two that are not called, so wiring one is a decision rather than an accident. Whether to run typing and fingerprint per claim is open question 2.
+
+Model routing per ADR-0011: triage/typing/fingerprint is the high-volume structured-extraction role (Flash-class, batch-priced, harness-gated); the context pass is separate, Flash-class, short-circuits cleanly. Sampling is pinned on the shared config surface (`SAMPLING`, CROSS-CUTTING §2): the same document triaged twice at the provider default returned 31 claims and then 42, which moves the set-aside list the verdict page publishes.
 
 ### 2.2 Checkability
 
@@ -106,10 +110,14 @@ Never assigns verdicts or confidence (ADR-0004 is adjudication's contract) · ne
 
 A claim with all-null context still verifies (no hard gate — the page shows no "as deployed" line); every field is published and contestable.
 
+**Two names for one thing (Sept 2026).** These fields are triage's *extraction* shape. The **stored** shape (`StoredDiscourseContext` in `@cw/store`) uses different names — `speech_context`, `policy_topic`, `argument_direction`, `context_qualifiers` — and nothing mapped between them, which is the mechanical reason the context pass was never wired into an orchestrated run. `toStoredDiscourseContext()` in `packages/pipeline/src/triage.ts` is that boundary now, and it carries `window` through verbatim. `argument_direction` was specified here from the start and extracted by nothing, so its column could only ever be null; the extraction schema and the prompt ask for it as of `triage-context@2`.
+
+A claim whose sentence has **no window** gets no context call and an all-null context, because the rule above is window text only: a missing window means absent, never "read it off the claim".
+
 ### 3.3 Handoffs
 
 - **To verification**: claim record + type → mode routing; the default context pack attaches automatically (ADR-0008).
-- **To store**: append-idempotent on fingerprint; occurrences append.
+- **To store**: append-idempotent on the claim's content identity (`claim.claim_key`, unique: sentence text + window + type, i.e. `TypedClaim.claimId`); occurrences append. **Not the fingerprint**, as this section previously said: a fingerprint exists for statistical claims only, so it could not dedupe a quotation or a cited-document claim, and `triage-fingerprint` is not run at all (Open question 2). What the key buys is that a re-ingest reaching the same conclusion about the same sentence finds the claim it already made; what it cannot do is withdraw a claim a later run would not have made — the graph grows with the union across runs, because a published claim is not retractable.
 - **To harness**: exports in AVeriTeC-aligned shape via the shared Drizzle/Zod definitions; harness and store schema versions must match.
 - **Drop-log**: pipeline-owned (blind rule doesn't apply to it); its *labels* live on the harness side.
 
@@ -161,7 +169,7 @@ Triage has no lane-health surface; its instruments are the ADR-0012 funnel (drop
 ## 6. Open questions
 
 1. **Checkability calibration** — what recall/precision trade-off to target before L3 numbers exist; the initial operating point is a judgement call.
-2. **One pass or two** — checkability + typing + fingerprint in a single `generateObject` call vs separate passes; leaning per-stage for auditability.
+2. **One pass or two** — checkability + typing + fingerprint in a single `generateObject` call vs separate passes; leaning per-stage for auditability. **This is now a live divergence, not a preference (Sept 2026):** the implementation folds typing into the checkability call (which returns `claimType` and `mode` per sentence) and never calls `triage-fingerprint` at all — `fingerprintFromLlm` has no caller anywhere, its only reference in its own test file is an unused import, and `triage-api.ts` still carries a `NOT IMPLEMENTED` stub for it beside the real body in `triage.ts`. Two consequences are already visible: `claim.fingerprint` and `fingerprint_key` are null and unused on every row, and `triage-fingerprint`'s TRI-R3 tests cannot be failing because nothing runs the stage they cover. Wiring it is spec-conformant (the §2 diagram has always shown it) and would populate the stat-grid parse the verdict page wants to show; it also means one more LLM call per statistical claim, which is why it is a decision rather than a fix. Whichever way it goes, the stub in `triage-api.ts` should not survive.
 3. **Fingerprint normalisation rules** — which canonicalisations apply before the key; versioned config, initial set unwritten.
 4. **Type-taxonomy closure** — is `institution-citation` a distinct type or a stratum of `citation-backed` (routing identical; distinction analytic)?
 5. **Drop-log sampling design** — sample size and stratification for the recall measurement.
