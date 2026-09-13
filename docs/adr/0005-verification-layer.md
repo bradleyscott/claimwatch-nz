@@ -1,6 +1,6 @@
 # ADR-0005: The verification layer — multi-mode engine, sensitivity grid, and the claim-anchored evidence store
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
 
 ## Context
 

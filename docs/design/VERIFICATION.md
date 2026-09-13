@@ -176,7 +176,7 @@ Every risk maps to a layer per TEST-STRATEGY. The deterministic surface is large
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | ~~Search-provider order~~ **Resolved**: Brave primary, Serper fallback/bulk (ADR-0011 governs; Bradley confirmed 10 Sep 2026). Per-query nuance (authority-restricted → Brave, bulk → Serper) is `search_config` | — |
+| 1 | ~~Search-provider order~~ **Resolved**: Brave primary, Serper fallback/bulk (ADR-0011 governs; confirmed 10 Sep 2026). Per-query nuance (authority-restricted → Brave, bulk → Serper) is `search_config` | — |
 | 2 | Materiality-selection rubric sign-off — what artefact, who signs off, does the signed rubric join `grid_axes_version` (forcing an L3 re-run on change)? | The anti-invented-standard defence depends on this being pre-declared and auditable |
 | 3 | Quote-fidelity tolerance policy — what delta flips the verdict vs triggers the caption-quality note? Needs a listen-test policy, not a guessed threshold | Conditions VER-R5 fixture expectations |
 | 4 | Provenance-mode graduation criteria — what measured result justifies live false-context handling, and who decides? | Pairs with HARNESS Q7 |

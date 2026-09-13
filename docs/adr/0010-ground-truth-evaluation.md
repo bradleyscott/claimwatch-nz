@@ -1,6 +1,6 @@
 # ADR-0010: Ground-truth evaluation — AVeriTeC as the immediate benchmark, NZ-labelled set as the calibration set
 
-*Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-07 · Deciders: Dave*
 
 ## Context
 

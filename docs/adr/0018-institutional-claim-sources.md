@@ -1,6 +1,6 @@
 # ADR-0018: Institutional claim sources — think tanks, lobby groups, and sector peak bodies
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
 
 ## Context
 

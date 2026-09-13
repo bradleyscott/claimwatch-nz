@@ -1,6 +1,6 @@
 # ADR-0003: Build the pipeline open-source rather than licensing Full Fact AI tooling
 
-*Status: **Decided** · Date: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: **Decided** · Date: 2026-09-07 · Deciders: Dave*
 
 ## Context
 

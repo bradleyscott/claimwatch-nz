@@ -1,6 +1,6 @@
 # ADR-0007: Broadcast and podcast interviews — the context-scope boundary
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
 
 *(Consolidates the broadcast/podcast ingestion decision with the self-generated-transcription scope boundary.)*
 
@@ -30,7 +30,7 @@ A large share of campaign claims is made in spoken interviews — TV, radio, and
 2. **Machine-generated publisher captions** — YouTube auto-captions (`kind: "asr"`): the *broadcaster* published them, but a third-party ASR system generated them **without human review**. A claim source, not a trustworthy wording record — subject to the caption-quality flag and the guardrails below.
 3. **Self-generated transcription** — out of scope (below).
 
-The distinction matters exactly as Bradley framed it: a publisher's own reviewed transcript carries editorial accountability; YouTube's auto-track is an unreviewed ASR output that merely happens to sit on the broadcaster's page. Trusting it at the level of reviewed text would import the same fabrication risk we just excluded from our own pipeline.
+The distinction matters precisely: a publisher's own reviewed transcript carries editorial accountability; YouTube's auto-track is an unreviewed ASR output that merely happens to sit on the broadcaster's page. Trusting it at the level of reviewed text would import the same fabrication risk we just excluded from our own pipeline.
 
 ### The caption path: tiered trust, not blanket trust
 
@@ -63,7 +63,7 @@ The blanket broadcast deferral is replaced with: **broadcast/podcast interview l
 ## Alternatives considered
 
 - **Full self-hosted ASR over all broadcast audio (the original "transcribe everything" path).** Rejected: broadcaster-published captions already cover most of the volume, and self-generated transcription is out of scope entirely — not a fallback lane.
-- **Self-hosted ASR for residual audio-only sources.** Rejected per Bradley: incorrect transcription can define claims that were never made — the worst failure mode in the system. Out of scope until measured on our own audio against the published re-entry bar (the NZ-accent evidence review below stays as the input to that future measurement).
+- **Self-hosted ASR for residual audio-only sources.** Rejected: incorrect transcription can define claims that were never made — the worst failure mode in the system. Out of scope until measured on our own audio against the published re-entry bar (the NZ-accent evidence review below stays as the input to that future measurement).
 - **Commercial transcription APIs** (gpt-4o-transcribe ~$0.36/hr, AssemblyAI ~$0.15/hr). Same fabrication-risk reasoning: the engine doesn't matter — *any* self-generated transcription carries the unmade-claim risk until measured. Out of scope for v1 on identical grounds; the pricing comparison is retained for that future decision.
 - **Skipping broadcast entirely (keep the original deferral).** Rejected: unscripted interview speech is where the check-worthy claims actually happen, the debates are the highest-stakes claims of the campaign, and the published-text path (captions + web text) covers the highest-claim-density content without us generating any transcription.
 

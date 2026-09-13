@@ -1,6 +1,6 @@
 # ADR-0012: Pipeline observability — Grafana-only, one platform
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
 
 ## Context
 

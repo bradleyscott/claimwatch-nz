@@ -1,6 +1,6 @@
 # ADR-0011: LLM and search provider selection — accuracy-dominant, tiered by task
 
-*Status: Open (recommendations recorded, final decision gated on harness results) · Date: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: Open (recommendations recorded, final decision gated on harness results) · Date: 2026-09-07 · Deciders: Dave*
 
 ## Context
 

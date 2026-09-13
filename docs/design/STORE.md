@@ -172,7 +172,7 @@ Store portion done when: L1 store tests pass on the migrated scratch schema · b
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | Labels in the same database under a separate schema (current) vs a separate instance | Same-DB is simpler, grant-enforced; separate DB is belt-and-braces. Needs Bradley's call before the schema lands (D1) |
+| 1 | Labels in the same database under a separate schema (current) vs a separate instance | Same-DB is simpler, grant-enforced; separate DB is belt-and-braces. Needs a call before the schema lands (D1) |
 | 2 | Backup tooling: pg_dump + offload vs continuous archiving; retention policy | Decide before the first real label batch exists |
 | 3 | Verdict diff format: structured JSON field-diff vs unified text diff (or both) | ADR-0002 requires a *public* diff; affects the diff column and the site's mutation view |
 | 4 | Evidence packs: store full fetched series vs references + archive snapshots | Storage growth vs rot risk |

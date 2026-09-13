@@ -26,7 +26,7 @@ See `docs/EVALUATION.md` — labelling help and contest participation are the hi
 
 ## Governance
 
-- **Maintainer:** Bradley (@bradleyscott) during the 2026 build; the steward-panel structure is described in ADR-0005 and will be stood up post-election.
+- **Maintainer:** @bradleyscott during the 2026 build; the steward-panel structure is described in ADR-0005 and will be stood up post-election.
 - **Decision process:** significant decisions as ADRs, discussed in issues, decided by maintainers, recorded in the ADR status line.
 - **Transparency:** the verdict audit log, evaluation harness results, and funding disclosures are public. See `docs/LEGAL-COMPLIANCE.md` for the promoter statement.
 

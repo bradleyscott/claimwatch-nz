@@ -16,7 +16,7 @@ import {
 import { createTestStore } from "./store.ts";
 import type { Store } from "./store-api.ts";
 
-// No committed connection strings (Bradley, Sept 2026) — same contract as
+// No committed connection strings (Sept 2026) — same contract as
 // store.test.ts: credentials come from .env or the CI environment.
 const DATABASE_URL = requireEnv("DATABASE_URL");
 const RESTORED_URL = `${DATABASE_URL}_restore_drill`;

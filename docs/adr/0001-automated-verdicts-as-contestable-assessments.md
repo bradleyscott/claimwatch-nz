@@ -1,6 +1,6 @@
 # ADR-0001: Automated verdicts are published as contestable assessments, not authoritative facts
 
-*Status: Proposed · Date: 2026-09-07 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-07 · Deciders: Dave*
 
 ## Context
 

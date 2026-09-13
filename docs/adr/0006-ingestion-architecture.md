@@ -1,6 +1,6 @@
 # ADR-0006: Ingestion — six lanes, extraction ladder, health checking, dedupe, and retrieval discipline
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Bradley, Dave*
+*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
 
 *(Consolidates the 2026-cycle ingestion scope decision with the ingestion architecture; the broadcast-scope boundary is ADR-0007.)*
 

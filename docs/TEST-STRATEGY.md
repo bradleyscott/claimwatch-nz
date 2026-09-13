@@ -40,7 +40,7 @@ EVALUATION §4 commits to "a change that reduces accuracy does not ship." Concre
 
 Community-layer grading replay (post-slice; contestation isn't in the MVP) · PDF/long-document lane (deferred per VALIDATION-SLICE) · load/performance testing · label-revision tooling (follows the contestation slice).
 
-## 6. Decisions open (Bradley's call)
+## 6. Decisions open
 
 | # | Question | Recommendation |
 |---|---|---|
