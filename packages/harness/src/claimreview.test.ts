@@ -29,6 +29,12 @@ describe("valid ClaimReview markup (L4a)", () => {
   });
 
   it("accepts the four ADR-0004 rating names plus pledge/conditional renderings", () => {
+    // The fixture's first entry is the base markup every rating name is applied
+    // to, so a missing one is a broken fixture rather than a case to skip — and
+    // holding it in a const removes the optional chain the linter rightly objects
+    // to when it is immediately dereferenced (it would throw on `undefined`).
+    const base = corpus.valid[0];
+    if (base == null) throw new Error("claimreview-corpus.json has no valid entry");
     for (const name of [
       "Supported",
       "Refuted",
@@ -36,9 +42,9 @@ describe("valid ClaimReview markup (L4a)", () => {
       "Conflicting Evidence/Cherrypicking",
     ]) {
       const review = {
-        ...corpus.valid[0]?.jsonld,
+        ...base.jsonld,
         reviewRating: {
-          ...(corpus.valid[0]?.jsonld as { reviewRating: object }).reviewRating,
+          ...(base.jsonld as { reviewRating: object }).reviewRating,
           ratingName: name,
         },
       };
