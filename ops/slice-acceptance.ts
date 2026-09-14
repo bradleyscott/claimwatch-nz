@@ -140,15 +140,15 @@ async function main(): Promise<void> {
   console.error("→ restore drill");
   try {
     const drill = await import("../packages/store/src/restore-drill.ts");
-    const { createTestStore } = await import("../packages/store/src/store.ts");
+    const { createTestStore, scratchDatabaseUrl } = await import(
+      "../packages/store/src/store.ts"
+    );
     const targetStore = await createTestStore(databaseUrl, { scratchSuffix: "_restore_drill" });
     await targetStore.close();
     const dump = await drill.exportDrillDump(databaseUrl);
-    await drill.replayDrillDump(`${databaseUrl}_restore_drill`, dump);
-    const assertions = await drill.assertRestoreIntegrity(
-      databaseUrl,
-      `${databaseUrl}_restore_drill`,
-    );
+    const drillTarget = scratchDatabaseUrl(databaseUrl, "_restore_drill");
+    await drill.replayDrillDump(drillTarget, dump);
+    const assertions = await drill.assertRestoreIntegrity(databaseUrl, drillTarget);
     drill.runRestoreDrillCheck(assertions);
     console.error("  PASS  restore drill");
   } catch (e) {

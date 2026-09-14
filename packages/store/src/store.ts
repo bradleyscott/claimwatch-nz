@@ -617,6 +617,37 @@ function makeFixtures(): StoreFixtures {
   };
 }
 
+/**
+ * The scratch database name for a suite, made unique PER PROCESS.
+ *
+ * One suffix per suite handles vitest's parallel forks, but not two sessions (or
+ * two CI shards) running the same suite at once: they picked the same name, and
+ * each `DROP DATABASE … WITH (FORCE)` killed the other's connections mid-test.
+ * Three sessions doing that wedged the container runtime outright on
+ * 2026-09-13, leaving 18 stale scratch databases behind. The run id is the
+ * process, so nothing has to be coordinated: two runs cannot collide, whatever
+ * they are doing. Set `CW_TEST_RUN_ID` to pin it (CI shards log the value).
+ *
+ * `scratchDatabaseUrl` is exported so a suite that needs the URL derives it the
+ * same way this does, instead of appending to the connection string by hand —
+ * which silently ignored query parameters and could not have produced a name
+ * this function would accept.
+ */
+export function scratchDatabaseUrl(databaseUrl: string, scratchSuffix: string): string {
+  const parsed = new URL(databaseUrl);
+  parsed.pathname = `/${scratchDatabaseName(databaseUrl, scratchSuffix)}`;
+  return parsed.toString();
+}
+
+function scratchDatabaseName(databaseUrl: string, scratchSuffix: string): string {
+  const runId = process.env.CW_TEST_RUN_ID ?? `p${process.pid}`;
+  const name = `${new URL(databaseUrl).pathname.replace(/^\//, "")}${scratchSuffix}_${runId}`;
+  if (!/^[a-z_][a-z0-9_]*$/.test(name)) {
+    throw new Error(`unsafe scratch database name: ${name}`);
+  }
+  return name;
+}
+
 export async function createTestStore(
   databaseUrl: string,
   opts?: { scratchSuffix?: string },
@@ -624,12 +655,8 @@ export async function createTestStore(
   let url = databaseUrl;
   if (opts?.scratchSuffix) {
     // Vitest runs files in parallel forks; every suite gets its own scratch
-    // database, created on demand.
-    const parsed = new URL(databaseUrl);
-    const scratchName = `${parsed.pathname.replace(/^\//, "")}${opts.scratchSuffix}`;
-    if (!/^[a-z_][a-z0-9_]*$/.test(scratchName)) {
-      throw new Error(`unsafe scratch database name: ${scratchName}`);
-    }
+    // database, created on demand, and the run id keeps other sessions out of it.
+    const scratchName = scratchDatabaseName(databaseUrl, opts.scratchSuffix);
     // Drop + recreate the WHOLE scratch database — not just the public
     // schema. Drizzle tracks applied migrations in its own schema
     // (drizzle.__drizzle_migrations), so a public-only wipe leaves stale
@@ -642,8 +669,7 @@ export async function createTestStore(
     } finally {
       await admin.end();
     }
-    parsed.pathname = `/${scratchName}`;
-    url = parsed.toString();
+    url = scratchDatabaseUrl(databaseUrl, opts.scratchSuffix);
   }
   const pool = new Pool({ connectionString: url });
   const appliedMigrations = await migrate(pool);

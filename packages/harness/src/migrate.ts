@@ -84,7 +84,11 @@ export interface LabelsTestOptions extends LabelsMigrateOptions {
  * fixture would contaminate IAA counts and the Dataset A export.
  */
 export async function createTestLabelsPool(options: LabelsTestOptions): Promise<Pool> {
-  const scratchName = `${new URL(options.labelsDatabaseUrl).pathname.replace(/^\//, "")}${options.scratchSuffix}`;
+  // Per-process run id, for the same reason the pipeline store uses one: two
+  // sessions running the blind-rule suite at once picked the same scratch name and
+  // each DROP DATABASE … WITH (FORCE) killed the other mid-test (Sept 2026).
+  const runId = process.env.CW_TEST_RUN_ID ?? `p${process.pid}`;
+  const scratchName = `${new URL(options.labelsDatabaseUrl).pathname.replace(/^\//, "")}${options.scratchSuffix}_${runId}`;
   assertSafeIdentifier(scratchName);
 
   const admin = new Pool({ connectionString: options.adminDatabaseUrl });

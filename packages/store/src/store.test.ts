@@ -11,7 +11,7 @@
 
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { APPEND_ONLY_TABLES, createTestStore } from "./store.ts";
+import { APPEND_ONLY_TABLES, createTestStore, scratchDatabaseUrl } from "./store.ts";
 // Contracts under test — implemented in this phase:
 //   { migrate, pool, tables, appendOnlyGuards, recordPublication, recordClaim,
 //     recordEvidenceItem, appendEvidencePack, writeVerdictV1, writeVerdictV2,
@@ -43,7 +43,7 @@ let reader: Pool;
 
 beforeAll(async () => {
   store = await createTestStore(DATABASE_URL, { scratchSuffix: SCRATCH_SUFFIX });
-  reader = new Pool({ connectionString: `${DATABASE_URL}${SCRATCH_SUFFIX}` });
+  reader = new Pool({ connectionString: scratchDatabaseUrl(DATABASE_URL, SCRATCH_SUFFIX) });
 });
 
 afterAll(async () => {

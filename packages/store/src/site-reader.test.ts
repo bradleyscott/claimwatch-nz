@@ -13,7 +13,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
 import { isEligibleSpeakership } from "./speakership.ts";
-import { createTestStore } from "./store.ts";
+import { createTestStore, scratchDatabaseUrl } from "./store.ts";
 import type { ClaimFixture, Store } from "./store-api.ts";
 import { TriageRecord } from "./triage-record.ts";
 
@@ -29,7 +29,7 @@ function requireEnv(name: string): string {
 // run suites concurrently.
 const DATABASE_URL = requireEnv("DATABASE_URL");
 const SCRATCH_SUFFIX = "_site_reader";
-const SCRATCH_URL = `${DATABASE_URL}${SCRATCH_SUFFIX}`;
+const SCRATCH_URL = scratchDatabaseUrl(DATABASE_URL, SCRATCH_SUFFIX);
 
 let store: Store;
 let reader: SiteReader;

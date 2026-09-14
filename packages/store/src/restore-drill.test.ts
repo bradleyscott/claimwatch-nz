@@ -13,13 +13,13 @@ import {
   replayDrillDump,
   runRestoreDrillCheck,
 } from "./restore-drill.ts";
-import { createTestStore } from "./store.ts";
+import { createTestStore, scratchDatabaseUrl } from "./store.ts";
 import type { Store } from "./store-api.ts";
 
 // No committed connection strings (Sept 2026) — same contract as
 // store.test.ts: credentials come from .env or the CI environment.
 const DATABASE_URL = requireEnv("DATABASE_URL");
-const RESTORED_URL = `${DATABASE_URL}_restore_drill`;
+const RESTORED_URL = scratchDatabaseUrl(DATABASE_URL, "_restore_drill");
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -59,7 +59,7 @@ describe("restore drill (STO-R7)", () => {
   it("exports, replays into a schema-applied scratch target, and passes every integrity assertion", async () => {
     await seedSource();
 
-    const dump = await exportDrillDump(`${DATABASE_URL}_drill`);
+    const dump = await exportDrillDump(scratchDatabaseUrl(DATABASE_URL, "_drill"));
     expect(dump).toContain("INSERT INTO publication");
     expect(dump).toContain("GRANT INSERT, SELECT ON publication TO pipeline");
     // The authority registry is data AND grants: it is seeded by the migration
@@ -76,7 +76,7 @@ describe("restore drill (STO-R7)", () => {
     await replayDrillDump(RESTORED_URL, dump);
 
     const assertions = await assertRestoreIntegrity(
-      process.env.DATABASE_URL + "_drill",
+      scratchDatabaseUrl(DATABASE_URL, "_drill"),
       RESTORED_URL,
     );
     runRestoreDrillCheck(assertions);
@@ -84,7 +84,7 @@ describe("restore drill (STO-R7)", () => {
 
   it("detects corruption: an extra injected row fails the drill check naming it", async () => {
     await seedSource();
-    const dump = await exportDrillDump(`${DATABASE_URL}_drill`);
+    const dump = await exportDrillDump(scratchDatabaseUrl(DATABASE_URL, "_drill"));
 
     const targetStore = await createTestStore(DATABASE_URL, { scratchSuffix: "_restore_drill" });
     await targetStore.close();
@@ -103,7 +103,7 @@ describe("restore drill (STO-R7)", () => {
     }
 
     const assertions = await assertRestoreIntegrity(
-      process.env.DATABASE_URL + "_drill",
+      scratchDatabaseUrl(DATABASE_URL, "_drill"),
       RESTORED_URL,
     );
     expect(drillFailures(assertions).some((a) => a.name === "row counts: publication")).toBe(true);
