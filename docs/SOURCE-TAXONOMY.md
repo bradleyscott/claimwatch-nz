@@ -13,7 +13,11 @@ The two decisions have different failure modes:
 
 ### 1.1 The bias risk
 
-If claim ingestion leans on two or three outlets, the system inherits their editorial priorities, audience, and blind spots — and every published verdict corpus inherits it. NZ media is concentrated (few owners, shrinking newsrooms, most national political reporting from a handful of press-gallery journalists), which makes deliberate breadth cheap to buy but easy to fake (six outlets running the same wire copy is not breadth).
+If ingestion leans on two or three outlets, the system inherits their editorial priorities, their
+audience, and their blind spots — and every published verdict corpus inherits the same. New Zealand media
+is concentrated: few owners, shrinking newsrooms, and most national political reporting done by a handful
+of press-gallery journalists. That makes deliberate breadth cheap to buy but easy to fake, because six
+outlets running the same wire copy is not breadth.
 
 ### 1.2 Coverage matrix
 
@@ -27,7 +31,12 @@ Sources are selected so every row and column below has at least two entries:
 | **Format** | Text/news · radio/TV transcripts · press releases (primary claim sources, not media) · Hansard (the on-the-record baseline) |
 | **Audience/community served** | General national · business/economics readership · Māori audiences · Pacific audiences · ethnic/community audiences · youth/social · regional communities |
 
-**Why "audience" and not "political position":** an outlet's audience is observable without the project publishing judgements about other outlets' politics — which would be subjective and attackable ("the fact-checkers labelled us X-leaning"). The monthly audit's question is a gap question — *which audiences/communities are not producing claims into our system* — answerable from audience descriptors. Verdict criteria are party-blind by construction (ADR-0002); no source is included or excluded on an assessment of its politics.
+**Why "audience" and not "political position":** an outlet's audience is observable without the project
+publishing a judgement about that outlet's politics, which would be subjective and attackable ("the
+fact-checkers labelled us X-leaning"). The monthly audit asks a gap question — *which audiences or
+communities are not producing claims into our system?* — and audience descriptors answer it. Verdict
+criteria are party-blind by construction (ADR-0002): no source is included or excluded on an assessment of
+its politics.
 
 ### 1.3 Proposed claim-source set (v1)
 

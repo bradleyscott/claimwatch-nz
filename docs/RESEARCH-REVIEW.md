@@ -38,7 +38,13 @@ Automated fact-checking has converged on a five-stage pipeline (CLEF CheckThat! 
 
 ### 2.4 Statistical claims and cherry-picking
 
-The core design insight: the main value is checking the evidence politicians cite for policy propositions, and the main risk is stats quoted accurately but painting a convenient, incomplete, or skewed picture. Standard AFC handles this poorly because the claim sentence itself is not false. Academic work exists — cherry-picking detection as missing-statement identification (arXiv:2401.05650, 2024; UTA "Filling the Blanks" thesis, 2025) — a live research frontier we would be productising. The mechanism (canonical fingerprint + sensitivity grid over official series, verdict "accurate but incomplete") is specified in ADR-0005.
+The core design insight: the most valuable thing we can check is the evidence politicians cite for their
+policy proposals, and the biggest risk is a statistic quoted accurately to paint a convenient, incomplete,
+or skewed picture. Standard automated fact-checking handles this badly, because the claim sentence itself
+is not false. Academic work does exist — cherry-picking detection as missing-statement identification
+(arXiv:2401.05650, 2024; the UTA "Filling the Blanks" thesis, 2025) — so this is a live research frontier
+we would be productising. The mechanism (a canonical fingerprint plus a sensitivity grid over official
+series, with the verdict "accurate but incomplete") is in ADR-0005.
 
 ### 2.5 NZ-specific data and distribution infrastructure
 
@@ -83,23 +89,8 @@ Quick-build version for 2026: **100 labelled claims**, 20% double-labelled, scor
 
 ## 5. Open questions (tracked in ADRs)
 
-| ADR | Decision | Status |
-|---|---|---|
-| 0001 | Automated verdicts published as "open to contest", no per-verdict sign-off | Proposed |
-| 0002 | Ingestion scope + contestation mechanism + verdict language + freeze | Proposed |
-| 0003 | Build vs license Full Fact tooling | **Decided: build (open)** |
-| 0004 | Verdict schema + benchmark alignment | Proposed |
-| 0005 | Verification layer (multi-mode) | Proposed |
-| 0006 | Ingestion architecture (six lanes, extraction ladder) | Proposed |
-| 0007 | Broadcast/podcast scope | Proposed |
-| 0008 | Claim context + document hierarchy | Proposed |
-| 0009 | Argument chains | Proposed |
-| 0010 | Ground-truth evaluation (two-layer) | Proposed |
-| 0011 | LLM/search provider selection | Open |
-| 0012 | Observability | Proposed |
-| 0013 | Public proposal of sources and authorities | Proposed |
-| 0014 | Implementation technology | Proposed |
-| 0018 | Institutional claim sources | Proposed |
+Every open topic is tracked in an ADR. The current list, and each ADR's status, lives in
+[`adr/README.md`](adr/README.md) — this review does not duplicate it, because a copy drifts.
 
 ## 6. Source list (primary)
 
