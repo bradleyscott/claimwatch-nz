@@ -14,45 +14,21 @@ import {
   type ProviderCall,
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
+import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
 import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
+import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import {
   agreeOnVerdictClass,
   computeStatGrid as computeGrid,
   nliAudit,
   VERIFICATION_SCHEMAS,
 } from "../packages/pipeline/src/verification.ts";
+import type {
+  VerificationLlm,
+  VerificationRole,
+} from "../packages/pipeline/src/verification-llm.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
 import { createTestStore } from "../packages/store/src/store.ts";
-
-type TriageLlmPort = {
-  generateObject<T>(
-    role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<{
-    ok: boolean;
-    value?: T;
-    usage?: { tokensIn: number; tokensOut: number };
-    model?: string;
-    failureClass?: "schema-validation" | "llm-refusal" | "timeout";
-    rawOutput?: string;
-  }>;
-};
-
-type VerificationLlmPort = {
-  generateObject<T>(
-    role: "grid-materiality" | "citation-compare" | "quote-fidelity" | "nli-audit" | "open-web",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<{
-    ok: boolean;
-    value?: T;
-    usage?: { tokensIn: number; tokensOut: number };
-    model?: string;
-    failureClass?: "schema-validation" | "llm-refusal" | "timeout";
-    rawOutput?: string;
-  }>;
-};
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -85,29 +61,14 @@ async function main(): Promise<void> {
       return result;
     },
   };
-  const triageLlm: TriageLlmPort = {
-    generateObject: async (role, input, schema) => {
-      const call = await adapter.call({
-        role: role as never,
-        system: promptFor(role),
-        user: JSON.stringify(input, null, 2),
-        schema: TRIAGE_SCHEMAS[role] ?? (schema as never),
-      });
-      // Adapter failure key is `raw`; the port contract uses `rawOutput`.
-      return { ...call, rawOutput: call.raw } as never;
-    },
-  };
-  const verificationLlm: VerificationLlmPort = {
-    generateObject: async (role, input, schema) => {
-      const call = await adapter.call({
-        role: role as never,
-        system: promptFor(role),
-        user: JSON.stringify(input, null, 2),
-        schema: VERIFICATION_SCHEMAS[role] ?? (schema as never),
-      });
-      return { ...call, rawOutput: call.raw } as never;
-    },
-  };
+  const triageLlm: TriageLlm = portFromAdapter<TriageRole>(adapter, {
+    promptFor,
+    schemas: TRIAGE_SCHEMAS,
+  });
+  const verificationLlm: VerificationLlm = portFromAdapter<VerificationRole>(adapter, {
+    promptFor,
+    schemas: VERIFICATION_SCHEMAS,
+  });
 
   // 1. Triage: checkability + typing via the LLM.
   console.log("\n[1/4] triage (live LLM)…");

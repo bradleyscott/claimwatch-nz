@@ -36,6 +36,7 @@ import {
   type ProviderCall,
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
+import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
 import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
@@ -55,7 +56,12 @@ import {
   speakershipFor,
 } from "../packages/pipeline/src/speakership.ts";
 import { splitSentences, triageDocument } from "../packages/pipeline/src/triage.ts";
+import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import { citationCheck, nliAudit } from "../packages/pipeline/src/verification.ts";
+import type {
+  VerificationLlm,
+  VerificationRole,
+} from "../packages/pipeline/src/verification-llm.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
 import { canonicalDomain } from "../packages/store/src/domain.ts";
 import { createStore } from "../packages/store/src/store.ts";
@@ -163,17 +169,10 @@ function promptFor(role: string): string {
   return PROMPTS[role] ?? "Reply with ONLY a JSON object matching the requested schema.";
 }
 
-const triageLlm = {
-  generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
-    const call = await adapter.call({
-      role: role as never,
-      system: promptFor(role),
-      user: JSON.stringify(input, null, 2),
-      schema: TRIAGE_SCHEMAS[role] ?? (schema as never),
-    });
-    return { ...call, rawOutput: call.raw };
-  },
-};
+const triageLlm: TriageLlm = portFromAdapter<TriageRole>(adapter, {
+  promptFor,
+  schemas: TRIAGE_SCHEMAS,
+});
 
 // The `attribute` stage's bridge: its prompt is the one the stage exports, so the
 // text the provider reads and the prompt version recorded in provenance cannot
@@ -190,17 +189,10 @@ const speakershipLlm = {
   },
 };
 
-const verificationLlm = {
-  generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
-    const call = await adapter.call({
-      role: role as never,
-      system: promptFor(role),
-      user: JSON.stringify(input, null, 2),
-      schema: VERIFICATION_SCHEMAS[role] ?? (schema as never),
-    });
-    return { ...call, rawOutput: call.raw };
-  },
-};
+const verificationLlm: VerificationLlm = portFromAdapter<VerificationRole>(adapter, {
+  promptFor,
+  schemas: VERIFICATION_SCHEMAS,
+});
 
 const decomposeLlm = {
   decompose: async (input: { claim: string }) => {
@@ -633,7 +625,7 @@ async function main(): Promise<void> {
             `  adjudication failed: ${adjudication.failureClass ?? "unknown"}` +
               `${(adjudication as { finishReason?: string }).finishReason ? ` (finish_reason: ${(adjudication as { finishReason?: string }).finishReason})` : ""}`,
           );
-          const raw = (adjudication as { raw?: string }).raw;
+          const raw = (adjudication as { rawOutput?: string }).rawOutput;
           if (raw) console.log(`  raw: ${raw.slice(0, 300)}`);
           console.log("  no finding to gate — nothing written.");
           return;

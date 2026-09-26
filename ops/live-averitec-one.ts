@@ -18,6 +18,7 @@ import {
   type ProviderCall,
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
+import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
@@ -31,12 +32,17 @@ import {
 } from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import { triageDocument } from "../packages/pipeline/src/triage.ts";
+import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import {
   citationCheck,
   computeStatGrid,
   nliAudit,
   quoteFidelityCheck,
 } from "../packages/pipeline/src/verification.ts";
+import type {
+  VerificationLlm,
+  VerificationRole,
+} from "../packages/pipeline/src/verification-llm.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
 import { canonicalDomain } from "../packages/store/src/domain.ts";
 import { createStore } from "../packages/store/src/store.ts";
@@ -132,17 +138,10 @@ function logRouting(): void {
   }
 }
 
-const triageLlm = {
-  generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
-    const call = await adapter.call({
-      role: role as never,
-      system: promptFor(role),
-      user: JSON.stringify(input, null, 2),
-      schema: TRIAGE_SCHEMAS[role] ?? (schema as never),
-    });
-    return { ...call, rawOutput: call.raw };
-  },
-};
+const triageLlm: TriageLlm = portFromAdapter<TriageRole>(adapter, {
+  promptFor,
+  schemas: TRIAGE_SCHEMAS,
+});
 
 // Deep-research bridges: decomposer (claim → questions) and researcher
 // (per-round evidence assessment). Both ride the live adapter; the researcher
@@ -204,17 +203,10 @@ const researcherLlm: ResearcherLlm = {
     };
   },
 };
-const verificationLlm = {
-  generateObject: async (role: string, input: unknown, schema: { parse(v: unknown): unknown }) => {
-    const call = await adapter.call({
-      role: role as never,
-      system: promptFor(role),
-      user: JSON.stringify(input, null, 2),
-      schema: VERIFICATION_SCHEMAS[role] ?? (schema as never),
-    });
-    return { ...call, rawOutput: call.raw };
-  },
-};
+const verificationLlm: VerificationLlm = portFromAdapter<VerificationRole>(adapter, {
+  promptFor,
+  schemas: VERIFICATION_SCHEMAS,
+});
 
 const PROMPTS: Record<string, string> = {
   "triage-checkability":
@@ -471,7 +463,7 @@ async function main(): Promise<void> {
           sourceFindings?: Array<{ link: string; tier: number; finding: string }>;
         };
         failureClass?: string;
-        raw?: string;
+        rawOutput?: string;
       };
       // Adjudication failure → honest NEI with the failure recorded. Never
       // fabricate a verdict from a missing LLM response.
@@ -479,7 +471,7 @@ async function main(): Promise<void> {
         verdictClass = "not_enough_evidence";
         note = `adjudication failed (${adjudication.failureClass ?? "unknown"}) — published as an open question`;
         console.log(`  adjudication failed: ${adjudication.failureClass ?? "unknown"}`);
-        if (adjudication.raw) console.log(`  raw: ${adjudication.raw.slice(0, 600)}`);
+        if (adjudication.rawOutput) console.log(`  raw: ${adjudication.rawOutput.slice(0, 600)}`);
       } else {
         const adj = adjudication.value;
         verdictClass = adj.verdict;
