@@ -4,11 +4,14 @@
 
 ## The discovery problem
 
-A fact-check site's content is only as valuable as it is findable. Users arrive in three modes, all served:
+A fact-check site's content is only as valuable as it is findable. Users arrive in three modes, and the
+site serves all three:
 
-1. **Verification** — "I just heard X said Y — is it true?" (high intent, narrow query, often via Google/social share)
-2. **Browse** — "What's new today?" (low intent, feed-driven, the habit loop)
-3. **Research** — "What is the record on immigration claims this campaign?" (durable, entity/topic-scoped; journalists/students/engaged citizens)
+1. **Verification** — "I just heard X said Y. Is it true?" High intent, narrow query, usually through
+   Google or a social share.
+2. **Browse** — "What's new today?" Low intent, feed-driven; the habit loop.
+3. **Research** — "What is the record on immigration claims this campaign?" Durable and scoped to an
+   entity or topic; journalists, students, and engaged citizens.
 
 ## The mechanisms
 

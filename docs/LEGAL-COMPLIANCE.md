@@ -19,7 +19,9 @@
 
 **Definition:** an "election advertisement" is an advertisement in any medium that may reasonably be regarded as encouraging or persuading voters to vote or not vote for a candidate or party (or a type of candidate/party described by views they do or don't hold). The Electoral Commission **expressly excludes editorial content (e.g. news items)**.
 
-**Our characterisation:** a fact-check is best read as editorial. But this is **untested** for a site whose entire product is "claim = FALSE" verdicts that mutate via public contestation. If characterised as an election advertisement:
+**Our reading:** a fact-check is best understood as editorial. But that is **untested** for a site whose
+whole product is "claim = FALSE" verdicts that mutate through public contestation. If a fact-check were
+characterised as an election advertisement, then:
 - A **promoter statement** (name + contact details) is required **at all times** — omission is an offence, fine up to $40,000.
 - Spending caps and third-party-promoter registration apply during the **regulated period (7 Aug – 6 Nov 2026)** above a threshold.
 
@@ -31,7 +33,9 @@
 
 ## 3. Defamation
 
-Civil-only regime (Defamation Act 1992 + common law); **no anti-SLAPP protection** in NZ, so the threat alone chills. During an election, whichever side a verdict hurts has incentive and resources.
+Defamation is civil only — the Defamation Act 1992 and the common law — and New Zealand has **no
+anti-SLAPP protection**, so the threat of a suit is enough to chill speech. During an election, whichever
+side a verdict hurts has both the incentive and the resources.
 
 **Design response (ADR-0002):**
 - **Claims, not persons**: verdict language addresses claims ("this figure is selective"), never character ("X lied"). Written into every LLM prompt and the community guidelines.

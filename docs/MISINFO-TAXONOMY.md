@@ -6,11 +6,19 @@
 
 Election-period claims mislead through distinct mechanisms; no single verification machine handles them all. Three established frameworks:
 
-- **Information disorder** (Wardle & Derakhshan, Council of Europe 2017/2020) — mis-information (false, shared without harmful intent), dis-information (deliberately created to deceive), mal-information (genuine information deployed to harm). Policy-canonical vocabulary, **not used in our verdicts**: adjudicating intent is beyond what evidence can establish, and the labels collide with the claims-not-persons standard.
+- **Information disorder** (Wardle and Derakhshan, Council of Europe, 2017/2020): mis-information (false,
+  shared without harmful intent), dis-information (created to deceive), and mal-information (genuine
+  information deployed to harm). This is the policy-canonical vocabulary, but we do **not** use it in
+  verdicts: intent is beyond what evidence can establish, and the labels collide with the
+  claims-not-persons standard.
 - **The seven content types** (Wardle / First Draft, CC-BY), ordered loosely by intent to deceive: satire/parody → false connection → misleading content → false context → imposter content → manipulated content → fabricated content.
 - **Empirical distributions** from the Elections24Check study of the 2024 European Parliament elections — what fact-checkers actually verified: **decontextualisation (false context) 59.3%** of verified disinformation, **fabricated content 32.9%**; verdicts false 59.4% / **missing context 23.4%** / partly false 5.4% / true 10.4%; **electoral integrity the top topic (20.5%)** ahead of migration (12.9%). **DISARM** (CC-BY-SA) adds the campaign-level TTP vocabulary — used here only for tagging what we observe and partner escalation, not for campaign detection (out of scope).
 
-Why the distributions matter: **true-but-decontextualised content dominates** what fact-checkers verify (59%), and **technically-true-but-selective claims** are the shared failure class across the academic taxonomies and the argumentation literature (KnOD 2021: false narratives work by omitting crucial argument components and cherry-picking accurate-but-atypical instances). Statistical selectivity — the class the ADR-0005 stat engine targets — is one important member of that family, not the whole of it.
+Why the distributions matter: **true-but-decontextualised content dominates** what fact-checkers verify
+(59%), and **technically true but selective claims** are the shared failure class across the academic
+taxonomies and the argumentation literature (KnOD 2021: false narratives work by omitting crucial
+argument components and cherry-picking atypical-but-accurate instances). Statistical selectivity — what
+the ADR-0005 stat engine targets — is one important member of that family, not the whole of it.
 
 ## 2. The class-by-class map
 
@@ -25,7 +33,12 @@ Why the distributions matter: **true-but-decontextualised content dominates** wh
 | **1. Satire/parody** | Low volume (The Civilian etc.) | Label-as-satire; no verification | Trivial classifier; included in triage so satire isn't "checked" as a claim |
 | **Mal-information** | Leaks, true-but-selective personal material | **Out of scope**: collides with privacy/defamation exposure and claims-not-persons | Stated, out of scope v1 |
 
-**Cross-cutting: electoral-process claims get the fastest verification lane.** The EU data's top topic was electoral integrity; in NZ the highest-harm false claims are process claims ("you can vote by text", "enrolment closes Friday", "the election is on both days") because they *suppress votes directly* and because **s 199A criminalises knowing falsehoods about voting in the final 72 hours**. Verification is trivial (the Electoral Commission is the single authoritative source) and public value is maximal: Electoral Commission retrieved first, lowest freeze threshold.
+**Cross-cutting: electoral-process claims get the fastest lane.** The EU data's top topic was electoral
+integrity. In New Zealand the highest-harm false claims are process claims — "you can vote by text",
+"enrolment closes Friday", "the election is on both days" — because they *suppress votes directly*, and
+because **s 199A criminalises knowing falsehoods about voting in the final 72 hours**. They are also
+trivial to verify: the Electoral Commission is the single authoritative source. So the Commission is
+retrieved first and these claims have the lowest freeze threshold.
 
 ## 3. What this means for the verification layer (detail in ADR-0005)
 
