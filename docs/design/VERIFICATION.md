@@ -1,10 +1,16 @@
 # Verification engine design
 
-*Proposed. ADRs: 0001, 0005, 0008, 0011, 0018. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0001, 0005, 0008, 0011, 0018. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The verification engine turns triaged claims into **verdict + confidence + evidence pack + audit result**, appended to the store (ADR-0005). Multi-mode by design: misleading-information classes differ in mechanism (`MISINFO-TAXONOMY.md`). Two research-grounded bets shape it: **retrieval is the primary bottleneck** (gold evidence lifts accuracy 14–22 pts), so every mode that can anchor to a specific source does; and **claim-vs-specific-source beats claim-vs-open-web**, so the open-web loop is the capped catch-all, not the default.
+The verification engine turns triaged claims into a verdict, a confidence, an evidence pack, and an audit
+result, and appends them to the store (ADR-0005). It has several modes because misleading-information
+classes differ in mechanism (`MISINFO-TAXONOMY.md`). Two findings from the research shape it.
+
+First, **retrieval is the main bottleneck** — gold evidence lifts accuracy by 14 to 22 points — so
+every mode that can anchor to a specific source does. Second, **claim against a specific source beats
+claim against the open web**, so the open-web loop is the capped catch-all rather than the default.
 
 | Mode | Claims routed | Slice exercise |
 |---|---|---|
@@ -14,31 +20,56 @@ The verification engine turns triaged claims into **verdict + confidence + evide
 | Provenance | false-context samples (R5) | curated ~10-item set only — demonstrate, never production-ready |
 | Open-web loop | everything else | capped, labelled, most visibly open to contest |
 
-Shared by all modes: question decomposition, confidence-capped retrieval depth (FIRE pattern — 7.6× LLM / 16.5× search cost reduction), extraction-ladder fallback logging per lane (R7 by-product), evidence packs with vintages + Internet Archive snapshots, and the **NLI audit as the publication gate** — it runs before publication, not after.
+All modes share the same spine: question decomposition, retrieval depth capped by confidence (the FIRE
+pattern, which cut LLM cost 7.6× and search cost 16.5×), per-lane fallback logging from the extraction
+ladder, evidence packs with vintages and Internet Archive snapshots, and the **NLI audit as the
+publication gate** — it runs before publication, not after.
 
-Not in this component: extraction (ingestion), claim detection/typing (triage), post-publication mutation (contestation slice), the harness.
+Other components own extraction (ingestion), claim detection and typing (triage), post-publication
+mutation (contestation), and the harness.
 
 ## 2. Design
 
 ### 2.1 Mode routing
 
-Triage assigns claim type; the engine routes on it — a pure function of the claim record. No claimant identity ever enters (ADR-0005 firewall).
+Triage assigns the claim type, and the engine routes on it — a pure function of the claim record. No
+claimant identity enters (ADR-0005).
 
 ```
 statistical → stat-engine grid · citation-backed → citation-check · quote-fidelity → quote-fidelity
 false-context → provenance (curated only) · other → open-web loop (capped)
 ```
 
-Misroutes are a first-class failure: the routing decision is stored on the evidence pack so L3 can measure per-mode accuracy on the *routed* stratum and catch routing drift. Since Sept 2026 the decision is also stored on the **claim** (`claim.verification_mode`) and published on the verdict page, which selects its explanation of the check from it — the site cannot re-derive a statistical claim's mode, because that one depends on an authority-registry lookup the reader cannot see.
+A misroute is a failure in its own right. The routing decision is stored on the evidence pack so L3 can
+measure per-mode accuracy on the stratum the claim was *routed* to, and catch routing drift. Since
+September 2026 the decision is also stored on the **claim** (`claim.verification_mode`) and published
+on the verdict page, which picks its explanation of the check from it. The site cannot re-derive a
+statistical claim's mode, because that one depends on an authority-registry lookup the reader cannot
+see.
 
-**Named gap — no mode tests causation (Sept 2026).** 54 of the 500 AVeriTeC dev claims (11%) are causal, and the five modes above test numbers, documents, quotations and context attachments — none establishes that one thing caused another. The gap is published rather than papered over: every mode's section on the verdict page states what that check cannot establish, and the open-web bound names causation explicitly, so a causal claim graded by timing evidence says so on the page instead of being silently over-read. A pure causal claim is currently typed `other` and routed to the open-web loop, where its timing evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap means a sixth mode — pre-trend tests, an unaffected comparison group, difference-in-differences against a series the intervention did not touch — with its own trail section. Until then the gap is stated on the page and on `/methodology`, and it is not treated as covered.
+**No mode tests causation.** Of the 500 AVeriTeC dev claims, 54 (11%) are causal, and the five modes
+above test numbers, documents, quotations, and context attachments. None establishes that one thing
+caused another. We publish that gap rather than paper over it: every mode's section on the verdict
+page states what its check cannot establish, and the open-web bound names causation explicitly, so a
+causal claim graded on timing evidence says so on the page instead of being silently over-read.
+
+A purely causal claim is currently typed `other` and sent to the open-web loop, where its timing
+evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap means
+a sixth mode — pre-trend tests, an unaffected comparison group, or difference-in-differences against a
+series the intervention did not touch — with its own trail section. Until then the gap is stated on the
+page and on `/methodology`, and it is not treated as covered.
 
 ### 2.2 Stat-engine grid mode (flagship)
 
 1. **Fingerprint match** — against the claim-anchored evidence store; hit → resolve from accumulated versioned series; miss → retrieve from verifier authorities per the domain's authority map. Retrieval resumes from stored evidence; it does not restart.
 2. **Series retrieval** — official series only (Stats NZ SDMX/JSON, policedata.nz, MoJ, Treasury…), stored as `evidence_item` rows with `vintage_date` + `archive_snapshot_url`. The release's own cited numbers are never the evidence — we reconstruct the field.
 3. **Sensitivity grid** — pre-declared axes (`grid_axes_version`), computed on demand: window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality. The LLM selects which rows are **material** to the claim's deployment; it never authors the grid. Identical axes for every claimant — the anti-invented-standard defence.
-4. **Verdict** — robust across grid → Supported; material alternatives contradict the impression → Conflicting Evidence–Cherry-picking ("accurate but incomplete"); no canonical series → Not Enough Evidence (visibly lower reliability). A number matching *no* grid row is Refuted, not cherry-picked — the class boundary is arithmetic. Never "false" for a true-but-selective number. The "as deployed" line renders only when `attached_proposal` exists (absent ≠ defaulted).
+4. **Verdict.** Robust across the grid → Supported. Material alternatives contradict the impression →
+   Conflicting Evidence–Cherry-picking ("accurate but incomplete"). No canonical series → Not Enough
+   Evidence, which we treat as visibly lower-reliability. A number that matches *no* grid row is Refuted,
+   not cherry-picked: the boundary between classes is arithmetic. A true but selective number is never
+   called "false". The "as deployed" line renders only when `attached_proposal` exists; absent stays
+   absent rather than defaulting.
 5. Presentation: chart-first, alternatives table, grid axes shown on the verdict page.
 
 ### 2.3 Citation-check mode
@@ -46,7 +77,10 @@ Misroutes are a first-class failure: the routing decision is stored on the evide
 For claims paired with their own evidence (institution lane; also any claim citing a source):
 
 1. **Fetch the cited document** server-side (fetch-from-source; paywalled cited sources degrade to quoted-claim-only, never circumvention).
-2. **Bounded claim-vs-source comparison** — does the document say what the claim says it says (numbers, period, population, direction)? An extraction-precision task (Sonnet-class routing, harness-gated), not open-web reasoning. Whether the citation does direct or decorative argumentative work sets how strictly the check binds.
+2. **A bounded claim-against-source comparison.** Does the document say what the claim says it says —
+   the numbers, period, population, direction? This is an extraction-precision task (Sonnet-class
+   routing, harness-gated), not open-web reasoning. Whether the citation does real argumentative work or
+   is decorative sets how strictly the check binds.
 3. **Authority discipline**: the cited document is the *object of the check*, never evidence. An NZ Initiative statistic that is statistical checks against Stats NZ via 2.2. Advocacy data is at best A6, never a verdict basis (ADR-0018).
 4. Verdict: Supported/Refuted against the source's actual content; a mismatch is the finding, stated claim-vs-source, never as characterisation of the claimant.
 
@@ -94,9 +128,15 @@ Every justification sentence must be entailed by its cited evidence before publi
 
 ### 2.7a Class-agreement gate (Sept 2026, VER-R16)
 
-The verdict class is decided **twice**, and only a class both runs produce is published; a disagreement publishes nothing and is counted.
+The verdict class is decided **twice**, and only a class both runs produce is published. A
+disagreement publishes nothing, and is counted.
 
-This exists because the alternative does not work: the configured models discard the sampling settings — the SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter research model ignores `seed` — so identical input moved a class between runs (`not_enough_evidence` once, `supported` twice, with the NLI gate passing every time). When no knob can pin the sampler, the thing to pin is the decision: a class two independent runs agree on is a class the pipeline can defend, and a disagreement is a *measurement* of how unstable that decision is rather than a class to publish.
+This exists because the obvious alternative does not work. The configured models discard the sampling
+settings — the SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter research
+model ignores `seed` — so identical input moved a class between runs: `not_enough_evidence` once,
+`supported` twice, with the NLI gate passing every time. When no knob can pin the sampler, the thing to
+pin is the decision. A class two independent runs agree on is a class the pipeline can defend, and a
+disagreement measures how unstable that decision is rather than producing a class to publish.
 
 - **Where it applies**: the class-deciding step — the low-volume call that produces what a reader sees. Deliberately **not** triage, which runs once per sentence per document and would multiply the dominant cost; the triage boundary is measured and disclosed instead (TRIAGE open question 9, and the page states that what-can-be-checked is a model's judgement).
 - **The first run's outcome is the published one**, so the published reason comes from a run whose class agreed, and the choice is predictable rather than "whichever agreed".
