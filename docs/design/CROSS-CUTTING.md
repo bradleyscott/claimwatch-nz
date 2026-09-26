@@ -72,7 +72,9 @@ flowchart TB
 
 The harness is a *consumer* of the store and config, never of the pipeline's runtime process — the separation §8 makes structural.
 
-**Test risks:** the map drifts from reality (a lane added without wiring its cross-cutting services) → L1 asserts each lane emits funnel events + gen_ai spans at instantiation ("instrumentation ships with the lane" is a test, not a convention); the harness couples to pipeline runtime → L1 dependency-direction test (`packages/harness` must not import `packages/pipeline`).
+**Tests:**
+
+- the map drifts from reality (a lane added without wiring its cross-cutting services) → L1 asserts each lane emits funnel events + gen_ai spans at instantiation ("instrumentation ships with the lane" is a test, not a convention); the harness couples to pipeline runtime → L1 dependency-direction test (`packages/harness` must not import `packages/pipeline`).
 
 ## 2. Configuration & pinning (the reproducibility contract)
 
@@ -93,7 +95,11 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 
 **Cost is derived, never pinned (ADR-0012 + ADR-0011):** token counts and the model key are recorded per call; money is computed at aggregation from `PRICE_MAP` (`packages/llm/src/prices.ts`, `PRICE_MAP_VERSION`). A price change is a one-file edit that re-prices recorded history without rewriting it, and a routed model that has no price row throws rather than reporting zero. Two consequences worth stating: cost per role × model is only comparable between runs that name the same `price_map_version`, and adding a model to the routing table without a price row is a lint-level failure, not a silent accounting hole.
 
-**Test risks:** config defaults diverge across dev/CI/slice → L1 asserts the effective config matches a checked-in expected tuple; L2 pins the tuple so drift is a visible verdict diff · run outputs missing the provenance tuple → L1 schema validation fails them; L4a renders only tuple-carrying files · silent provider upgrade → L2 catches behavioural drift; L3 re-runs on version change.
+**Tests:**
+
+- config defaults diverge across dev/CI/slice → L1 asserts the effective config matches a checked-in expected tuple; L2 pins the tuple so drift is a visible verdict diff
+- run outputs missing the provenance tuple → L1 schema validation fails them; L4a renders only tuple-carrying files
+- silent provider upgrade → L2 catches behavioural drift; L3 re-runs on version change.
 
 ## 3. Prompt management
 
@@ -105,7 +111,12 @@ Prompts are code (ADR-0012), **inline in the pipeline module that uses them** (t
 - **L2 link:** the ~20-claim golden set runs per PR with pinned prompts; a prompt edit produces a snapshot diff the reviewer reads *before* approving. A change that flips a golden verdict without justification does not merge.
 - **Harness-gated:** any prompt change re-runs L3; the per-stratum gate applies.
 
-**Test risks:** prompt edited without a version bump → the manifest's recorded version no longer content-addresses the prompt text, and nothing harness-side can see that (the blind rule keeps the harness from reading pipeline source, so prompt-text hashing has to be produced by the pipeline at run time) · provenance for a role that does not exist → L1 rejects an unknown role in the manifest · prompt drift between what ran and what was scored → L2 uses the same config surface as production, one source · unreviewed tweak degrades a stratum → L3 gate.
+**Tests:**
+
+- prompt edited without a version bump → the manifest's recorded version no longer content-addresses the prompt text, and nothing harness-side can see that (the blind rule keeps the harness from reading pipeline source, so prompt-text hashing has to be produced by the pipeline at run time)
+- provenance for a role that does not exist → L1 rejects an unknown role in the manifest
+- prompt drift between what ran and what was scored → L2 uses the same config surface as production, one source
+- unreviewed tweak degrades a stratum → L3 gate.
 
 ## 4. Secrets & API access
 
@@ -120,7 +131,11 @@ Env + `.env` (gitignored), no Vault (ADR-0014). Key surface: the ADR-0011 provid
 | Egress | All payloads to model/search APIs are public material (ADR-0011's honest framing); no submitter PII exists in the slice |
 | Serving-mode pinning | Routing config records aggregator serving mode (own infra vs passthrough-to-origin) per the foreign-operator rule |
 
-**Test risks:** key committed → CI secret-scanning on every push · tests hitting paid APIs → L1 mocks all LLM/search calls; CI fails if a test resolves a live provider without `LIVE_EGRESS=1` · dev/slice sharing keys → per-environment keys; cost dashboards tag by environment; budgets alert on unexpected spend.
+**Tests:**
+
+- key committed → CI secret-scanning on every push
+- tests hitting paid APIs → L1 mocks all LLM/search calls; CI fails if a test resolves a live provider without `LIVE_EGRESS=1`
+- dev/slice sharing keys → per-environment keys; cost dashboards tag by environment; budgets alert on unexpected spend.
 
 ## 5. Observability & cost telemetry
 
@@ -184,7 +199,12 @@ Batch jobs (L3 runs, health re-probes, reconciliation) fail by *silence* — a j
 
 **Not here:** site/user analytics (separate privacy decision, ADR-0012), model-quality metrics (funnel shifts are tripwires; the harness measures accuracy), prompt-editing UI (§3).
 
-**Test risks:** a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift · cost telemetry lies (span missing model/tokens, price map gaps) → L1 middleware tests assert every span carries model + token counts; unknown-model lookups fail loudly; L3 cost cross-checked against provider billing · dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change · alerts fire on silence, not just error → no-data conditions asserted in fixture runs.
+**Tests:**
+
+- a lane runs without spans → L1 instrumentation-completeness test; daily reconciliation alerts on event-vs-store drift
+- cost telemetry lies (span missing model/tokens, price map gaps) → L1 middleware tests assert every span carries model + token counts; unknown-model lookups fail loudly; L3 cost cross-checked against provider billing
+- dashboards silently stop (free-tier limit) → no-data alerts; OTel makes the self-hosted migration a config change
+- alerts fire on silence, not just error → no-data conditions asserted in fixture runs.
 
 ## 6. Error handling, retries & idempotency
 
@@ -201,7 +221,12 @@ Per ADR-0006 the pipeline is idempotent at every stage boundary, raw inputs reta
 
 **Ingest re-run invariant:** re-running any lane over the same sources yields the same claim set — no duplicates, at most new source-occurrences and updated provenance. Directly tested.
 
-**Test risks:** ingest re-run duplicates claims → L1 double-run test (identical counts/IDs); L2 golden re-run asserts stable fingerprints · retry ladder loops/double-fetches → L1 fixture HTTP failure modes (429, 5xx, bot-wall 200) assert bounded retries · concurrent double-writes → L1 concurrency test; unique constraints as backstop · dead lane unnoticed → L1 asserts each monitor registered; silence alerts verified pre-launch.
+**Tests:**
+
+- ingest re-run duplicates claims → L1 double-run test (identical counts/IDs); L2 golden re-run asserts stable fingerprints
+- retry ladder loops/double-fetches → L1 fixture HTTP failure modes (429, 5xx, bot-wall 200) assert bounded retries
+- concurrent double-writes → L1 concurrency test; unique constraints as backstop
+- dead lane unnoticed → L1 asserts each monitor registered; silence alerts verified pre-launch.
 
 ## 7. Schema & migration policy
 
@@ -224,7 +249,11 @@ Typed Drizzle schema in `packages/store`, shared end-to-end; migrations generate
 | Internal query/index changes, no exported-shape impact | No — CI migration + L1 suffices |
 | Funnel/dashboard changes | No — reconciliation verifies store-agreement |
 
-**Test risks:** CI/slice environment parity (version, extensions) → CI Postgres pinned to the slice host's version + extension set; L1 applies all migrations from zero on every PR · migration mutates historical rows → migration-review checklist asserted in tests (any UPDATE/DELETE on verdict/audit tables fails review) · harness/pipeline schema versions drift → L1 asserts export schema version == store schema version; mismatch fails the run before scoring.
+**Tests:**
+
+- CI/slice environment parity (version, extensions) → CI Postgres pinned to the slice host's version + extension set; L1 applies all migrations from zero on every PR
+- migration mutates historical rows → migration-review checklist asserted in tests (any UPDATE/DELETE on verdict/audit tables fails review)
+- harness/pipeline schema versions drift → L1 asserts export schema version == store schema version; mismatch fails the run before scoring.
 
 ## 8. Blind-rule isolation
 
@@ -238,7 +267,11 @@ The blind rule (EVALUATION §3): the pipeline never accesses labels; labels neve
 
 HARNESS.md owns the full mechanism. Cross-cutting commitments: the boundary is testable from L1, and no config-surface item may leak label data into pipeline configuration.
 
-**Test risks:** the boundary erodes via a "convenience" grant during debugging → L1 permission-assertion test against a migrated scratch DB (connect as pipeline role, attempt read, assert denial) — cheap and permanent · label content smuggled through config/fixtures → L1 asserts no label-typed config fields; L2 fixtures are hand-curated claims only · shared helpers import both ways → dependency-direction test runs both directions.
+**Tests:**
+
+- the boundary erodes via a "convenience" grant during debugging → L1 permission-assertion test against a migrated scratch DB (connect as pipeline role, attempt read, assert denial) — cheap and permanent
+- label content smuggled through config/fixtures → L1 asserts no label-typed config fields; L2 fixtures are hand-curated claims only
+- shared helpers import both ways → dependency-direction test runs both directions.
 
 ## 9. Environments & deployment
 
@@ -254,7 +287,12 @@ Hosting-agnostic by construction: the deployment unit is **Docker Compose** — 
 
 Deployment is deliberately boring: `docker compose up` from a versioned image tag; the compose file doubles as the deployment runbook.
 
-**Test risks:** CI/slice parity drift → pinned CI Postgres; L4b smoke after each deploy · weekly L3 silently stops → dead-man's-switch on the job heartbeat · release ships without a fresh run → L4 asserts the table's run timestamp is in the release's freshness window · dev misconfig hits the slice DB → per-environment config; L1 asserts resolved environment matches the ambient flag.
+**Tests:**
+
+- CI/slice parity drift → pinned CI Postgres; L4b smoke after each deploy
+- weekly L3 silently stops → dead-man's-switch on the job heartbeat
+- release ships without a fresh run → L4 asserts the table's run timestamp is in the release's freshness window
+- dev misconfig hits the slice DB → per-environment config; L1 asserts resolved environment matches the ambient flag.
 
 ## 10. Backups & evidence durability
 
@@ -265,7 +303,11 @@ Durable assets (ARCHITECTURE §7): verdict store, audit log, labelled datasets.
 - **Raw-document retention** (ADR-0006): the enabling cost for reprocessing.
 - **Backups**: nightly Postgres dumps, off-box (second node or object storage); restore-tested. The schedule runs **outside the election lifecycle** — backups are ordinary ops hygiene, so freeze-window crunch never competes with them.
 
-**Test risks:** backups unrestorable → scheduled restore drill (row counts + audit-log integrity asserted) · IA caching silently failing → L1 fixture test on the cache step; success-rate alert · vintages missing → L1 schema constraint (series rows require a vintage).
+**Tests:**
+
+- backups unrestorable → scheduled restore drill (row counts + audit-log integrity asserted)
+- IA caching silently failing → L1 fixture test on the cache step; success-rate alert
+- vintages missing → L1 schema constraint (series rows require a vintage).
 
 ## 11. Cost controls
 
@@ -279,7 +321,11 @@ Tiered routing (cheap bulk roles, premium verdict roles), batch APIs for ~80–9
 | Run-cost anomaly | cost/claim per stratum vs trailing baseline | anomalous stratum cost pages |
 | Batch discipline | `latency_class` routing | a realtime-lane spend spike is itself alertable |
 
-**Test risks:** runaway loop burns budget → L1 depth-bounds tests; pre-run cost projection; anomaly alert as backstop · telemetry undercounts (batch jobs, cache hits, aggregator fees) → L3 cost cross-checked against provider billing each run · L2 cost creeps up as prompts grow → L2 cost trended per run; prompt-size regressions show as L2 cost deltas.
+**Tests:**
+
+- runaway loop burns budget → L1 depth-bounds tests; pre-run cost projection; anomaly alert as backstop
+- telemetry undercounts (batch jobs, cache hits, aggregator fees) → L3 cost cross-checked against provider billing each run
+- L2 cost creeps up as prompts grow → L2 cost trended per run; prompt-size regressions show as L2 cost deltas.
 
 ## 12. Cross-cutting risk register
 | ID | Risk | Consequence if untested | Detection signal |

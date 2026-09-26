@@ -1,10 +1,29 @@
 # Architecture
 
-*Proposed design, pre-implementation. Each major decision has an ADR in [`adr/`](adr/). Diagrams are inline Mermaid (rendered natively by GitHub); PNG exports in [`diagrams/`](diagrams/).*
+*Design overview. Each major decision has an ADR in [`adr/`](adr/); the component specs are in
+[`design/`](design/). Diagrams are inline Mermaid (rendered natively by GitHub); PNG exports in
+[`diagrams/`](diagrams/).*
 
 ## 1. System context
 
-ClaimWatch sits between NZ's open political-data infrastructure and the public. Two kinds of external relationship, deliberately kept distinct: **claim sources** — publications whose claims flow *into* the pipeline and get checked — and **verifier authorities** — official data/record sources consulted as *evidence*, never treated as claims to check. A claim source is something we are prepared to disagree with; a verifier authority is something independently assessed as trustworthy for its domain (the A1–A6 map in `SOURCE-TAXONOMY.md` §2.1). A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is structural: claim-source content enters the evidence store only through claim extraction; authority content enters only as referenced evidence items. Hansard and Beehive overlap deliberately — the role is per-artefact by document type (a minister's Hansard statement is a claim source; the Hansard record of *who said what when* is also attribution evidence). The ADR-0013 proposal pathway governs what counts as an authority and what gets ingested.
+ClaimWatch sits between New Zealand's public political data and the public. It draws on two kinds
+of outside source, kept deliberately separate.
+
+A **claim source** is a publication whose claims flow *into* the pipeline to be checked — party
+releases, Hansard, news, broadcasts, user submissions. We are prepared to disagree with it.
+
+An **official source** (the docs also say *verifier authority*) is a data or record source we trust
+for one domain: Stats NZ, police data, Treasury. We consult it as evidence, and we never check it as
+if it were a claim. A Stats NZ table is not triaged for a politician's statements, and a press
+release is never treated as evidence for its own numbers.
+
+The separation is structural. Claim-source text enters the evidence store only through claim
+extraction; official data enters only as a referenced evidence item. Hansard appears on both sides
+by design: a minister's statement is a claim source, and the record of *who said what when* is also
+attribution evidence. Which sources count as official is itself open to public proposal.
+
+*References: ADR-0005, ADR-0006, ADR-0013; the A1–A6 precedence order in `SOURCE-TAXONOMY.md`
+§2.1.*
 
 ```mermaid
 flowchart TB
