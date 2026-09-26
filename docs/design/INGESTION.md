@@ -1,12 +1,16 @@
 # Ingestion design
 
-*Proposed. ADRs: 0006, 0007, 0013, 0018, 0019. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0006, 0007, 0013, 0018, 0019. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-Ingestion turns external publications into **documents with provenance** — never bare text — and hands them to triage (ADR-0006). It never writes verdicts; attribution candidates pass through, verdicts do not (ADR-0002 firewall).
+Ingestion turns outside publications into documents that carry their provenance, never bare text, and
+hands them to triage. It never writes verdicts. Attribution candidates pass through; verdicts do not.
 
-The full system defines six lanes (ADR-0006) plus an institutional lane (ADR-0018). **The slice runs five**, sampled so measured accuracy attests to media types, not a lane:
+The full system defines six lanes plus an institutional lane. The first build slice runs five of them,
+chosen so that measured accuracy speaks to the media types rather than to a single lane.
+
+*References: ADR-0002, ADR-0006, ADR-0018.*
 
 | Slice lane | Lineage | Risks exercised |
 |---|---|---|
@@ -16,25 +20,31 @@ The full system defines six lanes (ADR-0006) plus an institutional lane (ADR-001
 | 4. One institution source | ADR-0018 | R6 (claims paired with own evidence → citation-check) |
 | 5. False-context sample set | VALIDATION-SLICE (not live) | R5 (provenance mode, curated demonstration) |
 
-R7 (extraction-ladder stress) is exercised by every lane — the per-lane Tier-2 fallback rate is both by-product and the markup-drift instrument (ADR-0006).
+Every lane exercises R7 (extraction-ladder stress). The per-lane Tier-2 fallback rate is both its
+by-product and our markup-drift instrument (ADR-0006).
 
-Deferred with the slice: party pages, Hansard, user submissions, commentator watchlist, PDF lane (R4), the full institutional register.
+Deferred with the slice: party pages, Hansard, user submissions, the commentator watchlist, the PDF
+lane (R4), and the full institutional register.
 
 ## 2. Design
 
 ### 2.1 Shared pipeline shape
 
-Per ADR-0006, lanes share stages but run as separate workers:
+Lanes share the same stages but run as separate workers:
 
 ```
 [lane worker] → fetch → normalise → attribute (claimant candidates)
              → dedupe → [document record with provenance] → triage queue
 ```
 
-- **Attribution** (ADR-0019, §2.9): the `attribute` stage resolves **who is speaking** in each sentence and therefore which sentences may become claims at all. Until this was specified, every sentence was a candidate and lane 2 published a verdict about a journalist's own narration.
-- **Scheduling**: Graphile Worker per lane (STORE §2.3); job history (`graphile_worker.jobs`) feeds ADR-0012 job-health metrics.
-- **Idempotency**: every stage re-runnable; raw documents retained with `pipeline_version`; reprocessing appends, never overwrites.
-- **Extraction ladder** per document (ADR-0006):
+- **Attribution.** The `attribute` stage works out who is speaking in each sentence, and therefore
+  which sentences may become claims at all. Before this existed, every sentence was a candidate and
+  lane 2 published a verdict about a journalist's own narration (ADR-0019, §2.9).
+- **Scheduling.** One Graphile Worker per lane; job history (`graphile_worker.jobs`) feeds the
+  job-health metrics (STORE §2.3, ADR-0012).
+- **Idempotency.** Every stage can be re-run. Raw documents are kept with `pipeline_version`, and
+  reprocessing appends rather than overwrites.
+- **Extraction ladder**, per document:
 
 | Tier | Mechanism | Slice usage |
 |---|---|---|
@@ -42,27 +52,47 @@ Per ADR-0006, lanes share stages but run as separate workers:
 | 2 — LLM-assisted | schema-constrained extraction (Zod + `generateObject`) | Tier-1 failure; fallback rate logged per lane |
 | 3 — degraded | headless render retry → source marked degraded | Tier-2 failure |
 
-Tier-2 invocations persist failure-cause records (what Tier-1 attempted, which validation failed, raw snapshot, failure class) — the corpus that repairs Tier-1 parsers, captured case becoming the regression test.
-- **Fetch-from-source** (ADR-0006): server-side re-fetch happens at *verification* time; ingest fetches once and retains raw + hash.
-- **Paywall policy**: no circumvention; paywalled content is a claim source, never evidence; fair-dealing quotation with attribution.
+When Tier 2 runs, it records why Tier 1 failed: what it tried, which check failed, a raw snapshot, and
+a failure class. That corpus is what repairs the Tier-1 parsers, and each captured case becomes a
+regression test.
+
+- **Fetch from source.** The server re-fetches at verification time. Ingest fetches once and keeps
+  the raw copy and its hash (ADR-0006).
+- **Paywalls.** No circumvention. Paywalled content is a claim source, never evidence for itself, and
+  we quote it under fair dealing with attribution.
 
 ### 2.2 Lane 1 — Beehive RSS
 
-`beehive.govt.nz/rss.xml` (verified, 30 items). `fast-xml-parser` → canonical URL → fetch → readability (cheerio). Releases pair policy proposition + claimed evidence in one package — the natural R2 input; the release's own numbers are never the evidence (ADR-0005). Hourly poll; dedupe on GUID + content hash.
+`beehive.govt.nz/rss.xml` (verified, 30 items). The path is `fast-xml-parser` → canonical URL → fetch
+→ readability via cheerio. A release bundles a policy proposition with the evidence it claims, which
+makes it the natural R2 input; the release's own numbers are never the evidence for it. Hourly poll;
+dedupe on GUID and content hash.
 
 ### 2.3 Lane 2 — RNZ politics RSS
 
-`rnz.co.nz` political feed (verified, 16 items). Same path as Lane 1; its extra value is a second editorial prose style for R1 measurement. Headlines list cheaply; the slice fetches full articles at ingest, but per-item fetch stays a distinct re-runnable stage so production fetch-on-verify is a config change, not a rewrite.
+`rnz.co.nz` political feed (verified, 16 items). Same path as Lane 1. Its extra value is a second
+editorial voice to measure R1 against. The slice fetches full articles at ingest, but fetching a
+single item stays its own re-runnable stage, so moving to fetch-on-verify in production is a config
+change rather than a rewrite.
 
 ### 2.4 Lane 3 — YouTube broadcaster captions
 
 The broadcast lane per ADR-0007, exercising R3 end-to-end.
 
 - **Access posture**: low-volume, read-only, public-page caption access for specific items (single-digit requests/day), robots.txt-consistent, no redistribution. ToS compliance boundary, not a nice-to-have; fallback if challenged is publisher web text.
-- **Track discovery → tier**: enumerate `captionTracks`; read the track's own metadata. `kind:"asr"` → `transcript_tier = publisher-auto` (Tier-2, guardrails on); English track without the marker → `publisher-reviewed` (Tier-1). Provenance checked, never defaulted.
+- **Track discovery and tier.** List the item's `captionTracks` and read each track's own metadata.
+  A track marked `kind:"asr"` sets `transcript_tier = publisher-auto` (Tier-2, guardrails on); an
+  English track with no such marker is `publisher-reviewed` (Tier-1). We check provenance and never
+  assume it.
 - **Extraction**: VTT/SRT → speaker-turn-preserving text; cue timestamps are first-class fields.
 - **media_anchor** on every caption-sourced claim: `{media_url, start_s, end_s, deep_link}` — cue span ± small pad, YouTube `t=`/`end=` deep link. Renders as the site's "hear it / watch it" control.
-- **Tier-2 guardrails** (ADR-0007, non-negotiable): caption text is a **claim pointer, never evidence for a quoted number** — numerical claims verify against official series regardless of caption wording; `caption_quality` flag rides on every Tier-2 claim and verdict pages state the wording rests on unreviewed ASR; wording-critical claims get "verification limited to the quoted claim"; attribution conservative, no diarization; **no self-generated transcription anywhere** — audio-only segments are out of scope and named as a gap on the methodology page.
+- **Tier-2 guardrails** (ADR-0007, non-negotiable). Caption text is a **claim pointer, never the
+  evidence for a quoted number** — a numerical claim verifies against the official series whatever
+  the caption says. Every Tier-2 claim carries a `caption_quality` flag, and the verdict page states
+  that the wording rests on unreviewed speech recognition. Wording-critical claims get "verification
+  limited to the quoted claim". Attribution stays conservative; we do no diarization. And there is
+  **no self-generated transcription anywhere** — audio-only segments are out of scope, and the
+  methodology page names that gap.
 - **Caption revisions**: re-ingest detects a changed track hash and flags affected claims (cue span enables re-pull).
 - Volume ~20–40 items/day — small, cheap, highest-value claims in the corpus.
 
@@ -78,13 +108,23 @@ The Kākā vs NZIER (per VALIDATION-SLICE):
 | Claim profile | Housing/climate/poverty claims citable to own posts | Consensus Forecasts — heavily quoted, but forecasts are consistency-checks only |
 | Paywall | Paid + free tiers on Substack | Some member-gated |
 
-**Recommendation: The Kākā.** It delivers R6's actual test (claims paired with own evidence → citation-check) through the deterministic feed path, zero new infrastructure — the slice measures the verification mode, not scraper engineering. NZIER is the natural next institution source once the scrape path exists. Paid-tier Kākā items: ingest the truncated feed item, apply the paywall policy, never scrape around it. Advocacy-poll handling (ADR-0018) is post-slice.
+**Recommendation: The Kākā.** It delivers R6's real test — a claim paired with its own evidence,
+routed to citation-check — over the deterministic feed path, with no new infrastructure. That keeps
+the slice measuring the verification mode rather than scraper engineering. NZIER is the natural next
+institution source once a scrape path exists. For paid Kākā items, ingest the truncated feed item and
+apply the paywall policy; never scrape around it. Advocacy-poll handling is post-slice (ADR-0018).
 
 ### 2.6 Lane 5 — false-context sample set (not a live lane)
 
-A hand-curated set of ~10 known miscaptioned/false-context items — real NZ examples with documented provenance — delivered as a **versioned fixture dataset** (JSON: item URL, media URL, claimed context, verified context, provenance notes, licence status), seeded into the store with the same document-record shape as live lanes.
+A hand-curated set of about ten known miscaptioned or false-context items — real New Zealand examples
+with documented provenance — shipped as a versioned fixture dataset (JSON: item URL, media URL,
+claimed context, verified context, provenance notes, licence status). They are seeded into the store
+with the same document shape as a live lane.
 
-Purpose: demonstrate the provenance mode and produce per-stratum numbers — **no claim that false-context detection is automatable**. Explicitly not: a scheduler, fetcher, or alerting path; no lane-health registration (nothing to go stale). Its health surface is fixture validation, not liveness.
+Its job is to demonstrate the provenance mode and produce per-group numbers. It does **not** claim
+that false-context detection is automatable. It has no scheduler, fetcher, or alert path, and no
+lane-health registration, because nothing about it can go stale. Its health is fixture validation,
+not liveness.
 
 ### 2.7 Health checking (every live lane)
 
@@ -96,18 +136,25 @@ Purpose: demonstrate the provenance mode and produce per-stratum numbers — **n
 | Staleness | last-new-item age vs cadence; old items forever = stale, not healthy |
 | Escalation | retry → headless fallback → degraded → maintainer alert → public coverage page |
 
-Metrics land in Grafana; lane health is SQL views — the public coverage page renders from the same views, so ops and public cannot diverge.
+Metrics land in Grafana. Lane health is SQL views, and the public coverage page renders from those
+same views, so the ops view and the public view cannot diverge.
 
 ### 2.8 Dedupe at ingest
 
-- **Document-level**: GUID + canonical URL + content hash — the only dedupe that must run here.
-- **Claim-level** (fingerprint + embedding, repeat → source-occurrence): straddles ingestion/triage. Ingestion computes embedding inputs and occurrence records; it does not merge claims.
+- **Document level.** GUID, canonical URL, and content hash. This is the only dedupe that must run
+  here.
+- **Claim level** (fingerprint plus embedding, with a repeat becoming a source-occurrence). This
+  straddles ingestion and triage: ingestion computes the embedding inputs and the occurrence records,
+  and does not merge claims.
 
 ### 2.9 Speakership attribution and claim scope (ADR-0019)
 
-The `attribute` stage (ADR-0006; §2.1) resolves **who is speaking** in each sentence of a document, and therefore which sentences are eligible to become claims. It is a scope decision, not an entity-resolution refinement: without it, every sentence is a candidate, and a news report's narration is fact-checked as if the outlet had made a claim.
+The `attribute` stage (§2.1) works out who is speaking in each sentence of a document, and therefore
+which sentences are eligible to become claims. This is a scope decision, not a refinement of entity
+resolution. Without it every sentence is a candidate, and a news report's narration gets fact-checked
+as if the outlet had made a claim.
 
-Per sentence, exactly one class (ADR-0019 §1):
+Each sentence gets exactly one class (ADR-0019 §1):
 
 | Class | Eligible to become a claim |
 |---|---|
@@ -116,16 +163,27 @@ Per sentence, exactly one class (ADR-0019 §1):
 | `outlet-prose` — narration, editorial synthesis, scene-setting | **No** — recorded, never verified |
 | `unresolved` — quotation with no resolvable attribution | **No** — never guessed (ADR-0006) |
 
-Per document, a genre, because the rule is genre-dependent (ADR-0019 §2): press release · news report · opinion/analysis · transcript · institutional post. **Structural markup wins where it exists** — Hansard speaker markup and caption turn structure are attribution rather than inference, which is why ADR-0006 calls Hansard the cleanest claimant-entity source, and why a classified attribution is recorded as a different method with different confidence.
+Each document also gets a genre, because the rule depends on it (ADR-0019 §2): press release, news
+report, opinion/analysis, transcript, or institutional post. **Structural markup wins where it
+exists.** Hansard speaker markup and caption turn structure are attribution rather than inference,
+which is why Hansard is the cleanest claimant-entity source, and why a classified attribution is
+recorded as a different method with a different confidence.
 
-Actor scope is ADR-0019 §3: elected politicians, parties and candidates; **officials speaking for the government** (the MFAT deputy-secretary case); ADR-0018 institutions. Journalists and outlets are sources of quotation, never claimants.
+In scope (ADR-0019 §3): elected politicians, parties and candidates; officials speaking for the
+government (the MFAT deputy-secretary case); and institutional claim sources (ADR-0018). Journalists
+and outlets are sources of quotation, never claimants.
 
 Two constraints are structural rather than stylistic:
 
-- **Identity decides eligibility, never reading.** It may not fill a discourse-context field (ADR-0008), and it may not enter triage's checkability or typing decision — triage receives an eligibility flag and attribution candidates, never a person to reason about (TRIAGE §1). Verification stays party-blind.
+- **Identity decides eligibility, never reading.** It may not fill a context field (ADR-0008), and it
+  may not enter triage's checkability or typing decision. Triage receives an eligibility flag and
+  attribution candidates, never a person to reason about (TRIAGE §1). Verification stays party-blind.
 - **Attribution never guesses.** `unresolved` is excluded and counted, never promoted to a claim.
 
-Per-lane by-product: the **in-scope rate** (eligible sentences ÷ sentences read) is the scope funnel alongside `tier2_fallback_rate`. A lane whose in-scope rate collapses looks healthy on every other signal — the same shape as a feed answering 200 with no items, and it alarms the same way (ING-R17).
+One by-product per lane: the **in-scope rate** (eligible sentences divided by sentences read) sits
+alongside `tier2_fallback_rate` as a scope funnel. A lane whose in-scope rate collapses looks healthy
+on every other signal — the same shape as a feed answering 200 with no items — and it alarms the same
+way (ING-R17).
 
 ## 3. Interfaces
 
