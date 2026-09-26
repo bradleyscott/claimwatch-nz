@@ -2,69 +2,28 @@
 // packages/llm owns providers; verification depends on this interface only.
 // Deterministic scripted mock for L1; real provider wiring lands with the
 // live-run phase.
+//
+// The call shape is the shared one in `llm-port.ts`; only the role set differs.
 
-export interface LlmUsage {
-  tokensIn: number;
-  tokensOut: number;
-}
+import { ScriptedLlm } from "./llm-port.ts";
+import type { LlmPort, ScriptedResult } from "./llm-port.ts";
 
-export type LlmCallResult<T> =
-  | { ok: true; value: T; usage: LlmUsage; model: string }
-  | {
-      ok: false;
-      failureClass: "schema-validation" | "llm-refusal" | "timeout";
-      rawOutput?: string;
-      model?: string;
-    };
+export type { LlmCallResult, LlmUsage } from "./llm-port.ts";
 
-export interface VerificationLlm {
-  generateObject<T>(
-    role:
-      | "grid-materiality"
-      | "citation-compare"
-      | "quote-fidelity"
-      | "nli-audit"
-      | "open-web"
-      | "authority-classify",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>>;
-}
+/** The roles verification invokes — a closed set (CROSS-CUTTING §3, HAR-R7). */
+export type VerificationRole =
+  | "grid-materiality"
+  | "citation-compare"
+  | "quote-fidelity"
+  | "nli-audit"
+  | "open-web"
+  | "authority-classify";
 
-export class MockVerificationLlm implements VerificationLlm {
-  private constructor(
-    private readonly script: (
-      role: string,
-      input: unknown,
-    ) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
-  ) {}
+export type VerificationLlm = LlmPort<VerificationRole>;
 
-  async generateObject<T>(
-    role:
-      | "grid-materiality"
-      | "citation-compare"
-      | "quote-fidelity"
-      | "nli-audit"
-      | "open-web"
-      | "authority-classify",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>> {
-    const out = this.script(role, input);
-    if (!out.ok) {
-      return {
-        ok: false,
-        failureClass: (out.failureClass ?? "schema-validation") as "schema-validation",
-        ...(out.raw !== undefined ? { rawOutput: out.raw } : {}),
-        model: "mock-verification",
-      };
-    }
-    return {
-      ok: true,
-      value: schema.parse(out.value),
-      usage: { tokensIn: 55, tokensOut: 23 },
-      model: "mock-verification",
-    };
+export class MockVerificationLlm extends ScriptedLlm<VerificationRole> {
+  private constructor(script: (role: string, input: unknown) => ScriptedResult) {
+    super(script, "mock-verification", { tokensIn: 55, tokensOut: 23 });
   }
 
   // ---- domain-specific script builders (test support) ----

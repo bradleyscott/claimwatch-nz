@@ -1,61 +1,28 @@
 // TriageLlm port — the injectable LLM boundary for triage (ADR-0011: packages/llm
 // owns providers; pipeline depends on this interface only). L1 tests drive the
 // mock; the real provider wiring lands with the live-run phase.
+//
+// The call shape is the shared one in `llm-port.ts`; only the role set differs.
 
-export interface LlmUsage {
-  tokensIn: number;
-  tokensOut: number;
-}
+import { ScriptedLlm } from "./llm-port.ts";
+import type { LlmPort, ScriptedResult } from "./llm-port.ts";
 
-export type LlmCallResult<T> =
-  | { ok: true; value: T; usage: LlmUsage; model: string }
-  | {
-      ok: false;
-      failureClass: "schema-validation" | "llm-refusal" | "timeout";
-      rawOutput?: string;
-      model?: string;
-      /** Why generation stopped — `length` marks a truncated response. */
-      finishReason?: string;
-    };
+export type { LlmCallResult, LlmUsage } from "./llm-port.ts";
 
-export interface TriageLlm {
-  generateObject<T>(
-    role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>>;
-}
+/** The roles triage invokes — a closed set: a run manifest naming any other role
+ * is rejected (CROSS-CUTTING §3, HAR-R7). */
+export type TriageRole =
+  | "triage-checkability"
+  | "triage-typing"
+  | "triage-fingerprint"
+  | "triage-context";
+
+export type TriageLlm = LlmPort<TriageRole>;
 
 /** Deterministic scripted LLM for tests — no network, no randomness. */
-export class MockTriageLlm implements TriageLlm {
-  private constructor(
-    private readonly script: (
-      role: string,
-      input: unknown,
-    ) => { ok: boolean; value?: unknown; raw?: string; failureClass?: string },
-  ) {}
-
-  async generateObject<T>(
-    role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>> {
-    const out = this.script(role, input);
-    if (!out.ok) {
-      const failure: LlmCallResult<never> = {
-        ok: false,
-        failureClass: (out.failureClass ?? "schema-validation") as "schema-validation",
-        ...(out.raw !== undefined ? { rawOutput: out.raw } : {}),
-        model: "mock-triage",
-      };
-      return failure;
-    }
-    return {
-      ok: true,
-      value: schema.parse(out.value),
-      usage: { tokensIn: 42, tokensOut: 17 },
-      model: "mock-triage",
-    };
+export class MockTriageLlm extends ScriptedLlm<TriageRole> {
+  private constructor(script: (role: string, input: unknown) => ScriptedResult) {
+    super(script, "mock-triage", { tokensIn: 42, tokensOut: 17 });
   }
 
   static forCheckability(_sentence: string, expected: string, rejectionClass?: string): TriageLlm {

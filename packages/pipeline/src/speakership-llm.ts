@@ -1,21 +1,14 @@
 // SpeakershipLlm port — the injectable LLM boundary for the `attribute` stage
 // (ADR-0019, INGESTION §2.9).
 //
-// Same call shape and result union as `triage-llm.ts`, imported rather than
-// restated: a stage that fails to run should behave exactly like every other
-// stage that fails to run, and two structurally identical unions drift. If a
-// third port appears, the two shared types belong in a neutral `llm-port.ts`
-// rather than being imported from a module named after a different stage.
+// The shared call shape lives in `llm-port.ts` (the neutral module this file
+// previously asked for once a third port appeared).
 
-import type { LlmCallResult } from "./triage-llm.ts";
+import type { LlmCallResult, LlmPort } from "./llm-port.ts";
 
-export interface SpeakershipLlm {
-  generateObject<T>(
-    role: "speakership-classify",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>>;
-}
+export type SpeakershipRole = "speakership-classify";
+
+export type SpeakershipLlm = LlmPort<SpeakershipRole>;
 
 /** Scripted LLM for tests: a fixed answer per sentence id, no network. */
 export class MockSpeakershipLlm implements SpeakershipLlm {
