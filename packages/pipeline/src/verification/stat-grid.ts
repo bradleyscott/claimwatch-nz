@@ -57,6 +57,18 @@ function rowName(row: GridRow): string {
   return `window-${start}-${end}`;
 }
 
+/**
+ * The rows a check marked material, resolved back to `GridRow` objects.
+ *
+ * `materialRows` holds internal names (`window-2017-2026`), which are the strings the materiality
+ * LLM selects among — not `row.variant` (`2017→2026`). A consumer that filters on `variant` gets an
+ * empty list and shows a check no evidence: the live one-claim script did exactly that, and the NLI
+ * gate then (correctly) refused to publish. Resolve through here instead of matching names.
+ */
+export function materialGridRows(grid: { rows: GridRow[]; materialRows: string[] }): GridRow[] {
+  return grid.rows.filter((row) => grid.materialRows.includes(rowName(row)));
+}
+
 function citedRowName(row: GridRow): string | null {
   const m = row.variant.match(/^(\d{4})→(\d{4})$/);
   return m && m[1] && m[2] ? `raw-total-window-${m[1]}-${m[2]}` : null;

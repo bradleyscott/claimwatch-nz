@@ -20,6 +20,7 @@ import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.
 import {
   agreeOnVerdictClass,
   computeStatGrid as computeGrid,
+  materialGridRows,
   nliAudit,
   VERIFICATION_SCHEMAS,
 } from "../packages/pipeline/src/verification.ts";
@@ -137,14 +138,19 @@ async function main(): Promise<void> {
   // to record `nliOutcome: "pass"` without ever running an audit, which put a
   // gate result on a public verdict that nothing had checked (Sept 2026).
   console.log("\n[3/4] publication (NLI gate + verdict write)…");
-  const justification = `The cited window shows ${grid.grid.rows[0]?.percentChange ?? 0}% change, not 30%.`;
+  // Round to the precision the evidence carries: interpolating the raw float
+  // (11.585365853658537%) states a precision no source supports, which the NLI
+  // gate is right to reject as unsupported detail.
+  const citedChange = grid.grid.rows[0]?.percentChange;
+  const justification = `The cited window shows ${
+    citedChange != null ? `${citedChange.toFixed(1)}%` : "no computed change"
+  }, not 30%.`;
   const nli = await nliAudit(verificationLlm as never, {
     justification,
     // What the audit is given as "the evidence": the material rows the grid
     // computed, each as window + change, so the audit can ask whether the
     // justification above actually follows from them.
-    citedSpan: grid.grid.rows
-      .filter((row) => grid.grid.materialRows.includes(row.variant))
+    citedSpan: materialGridRows(grid.grid)
       .map(
         (row) =>
           `${row.axis} ${row.variant}: ${
