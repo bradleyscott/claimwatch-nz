@@ -445,7 +445,7 @@ async function main(): Promise<void> {
     };
     const domainKey = canonicalDomain(fingerprint.domain ?? fingerprint.core ?? claim.text);
     const registry = { resolveAuthority: (domain: string) => store.resolveAuthority(domain) };
-    const mode = await routeMode({ claimType: claim.claimType, domain: domainKey }, registry);
+    let mode = await routeMode({ claimType: claim.claimType, domain: domainKey }, registry);
     console.log(`  ${claim.claimType} + domain "${domainKey}" → ${mode}`);
     if (mode !== claim.mode) {
       console.log(
@@ -475,22 +475,23 @@ async function main(): Promise<void> {
       );
       return;
     }
+    // ADR-0020 rule 1: a mode that cannot run for this lane ESCALATES rather
+    // than abstaining. Each of these is a mode whose instrument this lane does
+    // not have — and open-web research is the honest substitute, not a refusal.
     if (mode === "quote-fidelity") {
       console.log(
-        "  REFUSED: quote-fidelity compares a quote against a stored caption track " +
-          "(ADR-0007). This lane ingests article text only, so there is no caption to " +
-          "anchor the claim to (INGESTION §2.4). No verdict written.",
+        "  quote-fidelity cannot run here: this lane ingests article text, so there is " +
+          "no caption track to anchor the quote to (ADR-0007) → escalated to open-web",
       );
-      return;
+      mode = "open-web";
     }
     if (mode === "stat-grid") {
       const authority = await store.resolveAuthority(domainKey);
       console.log(
-        `  REFUSED: grid authority "${authority?.authorityRef ?? "unknown"}" is registered, but ` +
-          `this lane has no series-fetch path (INGESTION §2.3: series plumbing is per-source and ` +
-          `not built), so the grid would run over nothing. No verdict written.`,
+        `  stat-grid cannot run here: authority "${authority?.authorityRef ?? "unknown"}" is ` +
+          "registered, but this lane has no series-fetch path (INGESTION §2.3) → escalated to open-web",
       );
-      return;
+      mode = "open-web";
     }
 
     // Verification-tier keys, checked at the point of use: an open-web claim
