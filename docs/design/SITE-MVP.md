@@ -1,10 +1,14 @@
 # Website MVP design
 
-*Proposed. ADRs: 0002, 0004, 0007, 0014. Companions: `WEBSITE-UX-RESEARCH.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0002, 0004, 0007, 0014. Companions: `WEBSITE-UX-RESEARCH.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The "sufficient to publicise and get feedback" surface from VALIDATION-SLICE: the discovery + presentation spine over the store — no accounts, no contestation, no submissions. It exists to (a) make the slice's verdicts publicly demoable, including the "hear it / watch it" moment, (b) open the ClaimReview JSON-LD discovery channel from day one, and (c) collect site feedback while the campaign is still building.
+This is the "enough to publicise and get feedback" surface from VALIDATION-SLICE: the discovery and
+presentation spine over the store, with no accounts, no contestation, and no submissions. It exists to
+make the slice's verdicts publicly demoable, including the "hear it / watch it" moment; to open the
+ClaimReview JSON-LD discovery channel from day one; and to collect site feedback while the campaign is
+still building.
 
 **In scope (7 components):**
 
@@ -42,10 +46,17 @@ Anything else visible in the mockups is out of scope (§1) or an open question (
 
 Two registers are a hard rule: **public layperson pages** vs **internal technical docs**. The MVP must not leak the technical register onto public pages. The methodology page is the one public page whose job is explaining the machinery — plain-English descriptions allowed, unexplained jargon and untranslated internal vocabulary not.
 
-1. **Verdict-first hierarchy, fixed order on every verdict page:** verbatim claim + attribution → verdict mark (band + pin, not a smiley meter) → one-sentence plain verdict → "as deployed" tag (one line) → hear-it control → evidence pack → trail → related claims last.
+1. **Verdict first, in a fixed order on every verdict page.** Verbatim claim and attribution → verdict
+   mark (a band and pin, not a smiley meter) → one-sentence plain verdict → "as deployed" tag (one
+   line) → hear-it control → evidence pack → trail → related claims last.
 2. **Confidence is not published yet:** the store carries a confidence field (ADR-0004) and keeps carrying it, but nothing in the pipeline computes one — every value written so far is a placeholder in the `ops/` slice scripts — and no calibration backs it, so it renders nowhere on public pages. It returns as small metadata text only, never a meter/bar/star rating/headline, once ADR-0011's adjudication step exists *and* the harness measures it (`EVALUATION.md` §3). Design says it; the tests enforce it (SIT-R6).
 3. **Claims, not persons (ADR-0002):** character statements structurally impossible in generated copy and banned in template strings. Verdict language is the ADR-0004 mapping; no degree-slider language anywhere.
-4. **Layperson language:** no "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2 caption", "stratum" on public pages. The methodology page translates each; technical terms appear only in the trail's technical record, visually secondary. This covers source quality too: on the evidence card, an item's stored source code renders as a plain-language label ("Official statistics") with a "What these labels mean" key in the same card; the raw codes stay in the technical record, as above.
+4. **Layperson language.** No "sensitivity grid", "extraction ladder", "NLI audit", "Tier-2
+   caption", or "stratum" on public pages. The methodology page translates each; elsewhere technical
+   terms appear only in the trail's technical record, visually secondary. This covers source quality
+   too: on the evidence card, an item's stored source code renders as a plain-language label
+   ("Official statistics"), with a "What these labels mean" key in the same card, and the raw codes
+   stay in the technical record.
 5. **Gaps named, not hidden:** coverage limits (audio-only sources out of scope; caption claims flagged) stated in the same plain register.
 
 ### 2.3 Verdict-page anatomy (data → section)

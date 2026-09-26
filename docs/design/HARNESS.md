@@ -1,10 +1,12 @@
 # Harness & labelling design
 
-*Proposed. ADRs: 0004, 0010. Companions: `EVALUATION.md`, `TEST-STRATEGY.md`, `VALIDATION-SLICE.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0004, 0010. Companions: `EVALUATION.md`, `TEST-STRATEGY.md`, `VALIDATION-SLICE.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The harness is the measuring instrument the slice exists to build (TEST-STRATEGY §1): labelled ground truth, blind scoring runs, published per-stratum numbers that every pipeline change must pass. It is a component with its own failure modes, so this doc specifies what it produces and how it is itself tested.
+The harness is the measuring instrument the slice exists to build (TEST-STRATEGY §1): labelled ground
+truth, blind scoring runs, and published per-group numbers that every pipeline change must pass. It is
+a component with its own failure modes, so this doc says what it produces and how it is itself tested.
 
 | Deliverable | Detail |
 |---|---|
@@ -41,9 +43,13 @@ The label schema does **not** redefine claim or verdict types — it imports the
 
 ### 2.2 Stratum grid
 
-**The tension, addressed first.** D2 wants ≥20 labels per gated stratum; the naive 5-lane × 4-mode grid needs 400 labels against a ~100 budget. Five labels per cell is statistically meaningless and the gate collapses to advisory everywhere.
+**The tension, first.** The gate wants at least 20 labels per stratum, but the obvious 5-lane × 4-mode
+grid would need 400 labels against a budget of about 100. Five labels per cell means nothing
+statistically, and the gate would collapse to advisory everywhere.
 
-**Resolution: the gate axis is the verification mode, not lane×mode.** Lane is reported for diagnosis, never gated — this is honest about the deliverable (VALIDATION-SLICE's example rows are mode-level, and the mode is what exercises the machinery).
+**The gate axis is the verification mode, not lane × mode.** Lane is reported for diagnosis, never
+gated. That is honest about the deliverable: the slice's example rows are mode-level, and the mode is
+what exercises the machinery.
 
 | Gate stratum | n | Lane feed | Verdict-mix emphasis | Gate |
 |---|---|---|---|---|
@@ -54,7 +60,13 @@ The label schema does **not** redefine claim or verdict types — it imports the
 | Provenance | 10 | Curated set only | By construction | **Advisory** (n<20) |
 | **Total** | **110** | | | 95 gated |
 
-**Claim volume is not a constant (ADR-0019).** The per-lane label budgets above were derived as though every sentence of a document yields candidate claims. Speakership scoping removes outlet narration and unresolvable attribution before a claim exists, so a news report now yields only its quoted in-scope actors — on the single article measured live, 15 of 46 sentences were potential outlet prose. These budgets must therefore be **re-derived from measured in-scope yields per lane** before the L3 run, and the sampler must record the pre-stratification natural distribution as usual so the shrinkage is visible rather than absorbed. The gate axis (mode, not lane) is unaffected.
+**Claim volume is not a constant.** The per-lane budgets above assumed every sentence of a document
+yields candidate claims. Speakership scoping removes outlet narration and unresolvable attribution
+before a claim exists, so a news report now yields only its quoted in-scope actors — on the one article
+measured live, 15 of 46 sentences were potential outlet prose. The budgets must therefore be
+**re-derived from measured in-scope yields per lane** before the L3 run, and the sampler must record
+the natural pre-stratification distribution so the shrinkage is visible rather than absorbed. The gate
+axis — mode, not lane — is unaffected.
 
 Verdict-mix targets across the gated labels: Supported ~40% (the corrective to AVeriTeC's 62%-Refuted skew) · Conflicting/Cherry-picking ~25% (the flagship class, deliberately oversampled) · NEI ~20% (abstention is a measured capability) · Refuted ~15%. If labelling yields fewer than 100 usable labels, provenance is cut first, then citation-check goes advisory — never the three core strata.
 

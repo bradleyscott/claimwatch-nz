@@ -1,6 +1,8 @@
 # Toolchain & CI guardrails
 
-*Proposed (Draft 1). ADR-0014 pins the stack; this doc pins the guardrails — the tools, rules, and pipelines every change passes before merge. Working reference: [election-night](https://github.com/bradleyscott/election-night) (same maintainer; CI shape proven in production).*
+*ADR-0014 pins the stack; this doc pins the guardrails — the tools, rules, and pipelines every change
+passes before merge. Working reference: [election-night](https://github.com/bradleyscott/election-night)
+(same maintainer; the CI shape is proven in production).*
 
 ## 1. Purpose and slice scope
 
@@ -14,7 +16,7 @@ Everything verifiable returns pass/fail in CI before merge. The verification lay
 
 Principle (the Go community's decade-long experiment): **if a tool can enforce it, a human shouldn't review it.** Formatting is never a review topic; a boundary violation is a red CI run, not a PR comment.
 
-The slice ships the *specification*. Workflow files land with the first code PR (October 2026, per CONTRIBUTING) and gate merges from that commit.
+The workflows in `.github/workflows/` implement this specification and gate merges on `main`.
 
 ## 2. Design
 
@@ -22,9 +24,9 @@ The slice ships the *specification*. Workflow files land with the first code PR 
 
 | Concern | Tool | Notes |
 |---|---|---|
-| Packages | pnpm 10, `packageManager` pinned | ADR-0014; `--frozen-lockfile` in CI |
+| Packages | pnpm 11.8.0, `packageManager` pinned | ADR-0014; `--frozen-lockfile` in CI |
 | Format + lint | Biome — one binary, both jobs | Closest TS equivalent to `gofmt`: one formatter, no style debates. Diverges from election-night's ESLint+Prettier (open question 1) |
-| Typecheck | `tsc -b` project references | `packages/store` builds first; strict; Zod schemas are the boundary types |
+| Typecheck | `tsc --noEmit` in every workspace | strict; Zod schemas are the boundary types |
 | Tests | Vitest workspace, `vitest run --forbid-only` | L1+L2 on every PR; L3/L4 cadence per TEST-STRATEGY |
 | Dependency hygiene | Dependabot (weekly Mon, 7-day cooldown, grouped) + `pnpm audit --audit-level=high` | Groups prevent PR floods; high-severity gate only |
 | Code analysis | Semgrep `p/ci` in container | |
