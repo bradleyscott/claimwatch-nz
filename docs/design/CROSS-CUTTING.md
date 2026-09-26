@@ -74,7 +74,11 @@ The harness is a *consumer* of the store and config, never of the pipeline's run
 
 **Tests:**
 
-- the map drifts from reality (a lane added without wiring its cross-cutting services) → L1 asserts each lane emits funnel events + gen_ai spans at instantiation ("instrumentation ships with the lane" is a test, not a convention); the harness couples to pipeline runtime → L1 dependency-direction test (`packages/harness` must not import `packages/pipeline`).
+- the map drifts from reality (a lane added without wiring its cross-cutting services) → L1 asserts every
+  lane emits funnel events and `gen_ai` spans when it is created — "instrumentation ships with the lane"
+  is a test, not a convention
+- the harness couples to the pipeline runtime → L1 dependency-direction test (`packages/harness` must not
+  import `packages/pipeline`)
 
 ## 2. Configuration & pinning (the reproducibility contract)
 

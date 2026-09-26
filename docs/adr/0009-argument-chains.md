@@ -68,7 +68,10 @@ The summary line is compositional and factual: *"Three of the five claims this a
 
 ## Alternatives considered
 
-- **Argument-level verdicts** (a fifth verdict class: "the argument is sound/unsound"). Rejected: evaluating reasoning validity is a materially different epistemic claim from fact-checking a statistic; it invites "the fact-checker says my argument is wrong" framing that the claims-not-persons standard exists to avoid. Compositional rendering gives readers the same information without the system adjudicating the inference.
+- **Argument-level verdicts** (a fifth class: "the argument is sound" or "unsound"). Rejected: judging
+  whether reasoning is valid is a different kind of claim from checking a statistic, and it invites the
+  "the fact-checker says my argument is wrong" framing the claims-not-persons standard exists to avoid.
+  Compositional rendering gives readers the same information without the system judging the inference.
 - **Free-form argument reconstruction** (LLM reads the whole speech and generates the argument narrative). Rejected: this is where fabricated positions come from — nodes invented, edges imagined. The store-referencing chain record with textually-anchored edges is the auditable equivalent.
 - **Chains only at campaign level** (aggregate "case for X" views, no per-publication chains). Rejected: the campaign-level view is derivable from per-publication chains by grouping; building it first would skip the grounding that makes it trustworthy.
 - **Defer entirely to post-election.** Rejected: argument chains are where the verdicts become *useful* rather than merely accurate — and contesting chains generates exactly the interaction data that improves them. Prominence is staged: per-publication chains first (week 4–5 build), cross-campaign proposition views once claim volume accumulates.
