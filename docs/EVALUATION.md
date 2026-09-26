@@ -1,10 +1,15 @@
 # Evaluation: measuring the pipeline and the community layer
 
-*Proposed. Defines the two-layer harness the project treats as its core trust asset. ADRs: 0010 (ground-truth evaluation), 0001 (automation posture), 0005 (verification modes).*
+*Defines the two-layer harness the project treats as its core trust asset. ADRs: 0010 (ground-truth
+evaluation), 0001 (automation posture), 0005 (verification modes).*
 
 ## 1. Why this is the core asset
 
-ClaimWatch has no editorial masthead; an automated verdict system that the public can mutate must earn trust another way: **published, reproducible accuracy measurement.** Every credibility question ("how do we know the AI is right?", "does the crowd make it better or worse?") gets the same answer: labelled ground truth, a blind scoring run, published numbers — refreshed with every pipeline change and labelled-set version.
+ClaimWatch has no editorial masthead, and its verdicts can be mutated by the public, so it has to earn
+trust another way: **published, reproducible measurement of its own accuracy.** Every credibility question
+— "how do we know the AI is right?", "does the crowd make it better or worse?" — gets the same answer:
+labelled ground truth, a blind scoring run, and published numbers, refreshed with every pipeline change
+and labelled-set version.
 
 The harness is **two-layer** (ADR-0010), reported separately, never blended:
 

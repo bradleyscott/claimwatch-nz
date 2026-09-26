@@ -1,6 +1,7 @@
 # Test & verification strategy
 
-*Proposed (Draft 1). Companion to `VALIDATION-SLICE.md` (slice scope) and `EVALUATION.md` (harness methodology); makes them operational — what runs when, what gates a merge, what it costs.*
+*Companion to `VALIDATION-SLICE.md` (slice scope) and `EVALUATION.md` (harness methodology). It makes
+them operational: what runs when, what gates a merge, and what it costs.*
 
 ## 1. Core principle
 
@@ -17,9 +18,18 @@ The slice's headline deliverable is the **per-stratum accuracy table** — so th
 | **L3 accuracy harness** | AVeriTeC (Layer 1) + NZ n=100 stratified (Layer 2): per-stratum accuracy, calibration, cost | Weekly + pre-release | ~$10–20/run |
 | **L4 site** | ClaimReview JSON-LD validation (every push); Playwright smoke (pre-release); methodology table generated from harness output | Every push / pre-release | Free |
 
-- **L1** covers the large deterministic surface with conventional tests: per-lane extraction fixtures (including adversarial — `kind:"asr"` tracks, malformed feeds, empty transcripts, paywalled pages), stat-grid arithmetic as pure logic (highest-complexity mode, cheapest to test exhaustively), NLI must-pass/must-fail packs, fallback-counter assertions. Everything LLM-dependent mocked.
+- **L1** covers the large deterministic surface with conventional tests: per-lane extraction fixtures
+  (including adversarial ones — `kind:"asr"` tracks, malformed feeds, empty transcripts, paywalled
+  pages), stat-grid arithmetic as pure logic (the highest-complexity mode, and the cheapest to test
+  exhaustively), NLI must-pass and must-fail packs, and fallback-counter assertions. Everything that
+  depends on an LLM is mocked.
 - **L2** snapshots verdict + confidence + evidence path + justifications for ~20 pinned claims spanning lanes and modes. Any pipeline change produces a **visible behaviour diff**, not merely "tests pass" — the cheap smoke layer catching drift between full runs.
-- **L3** is EVALUATION.md made operational: AVeriTeC + public eval script from week 1 (regression-gates the generic loop); NZ set n=100 stratified per VALIDATION-SLICE, ~30% double-labelled. **Blind rule enforced in code** — the pipeline process structurally cannot read the labels store. Runs reproducible (pinned models, vintages, published prompts); output lands in a versioned file the methodology page renders — the published number is generated, never hand-edited.
+- **L3** is EVALUATION.md made operational: AVeriTeC with the public eval script from week 1, which
+  regression-gates the generic loop, plus the NZ set of n=100 stratified per VALIDATION-SLICE, about 30%
+  double-labelled. The **blind rule is enforced in code** — the pipeline process structurally cannot read
+  the labels store. Runs are reproducible (pinned models, vintages, published prompts), and output lands
+  in a versioned file the methodology page renders, so the published number is generated, never
+  hand-edited.
 - **L4** validates ClaimReview JSON-LD in CI (malformed JSON-LD fails *silently* in the wild — it must fail loudly here), Playwright-smokes the verdict page / hear-it link / feed, and asserts the displayed accuracy table matches the harness output file.
 
 ## 3. Regression gate (proposed: per-stratum)
