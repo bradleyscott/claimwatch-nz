@@ -26,6 +26,7 @@ Ahead of the 2026 NZ general election (7 November 2026):
 
 | Doc | Covers |
 |---|---|
+| [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | The two vocabularies: everyday words for prose and public copy, internal names for code and schema. |
 | [`docs/RESEARCH-REVIEW.md`](docs/RESEARCH-REVIEW.md) | State of the art: automated fact-checking research, existing systems, community-correction evidence, NZ data infrastructure. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and per-component reasoning. |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | The two-layer evaluation harness (AVeriTeC benchmark + NZ-labelled set). |
