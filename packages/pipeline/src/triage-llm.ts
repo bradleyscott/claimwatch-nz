@@ -4,8 +4,8 @@
 //
 // The call shape is the shared one in `llm-port.ts`; only the role set differs.
 
-import { ScriptedLlm } from "./llm-port.ts";
 import type { LlmPort, ScriptedResult } from "./llm-port.ts";
+import { ScriptedLlm } from "./llm-port.ts";
 
 export type { LlmCallResult, LlmUsage } from "./llm-port.ts";
 
