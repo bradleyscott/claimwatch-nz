@@ -179,7 +179,13 @@ Two sources, deliberately: OTel events give the live view for operational alerti
 
 ### 5.3 Cost + LLM telemetry
 
-Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, latency, parent-span linkage — **tokens and model only, no cost field**. Pricing changes too often to pin at call time; cost is computed at aggregation from one price map (versioned in-repo, updated like any config), so a price change is a one-file edit that never invalidates recorded spans. That one span stream powers three views: the nested verification trace (Tempo), cost per role × model (ADR-0011 dashboard), and **cost per claim per stratum** (spans tagged with stratum labels at harness time; dashboard aggregates tokens × price ÷ claims — feeding the VALIDATION-SLICE table alongside accuracy).
+Every LLM call emits a `gen_ai.*` span: prompt, model, tokens, latency, and parent-span linkage —
+**tokens and model only, no cost field**. Prices change too often to pin a cost at call time. Instead
+cost is computed at aggregation from one price map, versioned in the repo and updated like any config,
+so a price change is a one-file edit that never invalidates recorded spans. That one span stream powers
+three views: the nested verification trace (Tempo), cost per role × model (ADR-0011 dashboard), and
+**cost per claim per group** (spans are tagged with their group at harness time; the dashboard
+aggregates tokens × price ÷ claims, feeding the VALIDATION-SLICE table alongside accuracy).
 
 ### 5.4 Scheduled jobs
 
@@ -257,9 +263,13 @@ Typed Drizzle schema in `packages/store`, shared end-to-end; migrations generate
 
 ## 8. Blind-rule isolation
 
-**Labels** = the harness's ground-truth records: the verdict label a trained labeller assigns each claim (accurate/misleading/etc. per the label grid), labeller reasoning, and inter-annotator-agreement data (HARNESS §2). They are the measuring stick — the pipeline must never see them, or it can drift toward what the labels want to hear and the harness stops measuring anything real.
+**Labels** are the harness's ground-truth records: the verdict a trained labeller assigns each claim,
+the labeller's reasoning, and the agreement data between labellers (HARNESS §2). They are the measuring
+stick. The pipeline must never see them, or it could drift toward what the labels want to hear and the
+harness would stop measuring anything real.
 
-The blind rule (EVALUATION §3): the pipeline never accesses labels; labels never change to suit the pipeline. Enforced **structurally**:
+The blind rule (EVALUATION §3) is simple: the pipeline never accesses labels, and labels never change to
+suit the pipeline. It is enforced **structurally**:
 
 - Labels live on a separate storage path with **no grants to the pipeline process identity**.
 - The harness runs as a distinct identity; nothing in `packages/harness` imports `packages/pipeline` (dependency-direction test, both directions per the attribution-firewall pattern).
