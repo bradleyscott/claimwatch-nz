@@ -36,7 +36,7 @@ const label = (over: Partial<LabelRecord> & { claimId: string }): LabelRecord =>
   ],
   labellerReasoning: "Uses 2017 low base; per-capita contradicts.",
   evidenceAvailability: "available",
-  sourceEcosystem: "T1-StatsNZ",
+  sourceEcosystem: "A1-StatsNZ",
   labellerId: "labeller-1",
   labelDate: "2026-09-08",
   schemaVersion: STORE_SCHEMA_VERSION,

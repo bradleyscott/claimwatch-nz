@@ -4,12 +4,16 @@
 //   advocacy rejection (ADR-0018), foreign-official domains (suffix matching —
 //   ".gov" must not substring-match "govt.nz"), non-https links.
 //
-// Stage 2 — LLM classification onto this module's own T1–T6 source scale (the
-// one in TIER_GUIDANCE below) with rationale + confidence. Note this is NOT
-// `docs/SOURCE-TAXONOMY.md` §2.1's evidence-authority ladder: the two share a
-// code space and disagree from T2 on, and the value written to
-// `evidence_item.tier` comes from here — so public copy must be described from
-// TIER_GUIDANCE (see apps/site/src/lib/evidence-source-labels.ts). The
+// Stage 2 — LLM classification onto this module's own source-type scale (the
+// one in TIER_GUIDANCE below) with rationale + confidence. This is NOT
+// `docs/SOURCE-TAXONOMY.md` §2.1's authority precedence order: that answers
+// which official authority is primary for a domain (A1–A6); this answers what
+// KIND of source a page is (1 official · 2 academic · 3 media · 5 sector ·
+// 6 unknown). The value written to `evidence_item.tier` comes from here, so
+// public copy is described from TIER_GUIDANCE (see
+// apps/site/src/lib/evidence-source-labels.ts). The two previously shared a
+// T1–T6 code space and disagreed from T2 on; the docs ladder was renamed to
+// A1–A6 (Sept 2026) to end the false equivalence. The
 // classifier is an LLM, honestly stated: same posture as the NLI publication
 // gate (VERIFICATION §2.7) — a gate on the worst misclassifications, calibrated
 // by harness fixtures (must-pass/must-fail authority packs at L1; audit

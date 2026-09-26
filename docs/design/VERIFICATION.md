@@ -47,7 +47,7 @@ For claims paired with their own evidence (institution lane; also any claim citi
 
 1. **Fetch the cited document** server-side (fetch-from-source; paywalled cited sources degrade to quoted-claim-only, never circumvention).
 2. **Bounded claim-vs-source comparison** — does the document say what the claim says it says (numbers, period, population, direction)? An extraction-precision task (Sonnet-class routing, harness-gated), not open-web reasoning. Whether the citation does direct or decorative argumentative work sets how strictly the check binds.
-3. **Authority discipline**: the cited document is the *object of the check*, never evidence. An NZ Initiative statistic that is statistical checks against Stats NZ via 2.2. Advocacy data is at best T6, never a verdict basis (ADR-0018).
+3. **Authority discipline**: the cited document is the *object of the check*, never evidence. An NZ Initiative statistic that is statistical checks against Stats NZ via 2.2. Advocacy data is at best A6, never a verdict basis (ADR-0018).
 4. Verdict: Supported/Refuted against the source's actual content; a mismatch is the finding, stated claim-vs-source, never as characterisation of the claimant.
 
 ### 2.4 Quote-fidelity mode
@@ -139,14 +139,14 @@ Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 
 
 ### 3.3 Search APIs (ADR-0011)
 
-- **Brave primary** (Goggles map onto T1–T6 authority restriction), **Serper fallback/bulk**. Which is primary is routing config, not code.
+- **Brave primary** (Goggles map onto A1–A6 authority restriction), **Serper fallback/bulk**. Which is primary is routing config, not code.
 - Query-level control is the requirement: black-box grounding rejected because evidence-pack reproducibility needs it for the grid and authority restriction.
 - Every call token/latency-telemetered via gen_ai spans (cost applied at aggregation from the price map — CROSS-CUTTING §5.3); queries + result URLs recorded on the pack so the retrieval path is auditable and re-runnable.
 
 ### 3.4 Official series (authority map)
 
 - Series fetched per SOURCE-TAXONOMY Part 2 with declared primary authority, alternates, denominator family.
-- **Precedence**: T1 > T2 > … > T6 — but the conflict is often the finding: verdicts cite the claim's own tier first, then the higher authority; the verdict is about the gap. Advocacy data never enters as evidence.
+- **Precedence**: A1 > A2 > … > A6 — but the conflict is often the finding: verdicts cite the claim's own tier first, then the higher authority; the verdict is about the gap. Advocacy data never enters as evidence.
 - Vintage discipline: every row carries `vintage_date`; verdicts note "as measured at publication" — recorded provenance, not an ongoing re-verification commitment (CROSS-CUTTING §10).
 - Claims citing sources outside the map → open-web loop + explicit no-pre-vetted-authority note.
 
@@ -171,7 +171,7 @@ The deterministic surface is large and cheap; the LLM surface is gated by golden
 | VER-R11 | Verdict-class boundary errors — true-but-selective labelled Refuted, or selective framing as Supported | Flagship class mis-fires both directions; calibration breaks | Boundary fixtures (selective → Conflicting; no-row-match → Refuted; thin → NEI); L3 verdict-mix vs targets catches over-refutation | L3 verdict-mix vs targets + calibration; L1 boundary fixtures | L1 + L3 |
 | VER-R12 | Confidence miscalibration | Open-question posture hollows out; abstention unmeasured | Threshold fixtures (below-threshold → open question); L3 calibration table per run | L3 calibration table; threshold fixtures; L4 open-question rendering | L1 + L3 |
 | VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims | L1 + L2 |
-| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority resolution per seeded domain; advocacy-source rejection asserted | Authority-resolution tests per domain; T6 rejection asserted | L1 |
+| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority resolution per seeded domain; advocacy-source rejection asserted | Authority-resolution tests per domain; A6 rejection asserted | L1 |
 | VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability | L1 + L3 |
 | VER-R15 | Routing misclassification | Claims land in the least reliable mode by accident; failures attributed to wrong machinery | Router fixtures over type × text patterns; routing decision stored for L3 cross-tabbing | Router fixtures; L3 lane×mode cross-tab | L1 + L3 |
 | Behavioural | — | — | ≥1 pinned claim per mode in the golden set |  | L2 |

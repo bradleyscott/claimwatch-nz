@@ -42,7 +42,7 @@ export const label = pgTable(
     labellerReasoning: text("labeller_reasoning").notNull(),
     // The temporal-leakage control (EVALUATION §7).
     evidenceAvailability: text("evidence_availability").notNull(),
-    // Which NZ sources the label rests on (T1–T6) — accuracy slices by
+    // Which NZ sources the label rests on (A1–A6) — accuracy slices by
     // source-access difficulty.
     sourceEcosystem: text("source_ecosystem").notNull(),
     labellerId: text("labeller_id").notNull(),

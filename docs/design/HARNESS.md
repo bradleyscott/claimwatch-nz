@@ -34,7 +34,7 @@ One row per label, typed against the shared objects in `packages/store`:
 | `cited_sources` | URL + archive snapshot + access date |
 | `labeller_reasoning` | explicit arithmetic/rounding, flagged assumptions, no authority-by-citation |
 | `evidence_availability` | the temporal-leakage control (EVALUATION §7) |
-| `source_ecosystem` | which NZ sources the label rests on (T1–T6) — accuracy slices by source-access difficulty |
+| `source_ecosystem` | which NZ sources the label rests on (A1–A6) — accuracy slices by source-access difficulty |
 | `labeller_id` / `label_date` / `schema_version` | provenance |
 
 The label schema does **not** redefine claim or verdict types — it imports them from `packages/store`, and any change to those shared objects is a store migration consumed by both sides in the same release. The label tables themselves are Drizzle `pgTable`s versioned in the harness's own chain (§2.4).

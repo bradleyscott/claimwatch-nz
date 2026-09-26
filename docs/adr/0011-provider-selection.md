@@ -32,7 +32,7 @@ The decisive property for verdict roles is **calibration-awareness — knowing w
 | Fingerprint extraction / triage / typing | **Gemini 3.8 Flash** ($0.75/$3.75 promo through Dec 31, 2026) — released Sep 2 | Best HLE-Verified of any model (54.9%, ahead of Fable/Opus/Sol); #1 CharXiv chart reasoning; 1M context | $0.75 / $3.75 |
 | Justification drafting | **GLM-5.3-Flash** ($0.075/$0.25 via OpenRouter; $0.15/$0.50 direct) or **Gemini 3.8 Flash** | Extreme-value tier; harness decides which passes attribution discipline | $0.075 / $0.25 |
 | Repeat-claim matching / embeddings | **Gemini 3.8 Flash** or an embedding model via Fireworks (batch 50% off) | Batch-shaped workload | ~$0.001–0.01 |
-| Search | **Brave Search API** (primary; Goggles for authority-restricted retrieval) + **Serper** (fallback/bulk) | Predictable pricing, free monthly credits, domain-reranking maps onto T1–T6 authority restriction | ~$0.005–0.05/query |
+| Search | **Brave Search API** (primary; Goggles for authority-restricted retrieval) + **Serper** (fallback/bulk) | Predictable pricing, free monthly credits, domain-reranking maps onto A1–A6 authority restriction | ~$0.005–0.05/query |
 
 **Model pricing (September 2026):**
 

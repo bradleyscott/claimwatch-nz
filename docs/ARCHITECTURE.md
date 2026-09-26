@@ -4,7 +4,7 @@
 
 ## 1. System context
 
-ClaimWatch sits between NZ's open political-data infrastructure and the public. Two kinds of external relationship, deliberately kept distinct: **claim sources** — publications whose claims flow *into* the pipeline and get checked — and **verifier authorities** — official data/record sources consulted as *evidence*, never treated as claims to check. A claim source is something we are prepared to disagree with; a verifier authority is something independently assessed as trustworthy for its domain (the T1–T6 map in `SOURCE-TAXONOMY.md` §2.1). A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is structural: claim-source content enters the evidence store only through claim extraction; authority content enters only as referenced evidence items. Hansard and Beehive overlap deliberately — the role is per-artefact by document type (a minister's Hansard statement is a claim source; the Hansard record of *who said what when* is also attribution evidence). The ADR-0013 proposal pathway governs what counts as an authority and what gets ingested.
+ClaimWatch sits between NZ's open political-data infrastructure and the public. Two kinds of external relationship, deliberately kept distinct: **claim sources** — publications whose claims flow *into* the pipeline and get checked — and **verifier authorities** — official data/record sources consulted as *evidence*, never treated as claims to check. A claim source is something we are prepared to disagree with; a verifier authority is something independently assessed as trustworthy for its domain (the A1–A6 map in `SOURCE-TAXONOMY.md` §2.1). A Stats NZ data table is never triaged as a document that might contain a politician's claims; a press release is never consulted as evidence for its own statistics. The distinction is structural: claim-source content enters the evidence store only through claim extraction; authority content enters only as referenced evidence items. Hansard and Beehive overlap deliberately — the role is per-artefact by document type (a minister's Hansard statement is a claim source; the Hansard record of *who said what when* is also attribution evidence). The ADR-0013 proposal pathway governs what counts as an authority and what gets ingested.
 
 ```mermaid
 flowchart TB
@@ -21,7 +21,7 @@ flowchart TB
         STATS["Stats NZ<br/>Aotearoa Data Explorer (SDMX/JSON)"]
         MOJ["MoJ · Police (policedata.nz)<br/>justice series"]
         ELECTORAL["Electoral Commission<br/>electoral process + party registration"]
-        OTHER["Treasury · RBNZ · Te Whatu Ora<br/>domain series per T1–T6 map"]
+        OTHER["Treasury · RBNZ · Te Whatu Ora<br/>domain series per A1–A6 map"]
     end
 
     subgraph CW["ClaimWatch (open source)"]

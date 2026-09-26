@@ -52,7 +52,7 @@ Our differentiators vs the famous sites: **fully automated verdicts, contestable
 
 ### Page 2: The evidence pack (the "show your work" layer)
 Expandable from the card; a full page for the engaged reader:
-- **What we checked against** — the specific official series / documents, linked, with the authority tier (T1–T6) shown. Our unique transparency feature: *the actual evidence authority and its provenance*, not "experts say".
+- **What we checked against** — the specific official series / documents, linked, with the authority tier (A1–A6) shown. Our unique transparency feature: *the actual evidence authority and its provenance*, not "experts say".
 - **The reasoning** — the retrieval/verification narrative in plain language, with the confidence level and what would change it.
 - **Contestation** — "Disagree? Here's how this verdict gets challenged" → the contest form (ADR-0002). Contest status displays on the card (contested → under review → verdict mutated) — the *liveness* of contestation is a trust signal no static site offers.
 

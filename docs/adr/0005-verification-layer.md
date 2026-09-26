@@ -19,7 +19,7 @@ The pack approach was rejected for a structural reason: **precomputation optimis
 
 ### The modes
 
-1. **Statistical claims — the stat engine** (the flagship): fingerprint extraction (indicator × population × geography × time window × baseline × unit) → evidence-store match / retrieval against the T1–T6 authority map (`SOURCE-TAXONOMY.md` §2) → **sensitivity grid** (window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality/averaging) → verdict. Grid axes are pre-declared and published before campaign peak — identical for every claim about an indicator; the **computation** runs at claim time over accumulated + freshly retrieved evidence. The LLM selects which grid rows are material to the claim; it never authors the grid. Verdicts: "accurate" / "accurate but incomplete — material alternatives contradict the impression" / "unverifiable" — never "false" for a true-but-selective number (per ADR-0004's schema). Presentation: chart-first, alternatives table, "as deployed" line per the claim's discourse context (ADR-0008).
+1. **Statistical claims — the stat engine** (the flagship): fingerprint extraction (indicator × population × geography × time window × baseline × unit) → evidence-store match / retrieval against the A1–A6 authority map (`SOURCE-TAXONOMY.md` §2) → **sensitivity grid** (window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality/averaging) → verdict. Grid axes are pre-declared and published before campaign peak — identical for every claim about an indicator; the **computation** runs at claim time over accumulated + freshly retrieved evidence. The LLM selects which grid rows are material to the claim; it never authors the grid. Verdicts: "accurate" / "accurate but incomplete — material alternatives contradict the impression" / "unverifiable" — never "false" for a true-but-selective number (per ADR-0004's schema). Presentation: chart-first, alternatives table, "as deployed" line per the claim's discourse context (ADR-0008).
 2. **Citation-backed claims** — fetch the cited document, bounded claim-vs-source check. Whether the citation does direct argumentative work or decorative work (ADR-0008's context) sets how strictly the check binds.
 3. **False-context / provenance mode** — for decontextualised real content (the dominant verified-disinformation class in EU-2024 analysis, 59.3%): the stored discourse window (ADR-0008) plus retrieval of the original context is the instrument.
 4. **General open-web loop** — question decomposition, multi-hop conditional retrieval, hybrid store search, confidence-capped depth (per ADR-0006's evidence-base findings), NLI justification auditing before publication. Least reliable mode; capped, labelled, most visibly open to contest.
@@ -45,9 +45,9 @@ The grid axes remain pre-declared and published before campaign peak — identic
 | Pack-design element | Disposition |
 |---|---|
 | Pre-computed evidence fields | Dropped — on-demand retrieval + accumulated store |
-| 9-pack seed build | Dropped as build work — electoral-process claims keep the fastest lane via retrieval priority (Electoral Commission as sole T1, s 199A interaction) |
+| 9-pack seed build | Dropped as build work — electoral-process claims keep the fastest lane via retrieval priority (Electoral Commission as sole A1, s 199A interaction) |
 | Sensitivity grid axes | Kept — pre-declared; computed on demand |
-| Authority map (T1–T6) | Kept — retrieval guidance configuring the loop |
+| Authority map (A1–A6) | Kept — retrieval guidance configuring the loop |
 | Series vintages + revision policy | Kept — nightly batch re-verification detects revisions |
 | Community extension of evidence | Kept, strengthened — contest evidence extends the store by definition |
 | Batch economics | Kept — verification runs are batch-shaped (ADR-0011) |

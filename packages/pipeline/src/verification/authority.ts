@@ -26,11 +26,11 @@ export function resolveAuthority(input: {
   if (input.requestedTier < 6) {
     return { primary };
   }
-  // T6 requested: the claim's own tier is cited first, then the higher
+  // A6 requested: the claim's own tier is cited first, then the higher
   // authority — the gap IS the finding (VERIFICATION §3.4).
   return {
     primary,
-    note: `claim cites ${input.requestedSource} (T6); verdict cites it first, then ${primary} — the tier gap is the finding`,
+    note: `claim cites ${input.requestedSource} (A6); verdict cites it first, then ${primary} — the tier gap is the finding`,
   };
 }
 

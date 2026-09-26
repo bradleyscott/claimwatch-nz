@@ -60,7 +60,7 @@ pnpm workspaces; TypeScript everywhere; shared Zod schemas in `packages/store` a
 - **Runtime:** Node 22 LTS, TypeScript 5.x, pnpm; `vitest` for tests; `biome` for lint/format; GitHub Actions CI (typecheck + test on PR). Guardrails spec: `docs/design/TOOLCHAIN.md`. *Amended Sept 2026: latest compatible versions in production use — Node 24 LTS, TypeScript 7.x (fallback 5.9.x if a dependency chokes), pnpm workspace throughout (pnpm is the only installer and script runner; no alternate package manager or runtime).*
 - **UI:** shadcn/ui (copy-in Radix primitives) + Tailwind, on Next.js App Router (Sept 2026). Re-skinned to the `docs/mockups/` register — the default shadcn aesthetic is wrong for a civic fact-checker; the verdict mark is composed from stock shadcn primitives. SITE-MVP's register/hierarchy rules are enforced by tests above the component layer; Radix + axe tests satisfy SIT-R9.
 - **Fetch/parse:** `fetch` (undici), `fast-xml-parser` for RSS/Atom, Playwright (TS) for the later party-lane slice, `cheerio` for HTML extraction (readability-style); PDF extraction deferred until an evidence source requires it.
-- **Search API:** per ADR-0011 — Brave primary (Goggles maps onto T1–T6 authority-restricted retrieval), Serper fallback/bulk.
+- **Search API:** per ADR-0011 — Brave primary (Goggles maps onto A1–A6 authority-restricted retrieval), Serper fallback/bulk.
 - **Config/secrets:** env + `.env` (gitignored) — no Vault.
 - **Observability:** per ADR-0012 — Grafana Cloud; OTel instrumentation over the AI SDK's middleware emitting `gen_ai.*` spans.
 

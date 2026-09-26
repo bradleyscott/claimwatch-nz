@@ -73,37 +73,46 @@ Access statuses live-probed 2026-09-07 (method in `COVERAGE.md`); "⚠️ unprob
 
 ## Part 2: Evidence authorities — the trusted-source map
 
-### 2.1 Authority tiers (defined once, applied everywhere)
+### 2.1 Authority precedence (A1–A6)
 
-| Tier | Definition | Examples | Use |
+These levels are a **precedence order for choosing the primary official authority for a policy
+domain**. They are not a source-quality grade, and they are not the source-type codes a verdict page
+prints (`1` official statistics · `2` academic research · `3` major outlet · `5` sector or advocacy ·
+`6` unknown). Those codes come from the open-web source classifier
+(`packages/pipeline/src/search/vetting.ts`), a separate scale answering a different question — what
+kind of source is this? — and assigned per source rather than per domain. A page's `T1` is therefore
+not this table's `A1`. Renamed from `T1–T6` in Sept 2026 so the shared code space stops implying the
+two are the same thing.
+
+| Level | Definition | Examples | Use |
 |---|---|---|---|
-| **T1 — Designated official statistics** | Stats NZ (the Statistics Act-designated national statistical office) | HLFS, CPI, GDP, migration, census, child-poverty stats | Primary verdict basis for statistical claims |
-| **T2 — Official administrative data** | Government agencies' administrative collections | Police recorded crime, MoJ convictions, MoE enrolments, MSD benefit numbers, Te Whatu Ora waitlists | Primary where the claim is about the administrative thing itself; secondary cross-check for survey-based claims |
-| **T3 — Official survey/research instruments** | Standalone official surveys | NZ Crime and Victims Survey (MoJ), Youth Health and Wellbeing Survey | The *other side* of denominator families (recorded crime vs victimisation) |
-| **T4 — Independent Crown monitors / central agencies** | Treasury, Productivity-style monitors, Auditor-General | Treasury forecasts, OAG reports | Fiscal and institutional-performance claims |
-| **T5 — Established research / secondary curators** | Figure NZ, IRANZ-style institutes, university research | Figure NZ chart library, NZIER | Context and pre-visualised series; never sole basis for a verdict |
-| **T6 — International comparators** | OECD, IMF, WHO, peer-country statistical offices | OECD Education at a Glance | Only for explicitly comparative claims |
+| **A1 — Designated official statistics** | Stats NZ (the Statistics Act-designated national statistical office) | HLFS, CPI, GDP, migration, census, child-poverty stats | Primary verdict basis for statistical claims |
+| **A2 — Official administrative data** | Government agencies' administrative collections | Police recorded crime, MoJ convictions, MoE enrolments, MSD benefit numbers, Te Whatu Ora waitlists | Primary where the claim is about the administrative thing itself; secondary cross-check for survey-based claims |
+| **A3 — Official survey/research instruments** | Standalone official surveys | NZ Crime and Victims Survey (MoJ), Youth Health and Wellbeing Survey | The *other side* of denominator families (recorded crime vs victimisation) |
+| **A4 — Independent Crown monitors / central agencies** | Treasury, Productivity-style monitors, Auditor-General | Treasury forecasts, OAG reports | Fiscal and institutional-performance claims |
+| **A5 — Established research / secondary curators** | Figure NZ, IRANZ-style institutes, university research | Figure NZ chart library, NZIER | Context and pre-visualised series; never sole basis for a verdict |
+| **A6 — International comparators** | OECD, IMF, WHO, peer-country statistical offices | OECD Education at a Glance | Only for explicitly comparative claims |
 
-**Precedence rule:** T1 > T2 > T3 > T4 > T5 > T6 — *but* the conflict itself is often the finding (a claim quoting administrative data while the survey series tells a different story is exactly the "skewed picture" class). Verdicts cite the claim's own tier first, then report what the higher-precedence authority says. The verdict is about the *gap*.
+**Precedence rule:** A1 > A2 > A3 > A4 > A5 > A6 — *but* the conflict itself is often the finding (a claim quoting administrative data while the survey series tells a different story is exactly the "skewed picture" class). Verdicts cite the claim's own tier first, then report what the higher-precedence authority says. The verdict is about the *gap*.
 
 ### 2.2 Authority map by election-relevant policy domain
 
 The v1 map; each row is retrieval guidance for the claim-anchored evidence store (ADR-0005). Domains are the ones where campaign claims concentrate (cross-checked against 2020/2023 campaign topic frequency). "Denominator family" lists the alternative framings the sensitivity grid must compute.
 
-| Policy domain | T1/T2 primary authorities | T3/T4 alternates | Key denominator family |
+| Policy domain | A1/A2 primary authorities | A3/A4 alternates | Key denominator family |
 |---|---|---|---|
 | **Crime & justice** | Police recorded crime (policedata.nz); MoJ conviction/case data | NZ Crime & Victims Survey (MoJ); Corrections data | recorded offences vs victim-survey prevalence; raw counts vs per-capita; resolution rates |
 | **Economy & fiscal** | Stats NZ (CPI, GDP, wage measures); Treasury (FOREs, HLY) | RBNZ (OCR, inflation expectations); NZIER | quarterly vs annual; real vs nominal; per-capita vs aggregate |
 | **Employment** | Stats NZ HLFS | MSD benefit admin data | unemployment vs employment vs underutilisation; benefit numbers vs jobseeker duration |
 | **Immigration** | Stats NZ international migration (net vs arrivals vs departures) | MBIE visa data | net vs gross; citizen vs non-citizen; annual vs rolling-12 |
 | **Housing** | Stats NZ building consents; LINZ/HUD house-price series (RBNZ also) | MSD public-housing register; KiwiBuild delivery | consents vs completions; prices vs rents; waiting list vs housed |
-| **Health** | Te Whatu Ora / MoH waitlist and treatment data; Stats NZ health indicators | NZ Health Survey (T3) | first-specialist-assessment vs treatment vs surgery; waitlist size vs wait *time*; per-capita |
-| **Education** | MoE (NCEA, attendance, roll data); ERO reports | PISA/TIMSS (T6 for comparative claims) | attendance vs achievement; raw pass rates vs cohort-based |
+| **Health** | Te Whatu Ora / MoH waitlist and treatment data; Stats NZ health indicators | NZ Health Survey (A3) | first-specialist-assessment vs treatment vs surgery; waitlist size vs wait *time*; per-capita |
+| **Education** | MoE (NCEA, attendance, roll data); ERO reports | PISA/TIMSS (A6 for comparative claims) | attendance vs achievement; raw pass rates vs cohort-based |
 | **Welfare & child wellbeing** | MSD benefit data; Stats NZ child-poverty statistics (the three official measures — BHC50, AHC50, material hardship) | Household income/outlay series | the three child-poverty measures; before/after-housing-cost |
 | **Climate & environment** | Stats NZ GHG inventory; MfE emissions; LAWA water data | Climate Change Commission advice | gross vs net emissions; production vs consumption basis; long-term vs yearly |
 | **Energy** | MBIE energy statistics; Transpower | — | generation vs capacity; wholesale price vs retail |
 | **Transport/infrastructure** | Waka Kotahi; Te Manatū Waka; National Land Transport Fund | Auditor-General reports on major projects | road deaths per capita vs per km vs per vehicle-km (Ministry of Transport series) |
-| **Primary/rural** | MPI; Beef+Lamb economic series; Stats NZ ag stats | Federated Farmers' cited research (T5) | export volumes vs values; farm-gate vs retail |
+| **Primary/rural** | MPI; Beef+Lamb economic series; Stats NZ ag stats | Federated Farmers' cited research (A5) | export volumes vs values; farm-gate vs retail |
 | **Māori outcomes** | Te Puni Kōkiri; Stats NZ (iwi data, Māori-purposed series); Oranga Tamariki | Whāiā te Māori / iwi research | ethnic-total vs Māori-purposed measures; age-standardised rates |
 | **Public service/state sector** | Public Service Commission workforce data | Treasury/DIA | headcount vs spend; per-capita admin cost |
 
@@ -116,7 +125,7 @@ The v1 map; each row is retrieval guidance for the claim-anchored evidence store
 
 - **NZ Herald Premium analysis**: covered by the paywall policy, not the authority map (a claim source, never evidence).
 - **Claims about the future** (forecasts, pledges): checkable only as *consistency* claims ("does this pledge match the published fiscal forecasts?"). Verdict vocabulary includes "pledge — not yet checkable."
-- **International claims**: rely on T6 comparators with their own revision cycles; vintage-dating mandatory.
+- **International claims**: rely on A6 comparators with their own revision cycles; vintage-dating mandatory.
 - **Domain coverage vs capacity**: v1 ships the eight highest-traffic domains fully specified (crime, economy, employment, immigration, housing, health, education, welfare); the rest are added as claim volume justifies (ADR-0005). The table above is the target state, not the v1 delivery.
 
 ---
