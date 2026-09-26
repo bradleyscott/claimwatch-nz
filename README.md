@@ -38,7 +38,6 @@ Ahead of the 2026 NZ general election (7 November 2026):
 | [`docs/USER-SUBMISSIONS.md`](docs/USER-SUBMISSIONS.md) | Intake: source-URL vs claim submission, fuzzy match, public verification requests, never-trust rule. |
 | [`docs/VALIDATION-SLICE.md`](docs/VALIDATION-SLICE.md) | The first build slice: five risk-representative lanes, per-stratum accuracy measurement, site MVP. |
 | [`docs/LEGAL-COMPLIANCE.md`](docs/LEGAL-COMPLIANCE.md) | NZ electoral law, defamation, and content-hosting obligations, with design responses. |
-| [`docs/DECISION-LOG.md`](docs/DECISION-LOG.md) | Working notes behind the ADRs; the ADRs are the stable record. |
 | [`docs/adr/`](docs/adr/) | Every significant approach decision, its alternatives, and reasoning. |
 
 ## Timeline context

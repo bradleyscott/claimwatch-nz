@@ -1,6 +1,11 @@
 # Decision log (working notes → ADRs)
 
-The running log of the design conversations that produced the ADRs, kept so the *sequence* of reasoning stays visible. ADRs are the stable record; this file is the scratch-pad that shows the path.
+> **Archived 2026-09-26.** This is the running log of the design conversations that produced the
+> ADRs, kept for the *sequence* of reasoning — not as a spec. The ADRs and `docs/design/` are the
+> operative records; nothing here should be implemented from. It is no longer in the README reading
+> order.
+
+The scratch-pad that shows the path the decisions took.
 
 ## 2025–2026 (pre-repo) — problem shaping
 

@@ -89,7 +89,7 @@ pnpm db:generate:labels      # drizzle-kit generate after a labels schema edit
 | `tools/averitec-eval/` | Pinned official Python eval script — a scoring step only, never a runtime dependency. | `tools/averitec-eval/averitec-pinned/PIN.md` |
 | `ops/` | Runnable live/acceptance scripts (`tsx`). A workspace project (`@cw/ops`) so `pnpm typecheck` covers it — it reaches into `packages/*/src` by relative path rather than package name. | `docs/VALIDATION-SLICE.md` |
 | `docs/design/` | Component specs with numbered risk IDs, test postures, open questions. | — |
-| `docs/adr/` | Decision record (stable; `docs/DECISION-LOG.md` holds working notes). | `docs/adr/README.md` |
+| `docs/adr/` | Decision record (stable). `docs/archive/DECISION-LOG.md` holds the reasoning sequence, not a spec. | `docs/adr/README.md` |
 
 ## Package boundaries
 
