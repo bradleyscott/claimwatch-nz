@@ -16,7 +16,7 @@ import { APPEND_ONLY_TABLES, createTestStore, scratchDatabaseUrl } from "./store
 //   { migrate, pool, tables, appendOnlyGuards, recordPublication, recordClaim,
 //     recordEvidenceItem, appendEvidencePack, writeVerdictV1, writeVerdictV2,
 //     logTransition, logFallback, FREEZE_WINDOW }
-import type { Store } from "./store-api.ts";
+import type { TestStore } from "./store-api.ts";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -36,7 +36,7 @@ const DATABASE_URL = requireEnv("DATABASE_URL");
 // connects to the same scratch database the store is writing.
 const SCRATCH_SUFFIX = "_store_test";
 
-let store: Store;
+let store: TestStore;
 // Reads that no store method exposes: the write path is the API under test, so
 // these assertions go straight at the row it wrote.
 let reader: Pool;

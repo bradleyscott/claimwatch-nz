@@ -14,7 +14,7 @@ import {
   runRestoreDrillCheck,
 } from "./restore-drill.ts";
 import { createTestStore, scratchDatabaseUrl } from "./store.ts";
-import type { Store } from "./store-api.ts";
+import type { TestStore } from "./store-api.ts";
 
 // No committed connection strings (Sept 2026) — same contract as
 // store.test.ts: credentials come from .env or the CI environment.
@@ -31,7 +31,7 @@ function requireEnv(name: string): string {
 
 // Own scratch source: vitest forks run suites concurrently, and another
 // suite's from-zero wipe on a shared DB corrupts the drill mid-flight.
-let store: Store;
+let store: TestStore;
 
 beforeAll(async () => {
   store = await createTestStore(DATABASE_URL, { scratchSuffix: "_drill" });

@@ -194,11 +194,28 @@ export interface FallbackEvent {
   reason: string;
 }
 
-export interface Store {
-  readonly appliedMigrations: readonly string[];
-  readonly fixtures: StoreFixtures;
-  close(): Promise<void>;
+export type AppendOnlyTable =
+  | "publication"
+  | "evidence_item"
+  | "evidence_pack"
+  | "verdict_version"
+  | "authority";
 
+/**
+ * Capability slices of the store (ISP). A consumer depends on the slice it uses,
+ * not the whole 25-method surface: the pipeline writes claims, evidence and
+ * verdicts; the site reads through `site-reader.ts`; the harness exports.
+ *
+ * The test-only surfaces — the fixture factory and the append-only probes — are
+ * deliberately NOT on `Store`; `createTestStore` returns `TestStore` which adds
+ * them, so production code cannot reach them by type.
+ */
+
+export interface MigrationState {
+  readonly appliedMigrations: readonly string[];
+}
+
+export interface PublicationWriter {
   recordPublication(fixture: PublicationFixture): Promise<{
     publicationId: string;
     contentHash: string;
@@ -207,8 +224,13 @@ export interface Store {
     pipelineVersion: string;
   }>;
   countPublications(canonicalUrl: string): Promise<number>;
+}
 
+export interface ClaimWriter {
   recordClaim(fixture: ClaimFixture): Promise<{ claimId: string } & ClaimFixture>;
+}
+
+export interface EvidenceWriter {
   recordEvidenceItem(fixture: EvidenceItemFixture): Promise<{
     itemId: string;
     version: number;
@@ -217,7 +239,9 @@ export interface Store {
     archiveSnapshotUrl: string;
   }>;
   appendEvidencePack(claimId: string, fixture: EvidencePackFixture): Promise<{ packId: string }>;
+}
 
+export interface VerdictWriter {
   writeVerdict(claimId: string, packId: string, write: VerdictWrite): Promise<VerdictRecord>;
   logTransition(
     verdictId: string,
@@ -226,26 +250,47 @@ export interface Store {
   transitions(
     verdictId: string,
   ): Promise<Array<{ from: string; to: string; at: Date; reason: string | null }>>;
+}
 
+export interface FallbackLog {
   logFallback(event: FallbackEvent): Promise<void>;
   fallbackRateByLane(): Promise<Array<{ lane: string; count: number }>>;
+}
 
-  // Authority registry (user direction Sept 2026): discovered authorities with
-  // recorded provenance; append-only like evidence vintages.
+/** Discovered authorities with recorded provenance; append-only like vintages. */
+export interface AuthorityRegistry {
   recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord>;
   resolveAuthority(domain: string): Promise<AuthorityRecord | null>;
+}
 
-  // Append-only enforcement probes (STO-R1)
-  tryUpdate(
-    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version" | "authority",
-  ): Promise<unknown>;
-  tryDelete(
-    table: "publication" | "evidence_item" | "evidence_pack" | "verdict_version" | "authority",
-  ): Promise<unknown>;
+/** Append-only enforcement probes (STO-R1). Test-only. */
+export interface AppendOnlyProbe {
+  tryUpdate(table: AppendOnlyTable): Promise<unknown>;
+  tryDelete(table: AppendOnlyTable): Promise<unknown>;
   roleCanInsert(role: string, table: string): Promise<boolean>;
   roleCanUpdate(role: string, table: string): Promise<boolean>;
   roleCanSelect(role: string, table: string): Promise<boolean>;
 }
+
+/** Fixture factory. Test-only. */
+export interface FixtureProvider {
+  readonly fixtures: StoreFixtures;
+}
+
+/** The production store: every capability, none of the test-only surface. */
+export interface Store
+  extends MigrationState,
+    PublicationWriter,
+    ClaimWriter,
+    EvidenceWriter,
+    VerdictWriter,
+    FallbackLog,
+    AuthorityRegistry {
+  close(): Promise<void>;
+}
+
+/** What `createTestStore` returns: the store plus the test-only surfaces. */
+export type TestStore = Store & FixtureProvider & AppendOnlyProbe;
 
 export interface AuthorityRecord {
   authorityId: string;

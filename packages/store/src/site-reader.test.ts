@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
 import { isEligibleSpeakership } from "./speakership.ts";
 import { createTestStore, scratchDatabaseUrl } from "./store.ts";
-import type { ClaimFixture, Store } from "./store-api.ts";
+import type { ClaimFixture, TestStore } from "./store-api.ts";
 import { TriageRecord } from "./triage-record.ts";
 
 function requireEnv(name: string): string {
@@ -31,7 +31,7 @@ const DATABASE_URL = requireEnv("DATABASE_URL");
 const SCRATCH_SUFFIX = "_site_reader";
 const SCRATCH_URL = scratchDatabaseUrl(DATABASE_URL, SCRATCH_SUFFIX);
 
-let store: Store;
+let store: TestStore;
 let reader: SiteReader;
 // Distinct content hashes for the documents the fixtures come from
 // (`publication.content_hash` is unique — STO-R13).

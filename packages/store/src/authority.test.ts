@@ -9,7 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { canonicalDomain } from "./domain.ts";
 import { createTestStore } from "./store.ts";
-import type { Store } from "./store-api.ts";
+import type { TestStore } from "./store-api.ts";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -18,7 +18,7 @@ if (!DATABASE_URL) {
   );
 }
 
-let store: Store;
+let store: TestStore;
 
 beforeAll(async () => {
   store = await createTestStore(DATABASE_URL, { scratchSuffix: "_authority" });

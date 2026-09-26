@@ -21,6 +21,7 @@ import type {
   PublicationFixture,
   Store,
   StoreFixtures,
+  TestStore,
   VerdictRecord,
   VerdictWrite,
 } from "./store-api.ts";
@@ -651,7 +652,7 @@ function scratchDatabaseName(databaseUrl: string, scratchSuffix: string): string
 export async function createTestStore(
   databaseUrl: string,
   opts?: { scratchSuffix?: string },
-): Promise<Store> {
+): Promise<TestStore> {
   let url = databaseUrl;
   if (opts?.scratchSuffix) {
     // Vitest runs files in parallel forks; every suite gets its own scratch
