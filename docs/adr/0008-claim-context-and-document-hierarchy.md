@@ -8,9 +8,16 @@
 
 A claim sentence is not self-contained. "Net migration was 55,000 last year" is a number; whether it is *misleading* depends on the discourse around it — which policy proposal it was deployed to support, what the speaker's argument rests on, whether the speaker was answering a hostile question, and what the immediately preceding sentences established. The pipeline extracts claims from documents; the research literature adds a warning that makes context a **correctness requirement of extraction itself**, not an enrichment: the decomposition literature's error taxonomy (Hu et al., "Decomposition Dilemma," NAACL 2025) identifies **omission of context** — missing key details and logical relationships — as a primary failure that distorts semantics and can make extracted claims unfaithful to what was said.
 
-The evidence base for context as a verification input is strong: Atanasova et al. (JDIQ 2019) measured +4.2 MAP from context features and +1.5 from discourse features on check-worthiness (P@5 collapsed 0.800→0.550 without context); the LIAR datasets record each statement's **context/venue** as a standard verification-relevant field; claim normalization (CheckThat! 2025, 20 languages) formalises projecting an in-context utterance into a standalone verifiable statement; stance detection treats the claim's argumentative position as text-relative and discoverable — not assumable.
+The evidence that context matters is strong. Atanasova et al. (JDIQ 2019) measured a gain of +4.2 MAP
+from context features and +1.5 from discourse features on check-worthiness, and precision at 5 collapsed
+from 0.800 to 0.550 without context. The LIAR datasets record each statement's **context and venue** as
+a standard verification field. Claim normalisation (CheckThat! 2025, 20 languages) formalises turning an
+in-context utterance into a standalone verifiable statement. And stance detection treats a claim's
+argumentative position as something to discover from the text, not assume.
 
-An earlier draft of this decision over-committed: it assumed claims arrive in interviews, always deployed in support of policy proposals, with a fixed taxonomy of discourse roles. The corrected design captures context **at three levels, all optional-typed, all published, none assumed**.
+An earlier draft over-committed: it assumed claims always arrive in interviews, always in support of a
+policy proposal, with a fixed taxonomy of discourse roles. The corrected design captures context **at
+three levels, each optional-typed, all published, nothing assumed**.
 
 ## Decision
 

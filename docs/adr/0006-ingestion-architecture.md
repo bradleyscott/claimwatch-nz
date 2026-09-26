@@ -6,7 +6,12 @@
 
 ## Context
 
-We are inside the regulated period (7 Aug 2026) with roughly eight weeks to a working system. Ingestion is where scope creep most naturally happens: Parliament TV transcription, social-platform monitoring, podcast capture are all buildable but none are essential (the broadcast question is resolved separately — ADR-0007). ADR-0013 provides the public-proposal pathway for new sources; `COVERAGE.md` holds live probe results for every source. The destination is the claim-anchored evidence store (ADR-0005), whose claimant-entity resolution needs **attributed, source-linked documents** from day one.
+We are inside the regulated period, with roughly eight weeks to a working system. Ingestion is where
+scope creep happens most naturally: Parliament TV transcription, social-platform monitoring, and podcast
+capture are all buildable, and none is essential (the broadcast question is settled separately, in
+ADR-0007). New sources come through the public-proposal pathway in ADR-0013; `COVERAGE.md` holds live
+probe results for every source. Everything feeds the claim-anchored evidence store (ADR-0005), whose
+claimant-entity resolution needs **attributed, source-linked documents** from day one.
 
 ## Decision
 
