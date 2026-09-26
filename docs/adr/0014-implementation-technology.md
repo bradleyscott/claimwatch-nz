@@ -4,7 +4,13 @@
 
 ## Context
 
-Design decisions are complete (ADRs 0001–0013). The next step is a **vertical validation slice** (`VALIDATION-SLICE.md`): end-to-end (ingest → triage → verify → store → export), small enough to run in days, whose outputs are (a) measured verification accuracy against the AVeriTeC harness, (b) measured cost per claim, and (c) a labelling dataset of real NZ claims for the ADR-0010 Layer-2 set. This ADR fixes the implementation technology choices. The governing principle, learned from ADR-0012's consolidation: **fewer moving parts that we understand beat richer stacks** — each choice below is made for the slice's actual job (measurement), not for imagined scale.
+The design decisions are complete (ADRs 0001–0013), and the next step is a **vertical validation slice**
+(`VALIDATION-SLICE.md`): end to end (ingest → triage → verify → store → export), small enough to run in
+days, producing measured verification accuracy against the AVeriTeC harness, measured cost per claim, and
+a labelling dataset of real NZ claims for the ADR-0010 Layer-2 set. This ADR fixes the implementation
+technology. The governing principle, learned from the ADR-0012 consolidation: **fewer moving parts we
+understand beat a richer stack.** Each choice below serves the slice's actual job — measurement — not
+imagined scale.
 
 ## Decision
 

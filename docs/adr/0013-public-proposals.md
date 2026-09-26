@@ -9,7 +9,9 @@
 1. **Coverage blind spots**: maintainers will not know about provincial, community, or niche outlets that matter to specific communities; the public will. Source gaps discovered after the campaign peak are expensive.
 2. **Legitimacy**: an authority map curated in private is exactly the kind of editorial power the project's open-scrutiny model tries to avoid. If the map says "Stats NZ is the authority on employment", a member of the public should be able to propose additions — and see how the decision was made.
 
-The risk that must be designed against: **poisoning**. "Suggest a source" is an open door for partisan actors proposing advocacy outlets as trusted authorities, or proposing flood-of-noise sources to skew the claim corpus. The mechanism must let the public shape *consideration*, not control *adoption*.
+The risk to design against is **poisoning**. "Suggest a source" is an open door for partisan actors to
+propose advocacy outlets as trusted authorities, or to flood the corpus with noise. The mechanism must
+let the public shape *consideration* without controlling *adoption*.
 
 ## Decision
 

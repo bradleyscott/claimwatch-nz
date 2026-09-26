@@ -4,7 +4,11 @@
 
 ## Context
 
-The pipeline uses paid model APIs and a web-search API. The selection principle: **accuracy of assessment is paramount** — no constraint against open-weights models, and no mandate to avoid commercial frontier models if affordable. Model choice per task is governed by measured performance on *our* harness, not benchmark folklore. Cost matters, but only relative to accuracy: a wrong verdict during an election costs more than any API bill.
+The pipeline uses paid model APIs and a web-search API. The selection principle is that **accuracy of
+assessment comes first**. Open-weights models are allowed; commercial frontier models are allowed if we
+can afford them. The model for each task is chosen by measured performance on *our* harness, not by
+benchmark reputation. Cost matters only relative to accuracy: a wrong verdict during an election costs
+more than any API bill.
 
 ### What the tasks require (task-performance analysis)
 
@@ -16,7 +20,9 @@ The pipeline uses paid model APIs and a web-search API. The selection principle:
 | **Evidence-pack drafting** (justification text) | Summarisation of sourced material with citations | Attribution discipline (no unattributed synthesis), cheap |
 | **Contestation validation** | Source authentication reasoning | Same profile as verdict adjudication |
 
-The decisive property for verdict roles is **calibration-awareness — knowing what it doesn't know** — more than raw benchmark score. A model that is 5% "smarter" but guesses when evidence is thin is worse for us than a slightly weaker model that abstains.
+For the verdict roles the decisive property is **calibration — knowing what it does not know** — more
+than a raw benchmark score. A model that is 5% "smarter" but guesses when the evidence is thin is worse
+for us than a slightly weaker model that abstains.
 
 ## Decision
 

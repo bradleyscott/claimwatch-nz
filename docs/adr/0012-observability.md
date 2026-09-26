@@ -6,9 +6,19 @@
 
 The pipeline has enough moving parts — six ingestion lanes, a three-tier extraction ladder, batch verification with NLI auditing, scheduled reprocessing — that without deliberate observability it fails silently. The failure modes the design already names (the silently-empty feed, markup drift, extraction gaps, cost overrun, NLI audit failures) are only visible if the pipeline emits signals about itself. Health checking (ADR-0006) defines *what* to monitor; this ADR defines *how* — the metrics, the funnel, the errors, and the tooling.
 
-The tooling question was revised twice: first from three vendors (Grafana + PostHog + Langfuse) to two (dropping Langfuse — its jobs were covered by Grafana's GenAI support plus the project's own harness and git-versioned prompts), then to **one**: Grafana Cloud alone. PostHog's retained jobs were funnel dashboards (derivable from store-SQL + Grafana), error tracking (Grafana Cloud covers exceptions via Faro/loki alerting, and our errors are server-side TypeScript where log-based grouping suffices), and logs (Loki's core job). What remained unique to PostHog was UI polish on the funnel view and a more mature exception-grouping UI — convenience, not capability, and not worth a second vendor, second free-tier limit, second SDK surface, and second account for a two-person project.
+The tooling question was revised twice. It went from three vendors (Grafana, PostHog, Langfuse) to two by
+dropping Langfuse, whose jobs were covered by Grafana's GenAI support plus our own harness and
+git-versioned prompts. Then it went to **one**: Grafana Cloud alone. PostHog's remaining jobs were funnel
+dashboards (derivable from store SQL plus Grafana), error tracking (Grafana Cloud covers exceptions, and
+our errors are server-side TypeScript where log-based grouping is enough), and logs. What stayed unique
+to PostHog was UI polish on the funnel view and a more mature exception-grouping UI — convenience, not
+capability, and not worth a second vendor, free-tier limit, SDK surface, and account for a two-person
+project.
 
-Considered and declined throughout: fully self-hosted observability (Grafana + Loki + GlitchTip on Proxmox). Declined for v1 because build/maintenance effort competes directly with the eight-week pipeline build, and telemetry is not claim content — the foreign-inference rule does not bind it. Revisit if free-tier limits bite mid-campaign (migration cost is low because instrumentation is OpenTelemetry — see decision).
+We also considered fully self-hosted observability (Grafana, Loki, and GlitchTip on Proxmox) and declined
+it for v1: the build and maintenance effort competes directly with the eight-week pipeline build, and
+telemetry is not claim content, so the foreign-inference rule does not bind it. Revisit if free-tier
+limits bite mid-campaign; migration is cheap because the instrumentation is OpenTelemetry.
 
 ## Decision
 
