@@ -4,14 +4,24 @@
 
 ## Context
 
-The project's core risk class: **statistics quoted accurately but painting a convenient, incomplete, or skewed picture** ("crime up 30% since 2017" — true number, selective framing). This class dominates campaign material, and standard open-web fact-checking handles it poorly because the claim sentence itself is not false (the taxonomy work behind this is in `MISINFO-TAXONOMY.md`). NZ has unusually good open statistical infrastructure (Stats NZ Aotearoa Data Explorer, Infoshare, Figure NZ, MoJ, LAWA).
+The project's core risk class is a **statistic quoted accurately to paint a convenient, incomplete, or
+skewed picture** — "crime up 30% since 2017", a true number with selective framing. This class dominates
+campaign material, and standard open-web fact-checking handles it badly, because the claim sentence
+itself is not false (`MISINFO-TAXONOMY.md`). New Zealand has unusually good open statistical
+infrastructure: Stats NZ's Aotearoa Data Explorer and Infoshare, Figure NZ, MoJ, LAWA.
 
-Two architectures were considered across the design phase:
+Two architectures were considered during the design phase.
 
-1. **Pre-computed topic packs** — evidence fields per indicator built ahead of time, claims resolving by lookup.
-2. **A claim-anchored evidence store** — verify claim-by-claim; accumulate evidence into a shared store; let indicator-level structure emerge from claim traffic.
+1. **Pre-computed topic packs.** Build an evidence field per indicator ahead of time; a claim resolves by
+   lookup.
+2. **A claim-anchored evidence store.** Verify claim by claim, accumulate evidence in a shared store, and
+   let indicator-level structure emerge from claim traffic.
 
-The pack approach was rejected for a structural reason: **precomputation optimises for a prediction — which indicators will be claimed, and in which framings — that cannot be verified in advance.** A pack built around an indicator may miss the framing a claimant actually uses (framings are not indicator-shaped), and every pack for an unquoted indicator is wasted effort. The claim-detection pipeline predicts claims; it doesn't observe them.
+The pack approach was rejected for a structural reason: **precomputation bets on a prediction that
+cannot be checked in advance** — which indicators will be claimed, and in which framings. A pack built
+around an indicator can miss the framing a claimant actually uses, because framings are not
+indicator-shaped, and every pack for an indicator nobody quotes is wasted effort. The pipeline can
+predict claims; it cannot observe them.
 
 ## Decision
 
@@ -19,16 +29,31 @@ The pack approach was rejected for a structural reason: **precomputation optimis
 
 ### The modes
 
-1. **Statistical claims — the stat engine** (the flagship): fingerprint extraction (indicator × population × geography × time window × baseline × unit) → evidence-store match / retrieval against the A1–A6 authority map (`SOURCE-TAXONOMY.md` §2) → **sensitivity grid** (window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality/averaging) → verdict. Grid axes are pre-declared and published before campaign peak — identical for every claim about an indicator; the **computation** runs at claim time over accumulated + freshly retrieved evidence. The LLM selects which grid rows are material to the claim; it never authors the grid. Verdicts: "accurate" / "accurate but incomplete — material alternatives contradict the impression" / "unverifiable" — never "false" for a true-but-selective number (per ADR-0004's schema). Presentation: chart-first, alternatives table, "as deployed" line per the claim's discourse context (ADR-0008).
+1. **Statistical claims — the stat engine**, the flagship. Fingerprint extraction (indicator, population,
+   geography, time window, baseline, unit) → match or retrieve against the A1–A6 authority map
+   (`SOURCE-TAXONOMY.md` §2) → **sensitivity grid** (window variants with endpoint-trick detection, raw
+   against per-capita, denominator family, comparison cohorts, seasonality) → verdict. The grid axes are
+   pre-declared and published before the campaign peak, identical for every claim about an indicator;
+   only the **computation** runs at claim time, over accumulated and freshly retrieved evidence. The LLM
+   selects which grid rows are material to the claim and never writes the grid. Verdicts are "accurate",
+   "accurate but incomplete — material alternatives contradict the impression", or "unverifiable" — never
+   "false" for a true but selective number (ADR-0004). The page is chart-first, with an alternatives table
+   and an "as deployed" line from the claim's context (ADR-0008).
 2. **Citation-backed claims** — fetch the cited document, bounded claim-vs-source check. Whether the citation does direct argumentative work or decorative work (ADR-0008's context) sets how strictly the check binds.
 3. **False-context / provenance mode** — for decontextualised real content (the dominant verified-disinformation class in EU-2024 analysis, 59.3%): the stored discourse window (ADR-0008) plus retrieval of the original context is the instrument.
 4. **General open-web loop** — question decomposition, multi-hop conditional retrieval, hybrid store search, confidence-capped depth (per ADR-0006's evidence-base findings), NLI justification auditing before publication. Least reliable mode; capped, labelled, most visibly open to contest.
 
 ### The claim-anchored evidence store (replacing pre-computed packs)
 
-Every verified claim deposits: the claim record (text, fingerprint, speaker, date, source), the evidence retrieved (series, documents, URLs, **vintages**), the grid computation result, the verdict and audit trail. Later claims on similar territory match by fingerprint + embedding and **resume retrieval rather than restarting**. Indicator-level structure emerges from claim traffic; the store organises itself around what was actually disputed.
+Every verified claim deposits the claim record (text, fingerprint, speaker, date, source), the evidence
+retrieved (series, documents, URLs, **vintages**), the grid result, the verdict, and the audit trail.
+Later claims on similar ground match by fingerprint and embedding, and **resume retrieval rather than
+restarting it**. Indicator-level structure emerges from claim traffic: the store organises itself around
+what was actually disputed.
 
-**Cold start is honest**: early claims pay full retrieval cost; the store warms as the campaign proceeds — visible in the published methodology rather than hidden by precomputation. **The store is the asset**: validated evidence chains organised by claim, growing with the campaign.
+**Cold start is honest.** Early claims pay the full retrieval cost, and the store warms as the campaign
+proceeds — visible in the published methodology rather than hidden by precomputation. **The store is the
+asset**: validated evidence chains organised by claim, growing with the campaign.
 
 ### Grid axes and the "reasonable alternatives" defence
 
