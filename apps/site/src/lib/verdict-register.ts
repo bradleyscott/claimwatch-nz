@@ -38,22 +38,21 @@ export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string
   {
     term: "name@version",
     meaning:
-      "which set of instructions a step ran, and which version of them, written the way our system recorded it. A new number means the instructions changed; the version before it is kept, so a verdict can always be re-checked against the instructions that produced it. The section it sits under is where it belongs in the check.",
+      "the instructions a step ran, and their version, as our system recorded them. A new number means the instructions changed. The old version is kept, so any verdict can be re-checked against the instructions that made it.",
   },
   {
     term: "source type codes",
     meaning:
-      "a one-letter code saying what kind of source each one is — official statistics, academic research, a major newsroom. The plain-language key to these codes is on the evidence card above; the codes themselves are what the check wrote down.",
+      "a code for the kind of source: official statistics, academic research, a major newsroom. The plain-language key is on the evidence card above; the codes are what the check wrote down.",
   },
   {
     term: "PUBLISHED",
     meaning:
-      "the state the verdict is in. This page says PUBLISHED once it is live and public, CONTESTED once someone has challenged it, and FROZEN once it is locked for the election period — from 5 Nov 2026 until the results are declared.",
+      "the state of the verdict. PUBLISHED means it is live and public; CONTESTED means someone has challenged it; FROZEN means it is locked for the election period — from 5 Nov 2026 until the results are declared.",
   },
   {
     term: "not recorded",
-    meaning:
-      "we hold nothing for that field, so the record says so rather than filling the gap with a guess — what a section shows when nothing was written down for it.",
+    meaning: "we hold nothing for that field. It says so rather than guessing.",
   },
 ];
 

@@ -485,7 +485,10 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
     // Field names are the STORED ones — the two contracts differ, and nothing but
     // this boundary maps between them.
     expect(claim?.discourseContext.argumentDirection).toBe("problem");
-    expect(claim?.discourseContext.speechContext).toBe("Minister");
+    // The stored field is the VENUE, and the mock supplies no venue: the speaker
+    // the context pass reads is attribution, which the `attribute` stage owns.
+    // Writing it here is what printed "Mark Mitchell, Mark Mitchell" on the page.
+    expect(claim?.discourseContext.speechContext).toBeNull();
     expect(claim?.discourseContext.policyTopic).toBe("housing");
   });
 

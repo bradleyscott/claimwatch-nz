@@ -20,6 +20,7 @@ const input = (
   claimId: "c1",
   claimText: "Crime is up 30% since 2017.",
   speaker: "Hon Sample Minister",
+  speakerVenue: "at a press conference",
   speakerAffiliation: "National",
   publishedAt: new Date("2026-09-08"),
   confidence: 0.72,
@@ -256,8 +257,8 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     // figures must not be explained with a citation check's copy, or vice versa.
     const statGrid = recorded({ verdictClass: "supported", verificationMode: "stat-grid" });
     const check = statGrid.trail.sections.find((s) => s.kind === "check");
-    expect(check?.title).toBe("How this claim was checked: official figures");
-    expect(check?.facts.join(" ")).toContain("agency that keeps that record");
+    expect(check?.title).toBe("How it was checked: official figures");
+    expect(check?.facts.join(" ")).toContain("official figures for it");
     expect(check?.facts.join(" ")).not.toContain("recording");
 
     const quote = recorded({
@@ -272,7 +273,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       evidence: [],
     });
     const quoteCheck = quote.trail.sections.find((s) => s.kind === "check");
-    expect(quoteCheck?.title).toBe("How this claim was checked: the recording");
+    expect(quoteCheck?.title).toBe("How it was checked: the recording");
     expect(quoteCheck?.facts.join(" ")).toContain("recording or transcript");
   });
 
@@ -307,7 +308,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     const { trail } = recorded({ verdictClass: "supported" });
     const read = trail.sections.find((s) => s.kind === "read");
     expect(read?.facts[0]).toBe(
-      "11 sentences in the document this claim came from were read and classified. 1 became a claim; the rest could not be graded.",
+      "We read and classified 11 sentences from the document this claim came from. 1 became a claim; the rest could not be graded.",
     );
     expect(read?.asides.map((a) => a.sentenceText)).toEqual([
       "Communities deserve to feel safe.",
@@ -377,7 +378,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       evidence: [],
     });
     const check = trail.sections.find((s) => s.kind === "check");
-    expect(check?.facts.join(" ")).toContain("could not be located in any record");
+    expect(check?.facts.join(" ")).toContain("could not be found");
     expect(check?.facts.join(" ")).toContain("could not run");
     expect(check?.absent).toBe(false); // the MODE is known; the comparison is not
   });
@@ -392,7 +393,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(check?.absent).toBe(true);
     expect(check?.bound).toBeNull();
     // It says what is missing rather than describing a check it cannot name.
-    expect(check?.facts.join(" ")).toContain("does not hold a record of which kind of check");
+    expect(check?.facts.join(" ")).toContain("We have no record of which kind of check");
     expect(check?.technical).toContain("check not recorded");
   });
 
@@ -429,7 +430,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     const read = trail.sections.find((s) => s.kind === "read");
     expect(read?.absent).toBe(true);
     expect(read?.asides).toEqual([]);
-    expect(read?.facts.join(" ")).toContain("cannot say how much of that document");
+    expect(read?.facts.join(" ")).toContain("cannot say how much of the document");
     expect(read?.technical).toContain("sentences not recorded");
   });
 
@@ -443,14 +444,14 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
 
     const passed = recorded({ verdictClass: "supported", nliOutcome: "pass" });
     expect(passed.trail.sections.find((s) => s.kind === "gate")?.facts.join(" ")).toContain(
-      "agreed with all of the reasoning",
+      "agreed with the reasoning",
     );
   });
 
   it("warns when the wording came from an automatic transcript", () => {
     const { trail } = recorded({ verdictClass: "supported", transcriptTier: "publisher-auto" });
     expect(trail.sections.find((s) => s.kind === "gate")?.facts).toContain(
-      "The claim's wording came from an automatic transcript and can contain errors.",
+      "This wording comes from an automatic transcript and may contain errors.",
     );
     // And it is not said when the transcript was reviewed.
     const { trail: reviewed } = recorded({ verdictClass: "supported" });
@@ -611,7 +612,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       // The heading is built from the site's own plain-language label, so an
       // internal id can never become a public heading by being interpolated.
       const label = MODE_DESCRIPTIONS[mode]?.label.toLowerCase() ?? "";
-      expect(check?.title, mode).toBe(`How this claim was checked: ${label}`);
+      expect(check?.title, mode).toBe(`How it was checked: ${label}`);
       // The explanatory copy is ours; the recorded id stays on the audit line,
       // where provenance belongs.
       const copy = [...(check?.facts ?? []), check?.bound ?? ""].join(" ");

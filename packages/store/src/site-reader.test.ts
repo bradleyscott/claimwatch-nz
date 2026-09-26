@@ -175,7 +175,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     // Attribution and context ride in jsonb, so these assert the path
     // extraction still lands on the fields the page renders.
     expect(page?.speaker).toBe("Hon Sample Minister");
-    expect(page?.speakerAffiliation).toBe("said in the House");
+    expect(page?.speakerVenue).toBe("said in the House");
     expect(page?.attachedProposal).toBe("tougher sentencing");
     expect(page?.verdictClass).toBe("refuted");
     expect(page?.confidence).toBeCloseTo(0.72);

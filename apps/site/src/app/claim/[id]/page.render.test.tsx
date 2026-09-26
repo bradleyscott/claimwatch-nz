@@ -18,6 +18,7 @@ const pageData = {
   claimId,
   claimText: "Crime is up 30% since 2017.",
   speaker: "Hon Sample Minister",
+  speakerVenue: "at a press conference",
   speakerAffiliation: "National",
   publishedAt: new Date("2026-09-09T10:12:00+12:00"),
   verdictClass: "conflicting_cherry_picking" as const,
@@ -251,10 +252,10 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("Checked 9 Sept 2026 — the day after the claim");
     // ...and carries all five sections, in order, in jargon-free titles.
     const headings = [
-      "What else was in the document, and what we did not check",
-      "Which check this claim was given",
-      "How this claim was checked: official figures",
-      "What we compared it against",
+      "What else was in the document",
+      "The check this claim got",
+      "How it was checked: official figures",
+      "Sources we used",
       "Decided and published",
     ];
     const positions = headings.map((heading) => html.indexOf(heading));
@@ -274,7 +275,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("check stat-grid");
     // What this check cannot establish — the bound, which no mode may omit.
     expect(html).toContain("What this check cannot establish");
-    expect(html).toContain("Establish that one thing caused another.");
+    expect(html).toContain("Show that one thing caused another.");
     // The sentences we did not check, with a plain reason instead of the class.
     expect(html).toContain("Communities deserve to feel safe.");
     expect(html).toContain("A judgement about fairness or importance");
@@ -288,12 +289,12 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     );
     expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
     expect(html).toContain("The cited window shows +11.6%, per-capita +1.9%.");
-    expect(html).toContain("agreed with all of the reasoning");
+    expect(html).toContain("agreed with the reasoning");
     // ...and the key that explains the values those audit lines print — the
     // labels are plain words, so only the opaque forms need defining — is in the
     // same server-rendered response, not behind a script.
     expect(html).toContain("What these values mean");
-    expect(html).toContain("which set of instructions a step ran");
+    expect(html).toContain("the instructions a step ran");
     expect(html).toContain("locked for the election period");
     // ...and the audit line is in the reader's default view: no control to
     // reveal it, nothing collapsed, nothing fetched client-side.
@@ -309,8 +310,8 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // This is the state every verdict written before Sept 2026 is in. The page
     // says what it does not hold; it does not describe a check it cannot name.
     expect(html).toContain("data-trail-absent");
-    expect(html).toContain("does not hold a record of which kind of check");
-    expect(html).toContain("cannot say how much of that document");
+    expect(html).toContain("We have no record of which kind of check");
+    expect(html).toContain("cannot say how much of the document");
     expect(html).toContain("check not recorded");
     expect(html).toContain("sentences not recorded");
     // And it never invents the bound for a check it could not identify.

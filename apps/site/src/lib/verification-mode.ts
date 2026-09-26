@@ -33,50 +33,47 @@ export const MODE_DESCRIPTIONS: Record<string, ModeDescription> = {
   "stat-grid": {
     label: "Official figures",
     whatItDoes:
-      "Compares the claim's number against the agency that keeps that record, over several readings of the same series — and keeps every reading, including the ones that contradict the claim.",
-    chosenWhen:
-      "Used when the claim states a number over a period and an official series covers that number.",
+      "Checks the number against the official figures for it, and shows every reading of those figures — including the ones that disagree with the claim.",
+    chosenWhen: "The claim states a number over a period, and official figures cover it.",
     cannot:
-      "Establish that one thing caused another. It shows when two things happened relative to each other, which is the strongest thing a series can say and is still not proof of cause.",
-    checkItYourself: "the linked series and the vintage date on each source below.",
+      "Show that one thing caused another. It can show that two things changed at the same time; it cannot show that one caused the other.",
+    checkItYourself: "the linked figures, and the date recorded on each source below.",
   },
   "citation-check": {
     label: "The source it cites",
     whatItDoes:
-      "Reads the document the claim rests on — rather than searching around it — and asks whether the claim uses it the way the document uses it.",
-    chosenWhen:
-      "Used when the claim names, or clearly rests on, a document or an institution's record.",
+      "Reads the document the claim rests on, and checks whether the claim uses it the way the document does.",
+    chosenWhen: "The claim names a document, or clearly rests on one.",
     cannot:
-      "Judge a document it cannot obtain. Where the cited source is paywalled or unreachable, the page says the claim was checked against its own wording and nothing else.",
-    checkItYourself: "the quoted passage from the cited document, linked in the section above.",
+      "Judge a document it cannot get. If the cited source is paywalled or unreachable, this page says the claim was checked against its own wording and nothing else.",
+    checkItYourself: "the quoted passage from the cited document, linked above.",
   },
   "quote-fidelity": {
     label: "The recording",
     whatItDoes:
-      "Compares the claim's wording against the recording or transcript it reports, and says first whether the words could be found at all.",
-    chosenWhen: "Used when the claim is about what someone said.",
+      "Checks the claim's wording against the recording or transcript it reports, and says first whether the words were found at all.",
+    chosenWhen: "The claim is about what someone said.",
     cannot:
-      "Check a quotation that no published record contains. A quotation that cannot be located is reported as exactly that — not as a misreport.",
-    checkItYourself: "the clip link on this page, which jumps to the moment in the recording.",
+      "Check a quotation that appears in no published record. If the words cannot be found, this page says so — it does not say the person was misreported.",
+    checkItYourself: "the clip link on this page, which jumps to that moment.",
   },
   provenance: {
     label: "The context it carries",
     whatItDoes:
-      "Establishes what the claim is presented as — which event, image, document or date — and tests whether the thing presented actually is that.",
-    chosenWhen:
-      "Used when a claim is attached to an event, image, document or date it may not belong to.",
+      "Checks what the claim is presented as — which event, image, document or date — and whether that is really what it is.",
+    chosenWhen: "The claim is attached to an event, image, document or date it may not belong to.",
     cannot:
-      "Say why a wrong attachment was made. The record supports which event something is from; it does not support a claim about anyone's intent.",
+      "Say why someone attached it wrongly. The record can show which event something comes from; it cannot show anyone's intent.",
     checkItYourself: "the linked original and its earliest publication date.",
   },
   "open-web": {
     label: "Open-web research",
     whatItDoes:
-      "Turns the claim into questions that published evidence could answer, searches for those, and reports what it found — including what it found and set aside.",
+      "Turns the claim into questions that published evidence could answer, searches for it, and reports what it found — including what it set aside.",
     chosenWhen:
-      "Used when no official series covers the claim and it names no document or recording. This is the fallback, and the check most claims receive.",
+      "No official figures cover the claim, and it names no document or recording. This is the fallback, and the most common check.",
     cannot:
-      "Establish a fact nobody has published, and cannot establish cause. It reports what is published and where the searching stopped — an absence of evidence is reported as an absence, never as evidence a claim is false.",
+      "Find a fact nobody has published, or show that one thing caused another. It reports what is published and where the searching stopped: no evidence is reported as no evidence, never as proof the claim is false.",
     checkItYourself: "the sources below, each linked with the date we fetched it.",
   },
 };
@@ -89,17 +86,15 @@ export const MODE_DESCRIPTIONS: Record<string, ModeDescription> = {
  */
 export const CLAIM_TYPE_READING: Record<string, string> = {
   statistical:
-    "a number stated over a period, with an official series covering that number — so no search, no cited document and no recording was needed.",
-  "citation-backed":
-    "a claim resting on a source it names — so the source itself could be read rather than searched for.",
+    "a number stated over a period, with official figures covering it — so no search and no document were needed.",
+  "citation-backed": "a claim resting on a source it names — so the source could be read directly.",
   "institution-citation":
-    "a claim about an institution's own record — so the institution's own published record could be read.",
-  "broadcast-quote":
-    "a claim about what someone said — so the recording could be checked directly.",
+    "a claim about an institution's own record — so that record could be read directly.",
+  "broadcast-quote": "a claim about what someone said — so the recording could be checked directly.",
   "false-context":
-    "a claim attached to an event, image or document — so the attachment could be tested against the record.",
+    "a claim attached to an event, image or document — so the attachment could be checked against the record.",
   other:
-    "a statement of fact with no named source, no quotation behind it and no official series covering it — so it was searched for, which is the fallback rather than the first choice.",
+    "a factual statement with no named source, no quotation and no official figures — so it was searched for.",
 };
 
 /** The typing a claim got, when the store holds no mode of its own. */

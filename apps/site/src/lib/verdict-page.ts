@@ -91,6 +91,9 @@ export interface VerdictPageInput {
   claimId: string;
   claimText: string;
   speaker: string | null;
+  /** Where or on what occasion the words were said (venue). Never the speaker. */
+  speakerVenue: string | null;
+  /** The speaker's affiliation (party/role), from the entity record. */
   speakerAffiliation: string | null;
   publishedAt: Date;
   verdictClass: VerdictClass;

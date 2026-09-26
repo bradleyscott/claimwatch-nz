@@ -72,6 +72,7 @@ export default async function ClaimPage({
     claimId: data.claimId,
     claimText: data.claimText,
     speaker: data.speaker,
+    speakerVenue: data.speakerVenue,
     speakerAffiliation: data.speakerAffiliation,
     publishedAt: data.publishedAt,
     verdictClass: data.verdictClass,
@@ -153,6 +154,7 @@ export default async function ClaimPage({
           <div className="mt-4 text-[13.5px] text-muted-foreground">
             <b className="font-semibold text-foreground">{data.speaker}</b>
             {data.speakerAffiliation ? <>, {data.speakerAffiliation}</> : null}
+            {data.speakerVenue ? <> · {data.speakerVenue}</> : null}
             {/* The claim's own date, rendered only when the store holds one.
                 `claimDate` falls back to the verdict's publication date for the
                 ClaimReview payload (which requires a date), but showing that

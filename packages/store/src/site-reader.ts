@@ -49,6 +49,7 @@ export const VerdictPageData = z.object({
   claimId: z.string(),
   claimText: z.string(),
   speaker: z.string().nullable(),
+  speakerVenue: z.string().nullable(),
   speakerAffiliation: z.string().nullable(),
   publishedAt: z.coerce.date(),
   verdictClass: z.enum([
@@ -311,8 +312,13 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           // (STORE §2.1, ADR-0014) — the COLUMN is bound through the schema, so
           // a rename still fails typecheck; only the JSON keys are literals here.
           attachedProposal: sql<string | null>`${s.claim.discourseContext}->>'attachedProposal'`,
+          // The VENUE (where/on what occasion the words were said) — never the
+          // speaker. See `toStoredDiscourseContext` in the pipeline.
           speechContext: sql<string | null>`${s.claim.discourseContext}->>'speechContext'`,
           speakerName: sql<string | null>`${s.claim.attributionCandidates}->0->>'name'`,
+          // The speaker's AFFILIATION is entity information, not context: it comes
+          // from `claimant_entity`, joined by the attributed name.
+          speakerAffiliation: s.claimantEntity.affiliation,
           transcriptTier: s.claim.transcriptTier,
           claimType: s.claim.claimType,
           speakershipClass: s.claim.speakershipClass,
@@ -341,6 +347,10 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         })
         .from(s.claim)
         .leftJoin(s.publication, eq(s.publication.publicationId, s.claim.publicationId))
+        .leftJoin(
+          s.claimantEntity,
+          sql`${s.claimantEntity.name} = ${s.claim.attributionCandidates}->0->>'name' and ${s.claimantEntity.kind} = 'person'`,
+        )
         .innerJoin(latestVerdict, eq(latestVerdict.claimId, s.claim.claimId))
         .innerJoin(
           s.verdictVersion,
@@ -408,7 +418,15 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         claimId: row.claimId,
         claimText: row.claimText,
         speaker: row.speakerName ?? null,
-        speakerAffiliation: row.speechContext ?? null,
+        // A venue that merely repeats the speaker is not a venue. Rows written
+        // before Sept 2026 stored the context pass's speaker in this field, which
+        // printed the name twice ("Mark Mitchell, Mark Mitchell"); claims are
+        // write-once, so the read path is where that bad value gets dropped.
+        speakerVenue:
+          row.speechContext != null && row.speechContext !== row.speakerName
+            ? row.speechContext
+            : null,
+        speakerAffiliation: row.speakerAffiliation ?? null,
         transcriptTier: row.transcriptTier ?? null,
         publishedAt: row.publishedAt,
         verdictClass: row.verdictClass,

@@ -340,7 +340,7 @@ function readSection(
       title: "What else was in the document",
       when: whenLabel(span),
       facts: [
-        "This claim came out of a longer document. We do not hold a record of which other sentences were read and set aside for it, so this page cannot say how much of that document the verdict speaks to.",
+        "This claim came out of a longer document. We have no record of which other sentences were read and set aside, so this page cannot say how much of the document the verdict covers.",
       ],
       rows: [],
       asides: [],
@@ -372,11 +372,11 @@ function readSection(
   const setAsideCount = record.setAside.length;
   const heldCount = record.held.length;
   const facts: string[] = [
-    `${record.sentencesRead} sentence${record.sentencesRead === 1 ? "" : "s"} in the document this claim came from were read and classified. ${record.checked} became ${record.checked === 1 ? "a claim" : "claims"}; the rest could not be graded.`,
+    `We read and classified ${record.sentencesRead} sentence${record.sentencesRead === 1 ? "" : "s"} from the document this claim came from. ${record.checked} became ${record.checked === 1 ? "a claim" : "claims"}; the rest could not be graded.`,
   ];
   if (setAsideCount > 0 || heldCount > 0) {
     facts.push(
-      "What we did not check is listed below, so you can judge for yourself how much of the document this finding covers.",
+      "The sentences we did not check are listed below, so you can see how much of the document this finding covers.",
     );
   }
   // The limit of this section, stated rather than implied (Sept 2026). Deciding
@@ -388,11 +388,11 @@ function readSection(
   // that this page shows the line drawn by the run that produced its verdict,
   // and that the verdict itself moves only through the public revision path.
   facts.push(
-    "Deciding what can be checked is a judgement made by a model from a versioned set of instructions, so re-checking the same document can draw this line differently; the verdict itself changes only through the public revision path.",
+    "Deciding what can be checked is a judgement made by a model, so a second run over the same document may draw the line in a different place. The verdict itself only changes through the public revision path.",
   );
   return {
     kind: "read",
-    title: "What else was in the document, and what we did not check",
+    title: "What else was in the document",
     when: whenLabel(span),
     facts,
     rows: [],
@@ -434,10 +434,10 @@ function chosenSection(
   if (!resolved) {
     return {
       kind: "chosen",
-      title: "Which check this claim was given",
+      title: "The check this claim got",
       when: whenLabel(span),
       facts: [
-        "We do not hold a record of the kind of check this claim was routed to. The check ran and produced the verdict above, but the decision that selected it was not written down, so this page will not guess which one it was.",
+        "We have no record of which check this claim was sent to. The check ran and produced the verdict above, but the decision was not written down, so this page will not guess.",
       ],
       rows: [],
       asides: [],
@@ -454,13 +454,13 @@ function chosenSection(
   }
   return {
     kind: "chosen",
-    title: "Which check this claim was given",
+    title: "The check this claim got",
     when: whenLabel(span),
     facts: [
       reading
         ? `Read as ${reading}`
         : "Read as a statement a check could test, on the claim's own wording.",
-      "That choice was made from the claim itself, before any evidence was gathered — it is the one decision that cannot be made honestly once the answer is known.",
+      "That choice was made from the claim alone, before any evidence was gathered — it is the one decision that could not be made honestly once the answer was known.",
     ],
     rows: [],
     asides: [],
@@ -493,7 +493,7 @@ function checkSection(
       title: "How this claim was checked",
       when: whenLabel(span),
       facts: [
-        "This page does not hold a record of which kind of check produced the verdict below, so it cannot explain how the comparison worked.",
+        "We have no record of which kind of check produced the verdict, so this page cannot explain how the comparison worked.",
       ],
       rows: [],
       asides: [],
@@ -516,7 +516,7 @@ function checkSection(
   // cannot locate, and says so rather than reporting a comparison it did not run.
   if (resolved.mode === "quote-fidelity" && !input.mediaAnchor) {
     facts.push(
-      "No recording or transcript is linked to this claim, so the quoted words could not be located in any record — and this check could not run. That is not the same finding as a quotation being misreported.",
+      "No recording or transcript is linked to this claim, so the words could not be found and this check could not run. That is not the same as the quotation being misreported.",
     );
   }
 
@@ -531,7 +531,7 @@ function checkSection(
 
   return {
     kind: "check",
-    title: `How this claim was checked: ${description.label.toLowerCase()}`,
+    title: `How it was checked: ${description.label.toLowerCase()}`,
     when: whenLabel(span),
     facts,
     rows,
@@ -572,7 +572,7 @@ function sourcesSection(input: VerdictPageInput): Omit<TrailSection, "number"> {
   const span = spanOf(input.evidence.map((item) => item.retrievedAt));
   return {
     kind: "sources",
-    title: "What we compared it against",
+    title: "Sources we used",
     when: whenLabel(span),
     facts: [],
     rows: [],
@@ -605,7 +605,7 @@ function gateSection(
   const span = spanOf([input.checkedAt, input.publishedAt]);
   const revisions = Math.max(0, input.verdictVersion - 1);
   const facts: string[] = [
-    "Before publishing, our own reasoning was re-read against the sources by a separate pass whose only job is to find statements the evidence does not support.",
+    "Before publishing, a second pass re-read our reasoning against the sources. Its only job is to find claims the sources do not support.",
   ];
   // The publication gate (VERIFICATION §2.7): a failure is supposed to BLOCK the
   // verdict, so a published page carrying `fail` is a defect in whatever wrote it
@@ -614,15 +614,15 @@ function gateSection(
   // The line below still renders the stored outcome rather than hiding it.
   if (input.nliOutcome === "pass") {
     facts.push(
-      "It agreed with all of the reasoning, so nothing published here rests on a statement the sources do not support.",
+      "It agreed with the reasoning, so nothing here rests on a claim the sources do not support.",
     );
   } else if (input.nliOutcome) {
     facts.push(
-      "The second pass did not pass. That is a defect in how this verdict was published, and it is recorded rather than hidden.",
+      "The second pass did not pass. That is a defect in how this verdict was published — recorded here rather than hidden.",
     );
   }
   if (input.transcriptTier === "publisher-auto") {
-    facts.push("The claim's wording came from an automatic transcript and can contain errors.");
+    facts.push("This wording comes from an automatic transcript and may contain errors.");
   }
   facts.push(
     revisions === 0

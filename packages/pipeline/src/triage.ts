@@ -177,8 +177,8 @@ export type ContextOutputShape = z.infer<typeof ContextOutput>;
  * Two contracts, different field names, and nothing mapped between them: that
  * is why `contextFromLlm` had no caller for so long. The stored shape is the
  * published one (the verdict page reads `attachedProposal` for its "as
- * deployed" line, and `speechContext` for the who-line), so the mapping lives
- * here at the boundary rather than either side being renamed.
+ * deployed" line, and `speechContext` for the venue beside the who-line), so the
+ * mapping lives here at the boundary rather than either side being renamed.
  *
  * The window is carried through verbatim — it is the auditable artefact the
  * context was read from (TRIAGE §3.2), not a derived value.
@@ -189,7 +189,12 @@ export function toStoredDiscourseContext(
 ): StoredDiscourseContext {
   return {
     window,
-    speechContext: context.speaker,
+    // `speechContext` is the VENUE — where, or on what occasion, the words were
+    // said. It must NOT hold the speaker: attribution is the `attribute` stage's
+    // job and already rides on the claim (`attribution_candidates`), so writing
+    // the speaker here printed the same name twice, side by side. No venue is
+    // extracted yet, so this is null rather than a duplicate.
+    speechContext: null,
     policyTopic: context.topic,
     attachedProposal: context.attachedProposal,
     argumentDirection: context.argumentDirection,
