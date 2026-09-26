@@ -143,45 +143,30 @@ The current accepted run file (rendered, never hand-edited; L4b asserts rendered
 
 **Dataset B** (AVeriTeC-format predictions): run id, model/prompt versions, dataset version, predictions (claim, verdict, confidence, Q&A evidence pairs, evidence URLs), scores (layer 1: EV2R/METEOR; layer 2: overall, per-stratum, calibration, cost, IAA).
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| HAR-R1 | Blind-rule breach: pipeline reads labels | Scoring silently contaminated — the number is worthless, unrecoverable retroactively | CI integration test as `pipeline_role`; dependency lint; env-var assertion |
-| HAR-R2 | Label noise / low IAA | Accuracy measured against noisy ground truth; gate decides on noise | Kappa < ~0.6; exclusion rate far above the AVeriTeC ~25% reference |
-| HAR-R3 | Stratification drift from the grid | Gate self-disables on thin strata unnoticed; the "Supported-heavy corrective" claim becomes false | Sampler asserts delivered vs manifest; gate warning on n<20 |
-| HAR-R4 | Gate logic bugs — never blocks, or always blocks | Bad changes ship unchallenged, or iteration halts and the gate gets bypassed | Fixture run-file pairs covering block/pass/advisory; mutation test: a deliberately degraded run must be blocked |
-| HAR-R5 | Harness-vs-schema drift after a store change | Exports stale-shaped data that still parses — scoring compares mismatched vocabularies | Shared types fail loudly at compile; round-trip export/re-import test |
-| HAR-R6 | Temporal leakage | Accuracy flattered by future information | Post-dated-evidence fixtures must trigger the availability note; evidence-date ≤ claim-date on sampled runs |
-| HAR-R7 | Reproducibility breaks — unpinned changes alter scores with no code change | Every regression arguable; the gate loses authority | Manifest-completeness test; two identical-manifest runs diffed on a fixed slice |
-| HAR-R8 | Cost overrun past the ≤$25/week envelope | Someone disables the harness "until costs settle"; the gate goes stale | Cost/claim per run; CI warn-then-fail at 2× budget |
-| HAR-R9 | Published-number staleness — methodology page shows an old or hand-edited run | The trust asset shows numbers no run produced | L4b: rendered table == accepted run file; publication refuses untagged runs |
-| HAR-R10 | Evidence rot — cited label URLs die | Dataset A's auditability claim collapses | Snapshot coverage report; monthly link-check with IA fallback |
-| HAR-R11 | Double-label subset clusters in easy strata | Published IAA overstates quality exactly where labels are hardest | Per-stratum double-label counts ≥6; IAA broken out per stratum |
-| HAR-R12 | Eval-script drift from the published metric | Layer-1 comparability claims become false | Pin check: CI asserts tool commit/environment vs manifest; known-output smoke test |
-
-## 5. Test strategy
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
 Most of the harness is deterministic code over fixtures — the thing L1 exists for.
 
-| ID | Mitigation | Layer | Runs |
-|---|---|---|---|
-| HAR-R1 | Integration test as `pipeline_role` asserting denial; dependency lint; env grep | L1 | Every push |
-| HAR-R2 | IAA published per run with thresholds flagged (kappa < 0.6 → warning in run file); exclusion rate vs reference | L3 | Weekly + pre-release |
-| HAR-R3 | Sampler asserts delivered counts vs manifest; gate emits the n<20 warning list; manifest is a reviewed artefact | L1 + L3 | Push; weekly |
-| HAR-R4 | Pure gate function; fixture pairs for every rule; mutation test on a degraded run | L1 | Every push |
-| HAR-R5 | Shared types make drift a compile error; round-trip export/import; migrations in CI | L1 | Every push |
-| HAR-R6 | Post-dated-evidence fixtures trigger the note; evidence-date ≤ claim-date asserted; availability distribution reported | L1 + L2 + L3 | Push; PR; weekly |
-| HAR-R7 | Manifest completeness (hashes recomputed at run time); residual-nondeterminism probe on a fixed 20-claim slice | L1 + L3 | Push; weekly |
-| HAR-R8 | Cost/claim per stratum in every run file; CI warn-then-fail vs budget | L1 + L3 | Push; weekly |
-| HAR-R9 | L4b: rendered table == accepted run file; publication rejects untagged runs | L4b | Pre-release |
-| HAR-R10 | Snapshot coverage asserted at labelling (uncovered citations fail the batch); monthly link-check | L1 + job | Batches; monthly |
-| HAR-R11 | Double-label assignment in the manifest; per-stratum counts asserted; IAA per stratum | L1 + L3 | Sampling; weekly |
-| HAR-R12 | Tool pin check vs manifest; known-output smoke test | L1 | Every push |
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| HAR-R1 | Blind-rule breach: pipeline reads labels | Scoring silently contaminated — the number is worthless, unrecoverable retroactively | Integration test as `pipeline_role` asserting denial; dependency lint; env grep | CI integration test as `pipeline_role`; dependency lint; env-var assertion | L1 |
+| HAR-R2 | Label noise / low IAA | Accuracy measured against noisy ground truth; gate decides on noise | IAA published per run with thresholds flagged (kappa < 0.6 → warning in run file); exclusion rate vs reference | Kappa < ~0.6; exclusion rate far above the AVeriTeC ~25% reference | L3 |
+| HAR-R3 | Stratification drift from the grid | Gate self-disables on thin strata unnoticed; the "Supported-heavy corrective" claim becomes false | Sampler asserts delivered counts vs manifest; gate emits the n<20 warning list; manifest is a reviewed artefact | Sampler asserts delivered vs manifest; gate warning on n<20 | L1 + L3 |
+| HAR-R4 | Gate logic bugs — never blocks, or always blocks | Bad changes ship unchallenged, or iteration halts and the gate gets bypassed | Pure gate function; fixture pairs for every rule; mutation test on a degraded run | Fixture run-file pairs covering block/pass/advisory; mutation test: a deliberately degraded run must be blocked | L1 |
+| HAR-R5 | Harness-vs-schema drift after a store change | Exports stale-shaped data that still parses — scoring compares mismatched vocabularies | Shared types make drift a compile error; round-trip export/import; migrations in CI | Shared types fail loudly at compile; round-trip export/re-import test | L1 |
+| HAR-R6 | Temporal leakage | Accuracy flattered by future information | Post-dated-evidence fixtures trigger the note; evidence-date ≤ claim-date asserted; availability distribution reported | Post-dated-evidence fixtures must trigger the availability note; evidence-date ≤ claim-date on sampled runs | L1 + L2 + L3 |
+| HAR-R7 | Reproducibility breaks — unpinned changes alter scores with no code change | Every regression arguable; the gate loses authority | Manifest completeness (hashes recomputed at run time); residual-nondeterminism probe on a fixed 20-claim slice | Manifest-completeness test; two identical-manifest runs diffed on a fixed slice | L1 + L3 |
+| HAR-R8 | Cost overrun past the ≤$25/week envelope | Someone disables the harness "until costs settle"; the gate goes stale | Cost/claim per stratum in every run file; CI warn-then-fail vs budget | Cost/claim per run; CI warn-then-fail at 2× budget | L1 + L3 |
+| HAR-R9 | Published-number staleness — methodology page shows an old or hand-edited run | The trust asset shows numbers no run produced | L4b: rendered table == accepted run file; publication rejects untagged runs | L4b: rendered table == accepted run file; publication refuses untagged runs | L4b |
+| HAR-R10 | Evidence rot — cited label URLs die | Dataset A's auditability claim collapses | Snapshot coverage asserted at labelling (uncovered citations fail the batch); monthly link-check | Snapshot coverage report; monthly link-check with IA fallback | L1 + job |
+| HAR-R11 | Double-label subset clusters in easy strata | Published IAA overstates quality exactly where labels are hardest | Double-label assignment in the manifest; per-stratum counts asserted; IAA per stratum | Per-stratum double-label counts ≥6; IAA broken out per stratum | L1 + L3 |
+| HAR-R12 | Eval-script drift from the published metric | Layer-1 comparability claims become false | Tool pin check vs manifest; known-output smoke test | Pin check: CI asserts tool commit/environment vs manifest; known-output smoke test | L1 |
 
 Sequencing (D1): the scaffold — schema, blind-rule grants, gate function with fixtures, export serializers — lands **with** the first pipeline code, so HAR-R1/R4/R5 tests exist before there is an accuracy number to protect.
 
-## 6. Open questions
+## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|

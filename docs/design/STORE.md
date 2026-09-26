@@ -127,53 +127,32 @@ One schema design, two access boundaries: labels are generated from the **same D
 
 **Freeze enforcement (schema contract):** the store rejects a transition into MUTATED (and any new verdict version on a PUBLISHED claim) while the freeze window is active — dates are configuration in the state machine, not a manual process. Contested verdicts during freeze render "contested — under review".
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| STO-R1 | Append-only violated by UPDATE/DELETE paths | Audit-log integrity silently broken; a "fixed" verdict indistinguishable from an honest one | UPDATE/DELETE succeeding on append-only tables; row counts/hashes changing without a new version |
-| STO-R2 | Versioning/diff missing — mutation path unimplementable | ADR-0002's core mechanism unbuildable; s 199A clarity lost | Mutation rehearsal can't write v2; diff column null |
-| STO-R3 | Vintage-date gaps, or vintage conflated with retrieval time | "As deployed" unverifiable; revisions undetectable | Null vintage on series rows; vintage == retrieved_at everywhere |
-| STO-R4 | pgvector/FTS index drift after bulk load or migration | Repeat claims re-verified at full cost; duplicates published | Repeat-occurrence ratio ~0; dedup counter divergence |
-| STO-R5 | Migration failure corrupts live schema | Append-only store broken mid-campaign | CI scratch-Postgres migration failing |
-| STO-R6 | Schema drift between harness labels and pipeline objects | Harness measures a different shape than production writes | Cross-package typecheck; drizzle-kit diff |
-| STO-R7 | Backups untested — unrestorable | The trust asset is one disk event from zero | Restore drill result; post-restore reconciliation |
-| STO-R8 | Blind-rule boundary failing (grant misconfig, escalation) | Accuracy numbers tunable against labels — harness credibility voids | Pipeline-role query on `labels` returning rows instead of denial |
-| STO-R9 | Lifecycle transitions unexercised — freeze enforcement never runs | Discovered by the 5 Nov deadline, not by tests | Transition-constraint suite; October freeze rehearsal |
-| STO-R10 | Provenance incompleteness | Golden snapshots can't pin what produced a verdict; site block renders empty | Null pipeline/prompt versions on any verdict |
-| STO-R11 | Fingerprint instability across pipeline versions | Repeat claims double-verified with contradictory verdicts; compounding stops | Same pinned claim yielding two rows after a version bump (L2) |
-| STO-R12 | Fallback log incomplete / not per-lane queryable | R7 unmeasured; markup drift invisible | Counter fires but lands nowhere; rate zero across all lanes |
-| STO-R13 | Store writes not idempotent on re-ingest | Duplicate publications → duplicate verdicts; permanent reconciliation alerts | Same fixture re-ingested → second publication row |
-| STO-R14 | Status enum/constraint drift vs state-machine code | Illegal transitions accepted; freeze gaps | Exhaustive from→to pair test vs the ADR-0002 lifecycle |
-| STO-R15 | Context fields defaulted instead of absent | "As deployed" fabricated from non-context; ablation measurement meaningless | No-proposal fixtures yielding non-null `attached_proposal` |
-| STO-R16 | Reconciliation drift persists silently | Site coverage numbers diverge from reality | Reconciliation heartbeat missing; no-data alert |
-| STO-R17 | Label revisions without history | Contested-label value destroyed; old runs unreproducible | In-place UPDATE succeeding where insert-with-history was required |
-| STO-R18 | Worker dies mid-job — job claimed but never completed | Lane silently stops until its next cadence; L3 run missing with no alert | Job stuck `running` past max duration; no completion row; crontab fire missed and unbackfilled |
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
-## 5. Test strategy
+Highlights:
 
-Every risk maps to a layer per TEST-STRATEGY, plus two operational drills (restore, freeze rehearsal) — scheduled, scripted, reported like tests. Highlights:
-
-| Risk | Mitigation | Layer |
-|---|---|---|
-| STO-R1 | Assert UPDATE/DELETE raise on all four append-only tables (real Postgres in CI); grants deny UPDATE to pipeline/site; hash-before/after immutability check | L1 |
-| STO-R2 | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | L1 |
-| STO-R3 | Vintage stored, distinct from retrieved_at, propagated to "as deployed"; no null vintages on series rows | L1 |
-| STO-R4 | Bulk-load-then-query on scratch Postgres — indexes return fixture neighbours post-migration; L2 repeat pair dedups every PR | L1 + L2 |
-| STO-R5 | drizzle-kit migrations in CI before merge; suite runs on the migrated schema; rollback tested | L1 (CI) |
-| STO-R6 | Shared tables are the single definition; typecheck across packages; drizzle-kit diff on `labels` | L1 |
-| STO-R7 | **Restore drill**: scripted restore into scratch; assert row counts, max(version), content hashes, label checksums, grants survive | Ops drill (L1-scripted), monthly + pre-release |
-| STO-R8 | **Blind-rule access test** (§5.1): pipeline role denied on every labels table, against real grants, every push; re-verified against live Postgres at release | L1 |
-| STO-R9 | Every legal transition logs; every illegal one rejected (incl. FROZEN→MUTATED); **freeze rehearsal** staged in October | L1 + rehearsal |
-| STO-R10 | Write-path constraint: no verdict without full provenance; L2 snapshots must reproduce from pinned versions | L1 + L2 |
-| STO-R11 | Pinned repeat-claim pair must still match after any pipeline change — visible golden diff flags drift | L2 |
-| STO-R12 | Tier-2 fixture asserts the fallback_log row lands with lane/stage/reason; funnel view returns per-lane rates | L1 |
-| STO-R13 | Same fixture re-ingested → one publication row; daily reconciliation detects injected drift | L1 + daily job |
-| STO-R14 | Exhaustive transition-pair test vs the lifecycle; enum asserted equal to check constraints | L1 |
-| STO-R15 | No-proposal fixtures keep context fields null; write path rejects defaulted values | L1 + L2 |
-| STO-R16 | Reconciliation job detects injected drift; silence alert on missing heartbeat | L1 |
-| STO-R17 | Revising a label requires a new versioned row; two runs pinning different label-set versions reproduce their outputs | L1 |
-| STO-R18 | Graphile Worker's own retry/backoff + job-key uniqueness; job stuck `running` past max duration → no-data alert on missing completion; backfill recovers missed crontab fires | L1 + Graphile Worker |
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| STO-R1 | Append-only violated by UPDATE/DELETE paths | Audit-log integrity silently broken; a "fixed" verdict indistinguishable from an honest one | Assert UPDATE/DELETE raise on all four append-only tables (real Postgres in CI); grants deny UPDATE to pipeline/site; hash-before/after immutability check | UPDATE/DELETE succeeding on append-only tables; row counts/hashes changing without a new version | L1 |
+| STO-R2 | Versioning/diff missing — mutation path unimplementable | ADR-0002's core mechanism unbuildable; s 199A clarity lost | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | Mutation rehearsal can't write v2; diff column null | L1 |
+| STO-R3 | Vintage-date gaps, or vintage conflated with retrieval time | "As deployed" unverifiable; revisions undetectable | Vintage stored, distinct from retrieved_at, propagated to "as deployed"; no null vintages on series rows | Null vintage on series rows; vintage == retrieved_at everywhere | L1 |
+| STO-R4 | pgvector/FTS index drift after bulk load or migration | Repeat claims re-verified at full cost; duplicates published | Bulk-load-then-query on scratch Postgres — indexes return fixture neighbours post-migration; L2 repeat pair dedups every PR | Repeat-occurrence ratio ~0; dedup counter divergence | L1 + L2 |
+| STO-R5 | Migration failure corrupts live schema | Append-only store broken mid-campaign | drizzle-kit migrations in CI before merge; suite runs on the migrated schema; rollback tested | CI scratch-Postgres migration failing | L1 (CI) |
+| STO-R6 | Schema drift between harness labels and pipeline objects | Harness measures a different shape than production writes | Shared tables are the single definition; typecheck across packages; drizzle-kit diff on `labels` | Cross-package typecheck; drizzle-kit diff | L1 |
+| STO-R7 | Backups untested — unrestorable | The trust asset is one disk event from zero | **Restore drill**: scripted restore into scratch; assert row counts, max(version), content hashes, label checksums, grants survive | Restore drill result; post-restore reconciliation | Ops drill (L1-scripted), monthly + pre-release |
+| STO-R8 | Blind-rule boundary failing (grant misconfig, escalation) | Accuracy numbers tunable against labels — harness credibility voids | **Blind-rule access test** (§5.1): pipeline role denied on every labels table, against real grants, every push; re-verified against live Postgres at release | Pipeline-role query on `labels` returning rows instead of denial | L1 |
+| STO-R9 | Lifecycle transitions unexercised — freeze enforcement never runs | Discovered by the 5 Nov deadline, not by tests | Every legal transition logs; every illegal one rejected (incl. FROZEN→MUTATED); **freeze rehearsal** staged in October | Transition-constraint suite; October freeze rehearsal | L1 + rehearsal |
+| STO-R10 | Provenance incompleteness | Golden snapshots can't pin what produced a verdict; site block renders empty | Write-path constraint: no verdict without full provenance; L2 snapshots must reproduce from pinned versions | Null pipeline/prompt versions on any verdict | L1 + L2 |
+| STO-R11 | Fingerprint instability across pipeline versions | Repeat claims double-verified with contradictory verdicts; compounding stops | Pinned repeat-claim pair must still match after any pipeline change — visible golden diff flags drift | Same pinned claim yielding two rows after a version bump (L2) | L2 |
+| STO-R12 | Fallback log incomplete / not per-lane queryable | R7 unmeasured; markup drift invisible | Tier-2 fixture asserts the fallback_log row lands with lane/stage/reason; funnel view returns per-lane rates | Counter fires but lands nowhere; rate zero across all lanes | L1 |
+| STO-R13 | Store writes not idempotent on re-ingest | Duplicate publications → duplicate verdicts; permanent reconciliation alerts | Same fixture re-ingested → one publication row; daily reconciliation detects injected drift | Same fixture re-ingested → second publication row | L1 + daily job |
+| STO-R14 | Status enum/constraint drift vs state-machine code | Illegal transitions accepted; freeze gaps | Exhaustive transition-pair test vs the lifecycle; enum asserted equal to check constraints | Exhaustive from→to pair test vs the ADR-0002 lifecycle | L1 |
+| STO-R15 | Context fields defaulted instead of absent | "As deployed" fabricated from non-context; ablation measurement meaningless | No-proposal fixtures keep context fields null; write path rejects defaulted values | No-proposal fixtures yielding non-null `attached_proposal` | L1 + L2 |
+| STO-R16 | Reconciliation drift persists silently | Site coverage numbers diverge from reality | Reconciliation job detects injected drift; silence alert on missing heartbeat | Reconciliation heartbeat missing; no-data alert | L1 |
+| STO-R17 | Label revisions without history | Contested-label value destroyed; old runs unreproducible | Revising a label requires a new versioned row; two runs pinning different label-set versions reproduce their outputs | In-place UPDATE succeeding where insert-with-history was required | L1 |
+| STO-R18 | Worker dies mid-job — job claimed but never completed | Lane silently stops until its next cadence; L3 run missing with no alert | Graphile Worker's own retry/backoff + job-key uniqueness; job stuck `running` past max duration → no-data alert on missing completion; backfill recovers missed crontab fires | Job stuck `running` past max duration; no completion row; crontab fire missed and unbackfilled | L1 + Graphile Worker |
 
 ### 5.1 Blind-rule access test (the load-bearing one)
 
@@ -190,7 +169,7 @@ Scripted runbook (restore → grants → reconciliation queries). Assertions: ro
 
 Store portion done when: L1 store tests pass on the migrated scratch schema · blind-rule test passes against real grants · golden snapshots round-trip with complete provenance · first restore drill clean · per-lane fallback log queryable.
 
-## 6. Open questions
+## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|

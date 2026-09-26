@@ -304,23 +304,7 @@ Tiered routing (cheap bulk roles, premium verdict roles), batch APIs for ~80–9
 | CRO-R18 | Runaway loop burns budget | Campaign budget blown mid-cycle | L1 depth-bounds tests; cost projection; anomaly alert |
 | CRO-R19 | Alerts only fire on errors, never on silence — a dead cron job emits nothing to alert on | Jobs fail invisibly for days (the exact ADR-0012 failure class) | L1 asserts no-data conditions on heartbeat metrics; silence alerts verified pre-launch |
 
-## 13. Consolidated test-risk register (all components)
-
-Layers per TEST-STRATEGY §2; gates: CI per push/PR, L3 per-stratum gate, L4b release gate. This is the single index of "what must pass before merge, for which risk."
-
-| Component doc | Risk IDs | Layers beyond L1 | Merge gate |
-|---|---|---|---|
-| INGESTION.md | ING-R1…R14 | L2 (R1, R7, R11); L4a (R4) | CI every push; golden diffs per PR |
-| TRIAGE.md | TRI-R1…R13 | L2 (R7, R10, R13); L3 (R1–R3, R5, R9, R10) | CI; golden diffs; drop-recall + per-type accuracy in L3 |
-| VERIFICATION.md | VER-R1…R15 | L2 (R7, R10, R13); L3 (R2–R5, R8, R10–R12, R15); L4a (R6, R9) | CI; golden diffs; per-stratum L3 gate |
-| STORE.md | STO-R1…R18 | L2 (R4, R10, R11, R15); L3 + Graphile Worker (R18); ops drills (R7, R9) | CI; migration CI job on store changes; blind-rule re-verified pre-release; restore drill monthly |
-| SITE-MVP.md | SIT-R1…R14 | L2 (R4); L4a (all); L4b (R3) | CI incl. L4a smoke; release gate pre-release |
-| HARNESS.md | HAR-R1…R12 | L3 (R2, R3, R6–R8, R11); L4b (R9) | CI; L3 weekly + pre-release; publication requires accepted-run tag |
-| TOOLCHAIN.md | TOO-R1…R8 | L1 (all); ops (R4–R6) | CI per push/PR; weekly security cron; dead-man's alert on missing security run |
-| CROSS-CUTTING.md | CRO-R1…R19 | see §12 mapping | CI per push/PR; L3 weekly; L4b release gate |
-**Totals: 113 risks across 8 docs** (ING 14, TRI 13, VER 15, STO 18, SIT 14, HAR 12, CRO 19, TOO 8). No duplicate IDs. TRI-R3/VER-R15 are complementary views of one routing risk, both gated. Known cross-doc twins, intentionally paired: VER-R13 ↔ STO-R11 (fingerprint drift) · CRO-R12 ↔ STO-R1 (append-only) · CRO-R13 ↔ STO-R6/HAR-R5 (schema drift) · CRO-R14 ↔ HAR-R1 (blind rule) · VER-R8 ↔ CRO-R18/HAR-R8 (cost) · CRO-R19 ↔ STO-R18 (worker silence).
-
-## 14. Open questions
+## 13. Open questions
 
 | # | Question | Notes |
 |---|---|---|

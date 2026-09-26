@@ -121,52 +121,36 @@ A claim whose sentence has **no window** gets no context call and an all-null co
 - **To harness**: exports in AVeriTeC-aligned shape via the shared Drizzle/Zod definitions; harness and store schema versions must match.
 - **Drop-log**: pipeline-owned (blind rule doesn't apply to it); its *labels* live on the harness side.
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| TRI-R1 | Over-detection: opinions/rhetoric/satire/pledges promoted to claims | Verification spend on uncheckable text; satire "checked" | Labelled precision sample; pledge/satire fixtures |
-| TRI-R2 | Under-detection: checkable claims dropped silently | Highest-harm classes missing while the funnel looks healthy | Drop-log recall sample; drop-rate shift alert |
-| TRI-R3 | **Wrong-mode routing — the highest-consequence triage failure** | A statistical claim sent to open-web loses the grid entirely; the flagship verdict becomes unreachable | Per-type routing accuracy; type-vs-verdict-path check |
-| TRI-R4 | Fingerprint collisions/misses break dedup | Corrupted claim graph; double spend or swallowed repeats | Fingerprint fixture pairs; double-run idempotency |
-| TRI-R5 | Context-extraction errors silently change grid-row selection | "As deployed" asserts a framing the speaker didn't deploy | Context labels in L3; with/without-context ablation |
-| TRI-R6 | Context over-inference from speaker identity/party | ADR-0008's no-inference guardrail broken; partisan fabrications | Fixture: identity-only signals → null fields |
-| TRI-R7 | Normalised text drifts from utterance (omission-of-context failure) | Pipeline verifies a claim the speaker didn't quite make | Verbatim-vs-normalised fixture pairs |
-| TRI-R8 | Verdict-class misalignment — records that can't reach the four classes (pledges typed as generic) | Harness scoring misaligned to the benchmark universe | Schema assertion: fields per target verdict class; pledge fixtures |
-| TRI-R9 | Drop log exists but is never sampled — recall assumed | Triage quality asserted, never measured | Run-manifest asserts a drop-log sample scored |
-| TRI-R10 | Model/provider drift changes triage behaviour | Outputs shift after silent upgrades; verdict mix changes unexamined | L2 golden snapshots; version pinning |
-| TRI-R11 | Tier-2 caption wording treated as reviewed | ASR errors define unmade claims (ADR-0007's worst failure) | Tier/flag propagation assertions |
-| TRI-R12 | `generateObject` schema failures silently drop outputs | Claims lost mid-pipeline, no funnel signal | Zod failure counters; drop-rate-vs-schema-failure alert |
-| TRI-R13 | Re-triage idempotency failure — same document re-triaged yields a different claim set | Duplicate claims, orphaned verdicts | Double-run invariance test |
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
-## 5. Test strategy
+Highlights:
 
-Every risk maps to a layer per TEST-STRATEGY (L1 every push; L2 every PR; L3 weekly + pre-release; L4a every push, L4b pre-release). Highlights:
-
-| Risk | Mitigation | Layer |
-|---|---|---|
-| TRI-R1 | Checkability fixtures: opinion/rhetoric/satire/pledge must NOT become claims; genuine claims must | L1 + L3 |
-| TRI-R2 | Drop-log recall sample scored at each L3 run; drop-rate alert wired | L3 + monitor |
-| TRI-R3 | Routing-conformance fixtures per type assert the mode entered; per-type accuracy is an L3 deliverable | L1 + L2 + L3 |
-| TRI-R4 | Fingerprint triples: same-normalisation merge; near-tuple no-merge; adjacent-window occurrence; macron/number-format round-trips | L1 |
-| TRI-R5 | Grid-materiality integration: context variants → asserted material-row differences; L3 context ablation | L1 + L3 |
-| TRI-R6 | Identity-only windows → asserted null `attached_proposal` | L1 |
-| TRI-R7 | Utterance/window/text persistence asserted; normalisation derivable from utterance + window | L1 + L2 |
-| TRI-R8 | Every claim validates against the shared export schema; pledge fixtures typed conditional | L1 |
-| TRI-R9 | L3 run without a scored drop-log sample fails preflight | L1 + L3 |
-| TRI-R10 | Golden snapshots per PR with pinned versions | L1 + L2 + L3 |
-| TRI-R11 | ASR-derived claims must carry tier/quality flags — missing flags fail schema validation | L1 |
-| TRI-R12 | Malformed LLM outputs → failure-class record + counter, never a silent skip | L1 |
-| TRI-R13 | Double-run invariance: identical claim IDs/counts; re-triage appends versions | L1 + L2 |
-| End-to-end | Golden set: one pinned document per lane through full triage | L2 |
-| Accuracy | Triage precision/recall, typing accuracy, context correctness vs labels; −5 pt stratum gate | L3 |
-| Published | Context stack on verdict pages; methodology table from harness output | L4 |
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| TRI-R1 | Over-detection: opinions/rhetoric/satire/pledges promoted to claims | Verification spend on uncheckable text; satire "checked" | Checkability fixtures: opinion/rhetoric/satire/pledge must NOT become claims; genuine claims must | Labelled precision sample; pledge/satire fixtures | L1 + L3 |
+| TRI-R2 | Under-detection: checkable claims dropped silently | Highest-harm classes missing while the funnel looks healthy | Drop-log recall sample scored at each L3 run; drop-rate alert wired | Drop-log recall sample; drop-rate shift alert | L3 + monitor |
+| TRI-R3 | **Wrong-mode routing — the highest-consequence triage failure** | A statistical claim sent to open-web loses the grid entirely; the flagship verdict becomes unreachable | Routing-conformance fixtures per type assert the mode entered; per-type accuracy is an L3 deliverable | Per-type routing accuracy; type-vs-verdict-path check | L1 + L2 + L3 |
+| TRI-R4 | Fingerprint collisions/misses break dedup | Corrupted claim graph; double spend or swallowed repeats | Fingerprint triples: same-normalisation merge; near-tuple no-merge; adjacent-window occurrence; macron/number-format round-trips | Fingerprint fixture pairs; double-run idempotency | L1 |
+| TRI-R5 | Context-extraction errors silently change grid-row selection | "As deployed" asserts a framing the speaker didn't deploy | Grid-materiality integration: context variants → asserted material-row differences; L3 context ablation | Context labels in L3; with/without-context ablation | L1 + L3 |
+| TRI-R6 | Context over-inference from speaker identity/party | ADR-0008's no-inference guardrail broken; partisan fabrications | Identity-only windows → asserted null `attached_proposal` | Fixture: identity-only signals → null fields | L1 |
+| TRI-R7 | Normalised text drifts from utterance (omission-of-context failure) | Pipeline verifies a claim the speaker didn't quite make | Utterance/window/text persistence asserted; normalisation derivable from utterance + window | Verbatim-vs-normalised fixture pairs | L1 + L2 |
+| TRI-R8 | Verdict-class misalignment — records that can't reach the four classes (pledges typed as generic) | Harness scoring misaligned to the benchmark universe | Every claim validates against the shared export schema; pledge fixtures typed conditional | Schema assertion: fields per target verdict class; pledge fixtures | L1 |
+| TRI-R9 | Drop log exists but is never sampled — recall assumed | Triage quality asserted, never measured | L3 run without a scored drop-log sample fails preflight | Run-manifest asserts a drop-log sample scored | L1 + L3 |
+| TRI-R10 | Model/provider drift changes triage behaviour | Outputs shift after silent upgrades; verdict mix changes unexamined | Golden snapshots per PR with pinned versions | L2 golden snapshots; version pinning | L1 + L2 + L3 |
+| TRI-R11 | Tier-2 caption wording treated as reviewed | ASR errors define unmade claims (ADR-0007's worst failure) | ASR-derived claims must carry tier/quality flags — missing flags fail schema validation | Tier/flag propagation assertions | L1 |
+| TRI-R12 | `generateObject` schema failures silently drop outputs | Claims lost mid-pipeline, no funnel signal | Malformed LLM outputs → failure-class record + counter, never a silent skip | Zod failure counters; drop-rate-vs-schema-failure alert | L1 |
+| TRI-R13 | Re-triage idempotency failure — same document re-triaged yields a different claim set | Duplicate claims, orphaned verdicts | Double-run invariance: identical claim IDs/counts; re-triage appends versions | Double-run invariance test | L1 + L2 |
+| End-to-end | — | — | Golden set: one pinned document per lane through full triage |  | L2 |
+| Accuracy | — | — | Triage precision/recall, typing accuracy, context correctness vs labels; −5 pt stratum gate |  | L3 |
+| Published | — | — | Context stack on verdict pages; methodology table from harness output |  | L4 |
 
 Triage has no lane-health surface; its instruments are the ADR-0012 funnel (drop rate, schema-failure rate, type-distribution shift) plus L2/L3.
 
 **L1 fixture list**: checkability classes (claims, opinion, rhetoric, procedure, satire, pledge, question-forms); type-routing set (one per type); fingerprint triples + normalisation variants; context variants (with/without proposal, ambiguous, identity-only, qualifiers); normalisation pairs (multi-clause omission-prone sentences); caption triage items (punctuation-less cues, tier/flag variants); idempotency corpus.
 
-## 6. Open questions
+## 5. Open questions
 
 1. **Checkability calibration** — what recall/precision trade-off to target before L3 numbers exist; the initial operating point is a judgement call.
 2. **One pass or two** — checkability + typing + fingerprint in a single `generateObject` call vs separate passes; leaning per-stage for auditability. **This is now a live divergence, not a preference (Sept 2026):** the implementation folds typing into the checkability call (which returns `claimType` and `mode` per sentence) and never calls `triage-fingerprint` at all — `fingerprintFromLlm` has no caller anywhere, its only reference in its own test file is an unused import, and `triage-api.ts` still carries a `NOT IMPLEMENTED` stub for it beside the real body in `triage.ts`. Two consequences are already visible: `claim.fingerprint` and `fingerprint_key` are null and unused on every row, and `triage-fingerprint`'s TRI-R3 tests cannot be failing because nothing runs the stage they cover. Wiring it is spec-conformant (the §2 diagram has always shown it) and would populate the stat-grid parse the verdict page wants to show; it also means one more LLM call per statistical claim, which is why it is a decision rather than a fix. Whichever way it goes, the stub in `triage-api.ts` should not survive.

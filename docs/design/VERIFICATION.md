@@ -150,56 +150,37 @@ Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 
 - Vintage discipline: every row carries `vintage_date`; verdicts note "as measured at publication" — recorded provenance, not an ongoing re-verification commitment (CROSS-CUTTING §10).
 - Claims citing sources outside the map → open-web loop + explicit no-pre-vetted-authority note.
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| VER-R1 | Grid arithmetic errors — wrong denominator, stale vintage, wrong baseline | Confidently wrong arithmetic in the flagship mode | L1 exhaustive fixture grids; vintage ≠ retrieved_at assertion; SQL recomputation cross-check |
-| VER-R2 | NLI audit false-passes | The accuracy gate is theatre; hallucinations publish | Must-pass/must-fail packs at L1; audit-vs-human agreement at L3; implausibly-zero failure rate |
-| VER-R3 | Retrieval failure/quality (the AVeriTeC bottleneck) | The least-reliable mode silently sets the accuracy ceiling | L3 open-web stratum; EV2R trend; depth-cap-binding rate; AVeriTeC position |
-| VER-R4 | Citation comparison errors — extraction misses number/period/population, or over-binds decorative citations | False Supported/Refuted against sources that don't say what was extracted | L1 claim/source pair fixtures (match, mismatches, decorative, paywalled); L3 citation stratum |
-| VER-R5 | Quote fidelity mis-reads ASR artefacts as quote errors (or passes misquotes) | Verdicts assert wording differences that are caption artefacts | L1 caption-artefact fixtures; L3 quote stratum |
-| VER-R6 | Provenance mode over-trusted | Slice overclaims the least mature mode on live material | Fixture-gate assertions; methodology posture text asserted at L4 |
-| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable; numbers unreproducible | L2 golden diff per PR; manifest completeness; residual-nondeterminism probe |
-| VER-R8 | Cost blowout toward naive $10+/claim | Cost deliverable fails; weekly runs unaffordable, gate goes stale | Cost/claim vs $25 envelope; depth-cap-binding rate; anomaly alert |
-| VER-R9 | Evidence-fetch failures degrade verdicts silently | Verdicts publish on weaker grounding, no visible flag; contestation exposes it | Pack schema: resolved or flagged-degraded; degraded-grounds metric; L4 rendering |
-| VER-R10 | Materiality-selection drift — wrong grid rows foregrounded | Cherry-picking missed, or omissions asserted where unsupported | L2 golden fixtures with hand-labelled material rows; L3 cherry-picking oversample |
-| VER-R11 | Verdict-class boundary errors — true-but-selective labelled Refuted, or selective framing as Supported | Flagship class mis-fires both directions; calibration breaks | L3 verdict-mix vs targets + calibration; L1 boundary fixtures |
-| VER-R12 | Confidence miscalibration | Open-question posture hollows out; abstention unmeasured | L3 calibration table; threshold fixtures; L4 open-question rendering |
-| VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims |
-| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority-resolution tests per domain; T6 rejection asserted |
-| VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability |
-| VER-R15 | Routing misclassification | Claims land in the least reliable mode by accident; failures attributed to wrong machinery | Router fixtures; L3 lane×mode cross-tab |
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
-## 5. Test strategy
+The deterministic surface is large and cheap; the LLM surface is gated by golden snapshots and the harness. Highlights:
 
-Every risk maps to a layer per TEST-STRATEGY. The deterministic surface is large and cheap; the LLM surface is gated by golden snapshots and the harness. Highlights:
-
-| Risk | Mitigation | Layer |
-|---|---|---|
-| VER-R1 | **Stat-grid arithmetic is pure logic — exhaustive L1 coverage.** Fixture series with pinned vintages per domain; golden expected grid per fixture (every axis × every outcome); vintage-selection failure cases; independent SQL recomputation cross-check | L1 |
-| VER-R2 | Must-pass/must-fail packs (unattributed synthesis, unstated arithmetic, authority-by-citation, hallucinated sentence); audit agreement measured at L3; failure-rate alert | L1 + L3 |
-| VER-R3 | AVeriTeC as the generic-loop gate from week 1; open-web stratum gated; retrieval telemetry trended; retrieval-failure fixtures assert capped-degraded, never silent weak verdicts | L1 + L3 |
-| VER-R4 | Fixture corpus: exact match, number/period/population mismatch, decorative citation, paywalled — each asserts verdict class + binding strictness | L1 + L3 |
-| VER-R5 | Caption-artefact fixtures (homophones, punctuation, number formats, te reo) with expected treatments; anchor construction tests; L3 quote stratum | L1 + L3 |
-| VER-R6 | Provenance mode runs only on fixture-gated records; methodology page asserts the demonstration-only posture | L1 + L4a |
-| VER-R7 | Golden set (~20 claims, all modes, pinned versions) per PR — visible diff; manifest completeness at L1 | L2 (+L1) |
-| VER-R8 | Depth-cap bounds tests; pre-run cost projection blocks over-budget runs; cost/claim per stratum per run | L1 + L3 |
-| VER-R9 | Fetch-failure fixtures assert flagged degradation (no silent fallback); pack schema forbids unflagged missing items | L1 + L4a |
-| VER-R10 | Golden fixtures carry hand-labelled material-row expectations; L3 cherry-picking oversample (≥12 labels) is the measured check | L2 + L3 |
-| VER-R11 | Boundary fixtures (selective → Conflicting; no-row-match → Refuted; thin → NEI); L3 verdict-mix vs targets catches over-refutation | L1 + L3 |
-| VER-R12 | Threshold fixtures (below-threshold → open question); L3 calibration table per run | L1 + L3 |
-| VER-R16 | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | L1 + L3 |
-| VER-R13 | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | L1 + L2 |
-| VER-R14 | Authority resolution per seeded domain; advocacy-source rejection asserted | L1 |
-| VER-R15 | Router fixtures over type × text patterns; routing decision stored for L3 cross-tabbing | L1 + L3 |
-| Behavioural | ≥1 pinned claim per mode in the golden set | L2 |
-| Deliverable | Per-stratum accuracy + calibration + cost/claim table; gate per HARNESS §2.6 | L3 |
-| Site | "As deployed", alternatives table, hear-it anchors, degraded-evidence flags, generated methodology table | L4 |
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| VER-R1 | Grid arithmetic errors — wrong denominator, stale vintage, wrong baseline | Confidently wrong arithmetic in the flagship mode | **Stat-grid arithmetic is pure logic — exhaustive L1 coverage.** Fixture series with pinned vintages per domain; golden expected grid per fixture (every axis × every outcome); vintage-selection failure cases; independent SQL recomputation cross-check | L1 exhaustive fixture grids; vintage ≠ retrieved_at assertion; SQL recomputation cross-check | L1 |
+| VER-R2 | NLI audit false-passes | The accuracy gate is theatre; hallucinations publish | Must-pass/must-fail packs (unattributed synthesis, unstated arithmetic, authority-by-citation, hallucinated sentence); audit agreement measured at L3; failure-rate alert | Must-pass/must-fail packs at L1; audit-vs-human agreement at L3; implausibly-zero failure rate | L1 + L3 |
+| VER-R3 | Retrieval failure/quality (the AVeriTeC bottleneck) | The least-reliable mode silently sets the accuracy ceiling | AVeriTeC as the generic-loop gate from week 1; open-web stratum gated; retrieval telemetry trended; retrieval-failure fixtures assert capped-degraded, never silent weak verdicts | L3 open-web stratum; EV2R trend; depth-cap-binding rate; AVeriTeC position | L1 + L3 |
+| VER-R4 | Citation comparison errors — extraction misses number/period/population, or over-binds decorative citations | False Supported/Refuted against sources that don't say what was extracted | Fixture corpus: exact match, number/period/population mismatch, decorative citation, paywalled — each asserts verdict class + binding strictness | L1 claim/source pair fixtures (match, mismatches, decorative, paywalled); L3 citation stratum | L1 + L3 |
+| VER-R5 | Quote fidelity mis-reads ASR artefacts as quote errors (or passes misquotes) | Verdicts assert wording differences that are caption artefacts | Caption-artefact fixtures (homophones, punctuation, number formats, te reo) with expected treatments; anchor construction tests; L3 quote stratum | L1 caption-artefact fixtures; L3 quote stratum | L1 + L3 |
+| VER-R6 | Provenance mode over-trusted | Slice overclaims the least mature mode on live material | Provenance mode runs only on fixture-gated records; methodology page asserts the demonstration-only posture | Fixture-gate assertions; methodology posture text asserted at L4 | L1 + L4a |
+| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable; numbers unreproducible | Golden set (~20 claims, all modes, pinned versions) per PR — visible diff; manifest completeness at L1 | L2 golden diff per PR; manifest completeness; residual-nondeterminism probe | L2 (+L1) |
+| VER-R8 | Cost blowout toward naive $10+/claim | Cost deliverable fails; weekly runs unaffordable, gate goes stale | Depth-cap bounds tests; pre-run cost projection blocks over-budget runs; cost/claim per stratum per run | Cost/claim vs $25 envelope; depth-cap-binding rate; anomaly alert | L1 + L3 |
+| VER-R9 | Evidence-fetch failures degrade verdicts silently | Verdicts publish on weaker grounding, no visible flag; contestation exposes it | Fetch-failure fixtures assert flagged degradation (no silent fallback); pack schema forbids unflagged missing items | Pack schema: resolved or flagged-degraded; degraded-grounds metric; L4 rendering | L1 + L4a |
+| VER-R10 | Materiality-selection drift — wrong grid rows foregrounded | Cherry-picking missed, or omissions asserted where unsupported | Golden fixtures carry hand-labelled material-row expectations; L3 cherry-picking oversample (≥12 labels) is the measured check | L2 golden fixtures with hand-labelled material rows; L3 cherry-picking oversample | L2 + L3 |
+| VER-R11 | Verdict-class boundary errors — true-but-selective labelled Refuted, or selective framing as Supported | Flagship class mis-fires both directions; calibration breaks | Boundary fixtures (selective → Conflicting; no-row-match → Refuted; thin → NEI); L3 verdict-mix vs targets catches over-refutation | L3 verdict-mix vs targets + calibration; L1 boundary fixtures | L1 + L3 |
+| VER-R12 | Confidence miscalibration | Open-question posture hollows out; abstention unmeasured | Threshold fixtures (below-threshold → open question); L3 calibration table per run | L3 calibration table; threshold fixtures; L4 open-question rendering | L1 + L3 |
+| VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims | L1 + L2 |
+| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority resolution per seeded domain; advocacy-source rejection asserted | Authority-resolution tests per domain; T6 rejection asserted | L1 |
+| VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability | L1 + L3 |
+| VER-R15 | Routing misclassification | Claims land in the least reliable mode by accident; failures attributed to wrong machinery | Router fixtures over type × text patterns; routing decision stored for L3 cross-tabbing | Router fixtures; L3 lane×mode cross-tab | L1 + L3 |
+| Behavioural | — | — | ≥1 pinned claim per mode in the golden set |  | L2 |
+| Deliverable | — | — | Per-stratum accuracy + calibration + cost/claim table; gate per HARNESS §2.6 |  | L3 |
+| Site | — | — | "As deployed", alternatives table, hear-it anchors, degraded-evidence flags, generated methodology table |  | L4 |
 
 **L1 fixture set**: fixture series with pinned vintages; golden expected grids; class-boundary claims; cited-document corpus; caption-artefact fixtures; authority-map resolutions; fetch-failure modes; NLI must-pass/must-fail packs; routing fixtures; depth-cap bounds. All LLM calls mocked.
 
-## 6. Open questions
+## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|

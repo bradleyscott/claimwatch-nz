@@ -73,29 +73,22 @@ Suppression policy: `// biome-ignore …: reason` — reason mandatory, enforced
 
 No pre-commit hooks: CI is the single gate; hooks fork and rot. `pnpm verify` is local parity.
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| TOO-R1 | Boundary lint silently disabled or loosened | Blind rule's first gate gone; contamination caught only at runtime | Suppression-reason grep; `biome.json` diff flagged in review; this doc must gain a matching line |
-| TOO-R2 | `any` / `ts-ignore` creep | Zod-at-boundaries typing erodes; runtime surprises | tsc strict; grep gate for `ts-ignore` / `@ts-nocheck` |
-| TOO-R3 | CI/local environment drift | Green CI, broken dev (or inverse); trust in checks decays | `packageManager` + `engines` + `node-version-file`; frozen lockfile |
-| TOO-R4 | Dependabot flood | Update PRs rubber-stamped | 7-day cooldown; dev/prod groups; 10-PR cap |
-| TOO-R5 | Audit gate disabled for noise | Vulnerable dependency ships | High-severity-only gate; exceptions live in one allowlist file, each with reason + expiry |
-| TOO-R6 | Secret scan misses | Credentials in fixtures/prompts leak | TruffleHog verified-only + push-protection; weekly full-history run |
-| TOO-R7 | Migration CI never wired | First migration merges unreviewed | Paths-filtered job on `packages/store/**`; blocks merge |
-| TOO-R8 | Skipped/only tests in CI | Suite silently shrinks | `--forbid-only`; grep gate for `.skip` |
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
-## 5. Test strategy
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| TOO-R1 | Boundary lint silently disabled or loosened | Blind rule's first gate gone; contamination caught only at runtime | Grep gates + forbid-only in the shared check job | Suppression-reason grep; `biome.json` diff flagged in review; this doc must gain a matching line | L1 |
+| TOO-R2 | `any` / `ts-ignore` creep | Zod-at-boundaries typing erodes; runtime surprises | Grep gates + forbid-only in the shared check job | tsc strict; grep gate for `ts-ignore` / `@ts-nocheck` | L1 |
+| TOO-R3 | CI/local environment drift | Green CI, broken dev (or inverse); trust in checks decays | Pinned toolchain validated in CI install step | `packageManager` + `engines` + `node-version-file`; frozen lockfile | L1 |
+| TOO-R4 | Dependabot flood | Update PRs rubber-stamped | Workflow configs reviewed like code; dead-man's alert if no security run in 10 days | 7-day cooldown; dev/prod groups; 10-PR cap | L1 + ops |
+| TOO-R5 | Audit gate disabled for noise | Vulnerable dependency ships | Workflow configs reviewed like code; dead-man's alert if no security run in 10 days | High-severity-only gate; exceptions live in one allowlist file, each with reason + expiry | L1 + ops |
+| TOO-R6 | Secret scan misses | Credentials in fixtures/prompts leak | Workflow configs reviewed like code; dead-man's alert if no security run in 10 days | TruffleHog verified-only + push-protection; weekly full-history run | L1 + ops |
+| TOO-R7 | Migration CI never wired | First migration merges unreviewed | Fixture: drizzle migrations apply clean to scratch Postgres seeded with store schema | Paths-filtered job on `packages/store/**`; blocks merge | L1 |
+| TOO-R8 | Skipped/only tests in CI | Suite silently shrinks | Grep gates + forbid-only in the shared check job | `--forbid-only`; grep gate for `.skip` | L1 |
 
-| Risk | Mitigation | Layer |
-|---|---|---|
-| TOO-R1, R2, R8 | Grep gates + forbid-only in the shared check job | L1 |
-| TOO-R3 | Pinned toolchain validated in CI install step | L1 |
-| TOO-R4–R6 | Workflow configs reviewed like code; dead-man's alert if no security run in 10 days | L1 + ops |
-| TOO-R7 | Fixture: drizzle migrations apply clean to scratch Postgres seeded with store schema | L1 |
-
-## 6. Open questions
+## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|

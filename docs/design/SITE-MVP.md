@@ -141,46 +141,29 @@ One `ClaimReview` per verdict page, rendered server-side in the initial HTML: ca
 
 Producer: L3 run → versioned JSON artifact (`packages/harness/output/latest-accuracy.json`). Consumer: methodology build step renders the table verbatim — per mode accuracy, IAA, cost/claim. Rule: **the published number is generated, never hand-edited**; CI asserts rendered values == artifact values. The AVeriTeC mapping table is static prose and may be hand-written; only the measured-accuracy table is artifact-bound.
 
-## 4. Test risks
+## 4. Tests
 
-| ID | Risk | Consequence if untested | Detection signal |
-|---|---|---|---|
-| SIT-R1 | Malformed/missing ClaimReview JSON-LD | Silent SEO death — discovery channel dead while the site looks fine | JSON-LD absent or schema-invalid in rendered HTML |
-| SIT-R2 | Methodology table drifting from harness output (stale or hand-edited) | The honesty differentiator becomes a liability | Rendered table ≠ artifact values |
-| SIT-R3 | Broken hear-it deep links (wrong time, dead URL, control without anchor) | The demo moment fails live; broadcast claims become dead-ends | Deep link resolves wrong/absent |
-| SIT-R4 | Register violations — jargon on public pages | Public pages read like internal docs; engagement goal fails | Banned-pattern scan on rendered text |
-| SIT-R5 | Verdict language violating ADR-0002 (character statements, degree-slider, wrong class label) | Legal exposure; benchmark-mapping opacity | Banned-pattern scan + label-set check |
-| SIT-R6 | Uncalibrated confidence published (placeholder value, or over-emphasised as meter/headline) | Claims a measured statistical confidence the pipeline does not compute — implies subjective truth degrees we don't have (ADR-0004) | Any confidence value in rendered public pages |
-| SIT-R7 | Stale verdict pages after store mutations | Public verdict contradicts the store — worst-case trust failure | Page HTML ≠ store state for the claim id |
-| SIT-R8 | SSR/hydration failures | Blank verdict above the fold; crawlers get nothing | Initial HTML lacks verdict content; hydration errors |
-| SIT-R9 | Accessibility failures (verdict by colour alone, contrast, keyboard) | Core artefact unreadable to screen readers | axe violations; colour-only signal |
-| SIT-R10 | Mobile layout failures | Broken on the likely-dominant voter device | Playwright mobile-viewport smoke |
-| SIT-R11 | Facet/aggregation errors — entity counts disagree with claims | Wrong track records; wrong filter counts | Counts ≠ independent SQL recomputation |
-| SIT-R12 | Feedback widget abuse / PII mishandling | Noise, privacy exposure, moderation burden the MVP avoided | Rate limiting; schema rejects unexpected fields |
-| SIT-R13 | Out-of-scope creep shipping accidentally | Timeline risk | Route inventory vs in-scope list; component-import scan |
-| SIT-R14 | Feed/pagination defects (empty store → blank homepage; past-end → 500) | First demo on a sparse store looks broken | 200-with-content assertions on edge pages |
-
-## 5. Test strategy
+Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
 
 The site's failure modes are disproportionately **silent** (JSON-LD dropped by the crawler, stale pages, links that render but resolve wrong, register drift), so the strategy leans on L4a rendered-HTML assertions every push. Pure logic (anchor→href builder, JSON-LD serializer, facet queries, banned-pattern checks) is unit-tested at L1 — L4 catches that *a page* is wrong only where a fixture covers it; L1 catches *every input shape*.
 
-| Risk | Mitigation | Layer |
-|---|---|---|
-| SIT-R1 | Extract `<script type="application/ld+json">` from every rendered verdict page; validate against schema.org `ClaimReview`; fail the build loudly. Serializer unit-tested incl. pledge states | L1 + L4a |
-| SIT-R2 | Render the table from the artifact in CI; assert numeric equality; build fails if the artifact is missing/malformed | L1 + L4a |
-| SIT-R3 | For every fixture broadcast claim: control rendered iff anchor present; href matches the stored anchor; URL 200s to the expected item. Builder unit-tested | L1 + L4a (live URLs at L4b) |
-| SIT-R15 | Trail sections describe a check that did not run, or substitute generic copy for a mode's material: a claim with no recorded mode being explained with some other check's copy; an absent comparison rendered as a completed one; an invented bound or a guessed mode for a statistical claim | Wrong record published as provenance — the failure this page exists to prevent, and the hardest to notice because the page still *looks* complete | Absence states asserted at L1 for both missing mode and missing triage record; every mode's bound asserted present; `statistical` asserted never to derive a mode; L4a renders both the populated and the pre-migration fixture |
-| SIT-R4 | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); audit-line labels drawn from a reviewed allow-list (`AUDIT_LABELS`); source labels rendered as descriptions with raw codes confined to the technical record; methodology page checked separately for sanctioned sections | L2 + L4a |
-| SIT-R5 | Banned-pattern check over generated verdict text + rendered pages: character statements, slider vocabulary, label-set == ADR-0004 rendering | L1 + L4a |
-| SIT-R6 | No confidence value renders on any public page (render-model + SSR-HTML assertion). The rule relaxes to "metadata text only" when an adjudicator + calibration land | L1 + L4a |
-| SIT-R7 | Fixture mutation → revalidation → page (and ClaimReview `datePublished`) reflects the new verdict; webhook fires for claim/entity/topic routes | L1 + L4a |
-| SIT-R8 | Playwright asserts verdict class, plain verdict, ClaimReview present in the **pre-hydration SSR HTML**; zero console hydration errors | L4a |
-| SIT-R9 | axe tests on verdict card + feed; verdict conveyed in text (label always co-rendered with colour); contrast assertions | L1 |
-| SIT-R10 | Verdict-page + feed smoke at 375px; no horizontal scroll | L4a |
-| SIT-R11 | Facet/distribution queries vs independent SQL recomputation on a seeded fixture | L1 |
-| SIT-R12 | Endpoint tests: rate limiting, schema rejects unexpected fields, email optional | L1 |
-| SIT-R13 | Route inventory == in-scope page set; no chain/submission/contest components imported | L4a |
-| SIT-R14 | Empty-store fixture renders the honest empty state; past-end pagination renders clean | L1 + L4a |
+| ID | Risk | Consequence if untested | Test | Signal | Layer |
+|---|---|---|---|---|---|
+| SIT-R1 | Malformed/missing ClaimReview JSON-LD | Silent SEO death — discovery channel dead while the site looks fine | Extract `<script type="application/ld+json">` from every rendered verdict page; validate against schema.org `ClaimReview`; fail the build loudly. Serializer unit-tested incl. pledge states | JSON-LD absent or schema-invalid in rendered HTML | L1 + L4a |
+| SIT-R2 | Methodology table drifting from harness output (stale or hand-edited) | The honesty differentiator becomes a liability | Render the table from the artifact in CI; assert numeric equality; build fails if the artifact is missing/malformed | Rendered table ≠ artifact values | L1 + L4a |
+| SIT-R3 | Broken hear-it deep links (wrong time, dead URL, control without anchor) | The demo moment fails live; broadcast claims become dead-ends | For every fixture broadcast claim: control rendered iff anchor present; href matches the stored anchor; URL 200s to the expected item. Builder unit-tested | Deep link resolves wrong/absent | L1 + L4a (live URLs at L4b) |
+| SIT-R4 | Register violations — jargon on public pages | Public pages read like internal docs; engagement goal fails | Snapshot rendered public pages; banned-lexicon scan (grid, ladder, NLI, tier, stratum…); audit-line labels drawn from a reviewed allow-list (`AUDIT_LABELS`); source labels rendered as descriptions with raw codes confined to the technical record; methodology page checked separately for sanctioned sections | Banned-pattern scan on rendered text | L2 + L4a |
+| SIT-R5 | Verdict language violating ADR-0002 (character statements, degree-slider, wrong class label) | Legal exposure; benchmark-mapping opacity | Banned-pattern check over generated verdict text + rendered pages: character statements, slider vocabulary, label-set == ADR-0004 rendering | Banned-pattern scan + label-set check | L1 + L4a |
+| SIT-R6 | Uncalibrated confidence published (placeholder value, or over-emphasised as meter/headline) | Claims a measured statistical confidence the pipeline does not compute — implies subjective truth degrees we don't have (ADR-0004) | No confidence value renders on any public page (render-model + SSR-HTML assertion). The rule relaxes to "metadata text only" when an adjudicator + calibration land | Any confidence value in rendered public pages | L1 + L4a |
+| SIT-R7 | Stale verdict pages after store mutations | Public verdict contradicts the store — worst-case trust failure | Fixture mutation → revalidation → page (and ClaimReview `datePublished`) reflects the new verdict; webhook fires for claim/entity/topic routes | Page HTML ≠ store state for the claim id | L1 + L4a |
+| SIT-R8 | SSR/hydration failures | Blank verdict above the fold; crawlers get nothing | Playwright asserts verdict class, plain verdict, ClaimReview present in the **pre-hydration SSR HTML**; zero console hydration errors | Initial HTML lacks verdict content; hydration errors | L4a |
+| SIT-R9 | Accessibility failures (verdict by colour alone, contrast, keyboard) | Core artefact unreadable to screen readers | axe tests on verdict card + feed; verdict conveyed in text (label always co-rendered with colour); contrast assertions | axe violations; colour-only signal | L1 |
+| SIT-R10 | Mobile layout failures | Broken on the likely-dominant voter device | Verdict-page + feed smoke at 375px; no horizontal scroll | Playwright mobile-viewport smoke | L4a |
+| SIT-R11 | Facet/aggregation errors — entity counts disagree with claims | Wrong track records; wrong filter counts | Facet/distribution queries vs independent SQL recomputation on a seeded fixture | Counts ≠ independent SQL recomputation | L1 |
+| SIT-R12 | Feedback widget abuse / PII mishandling | Noise, privacy exposure, moderation burden the MVP avoided | Endpoint tests: rate limiting, schema rejects unexpected fields, email optional | Rate limiting; schema rejects unexpected fields | L1 |
+| SIT-R13 | Out-of-scope creep shipping accidentally | Timeline risk | Route inventory == in-scope page set; no chain/submission/contest components imported | Route inventory vs in-scope list; component-import scan | L4a |
+| SIT-R14 | Feed/pagination defects (empty store → blank homepage; past-end → 500) | First demo on a sparse store looks broken | Empty-store fixture renders the honest empty state; past-end pagination renders clean | 200-with-content assertions on edge pages | L1 + L4a |
+| SIT-R15 | Trail sections describe a check that did not run, or substitute generic copy for a mode's material: a claim with no recorded mode explained with some other check's copy; an absent comparison rendered as a completed one; an invented bound or a guessed mode for a statistical claim | Wrong record published as provenance — the failure this page exists to prevent, and the hardest to notice because the page still *looks* complete | Absence states asserted at L1 for both missing mode and missing triage record; every mode's bound asserted present | `statistical` asserted never to derive a mode; L4a renders both the populated and the pre-migration fixture | L1 + L4a |
 
 **Two structural rules:**
 1. **Smoke-set claims are fixtures, not live data** — one claim per verdict class, one broadcast claim per anchor form, one pledge, one caption-flagged claim. Live-data variance never makes CI flaky; live behaviour is covered at L4b.
@@ -188,7 +171,7 @@ The site's failure modes are disproportionately **silent** (JSON-LD dropped by t
 
 Deliberately not covered (consistent with TEST-STRATEGY §5): load/performance testing; pixel-diff visual regression (snapshot tests cover structure and register); E2E contestation flows; multi-browser matrices beyond one engine + mobile viewport.
 
-## 6. Open questions
+## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|
