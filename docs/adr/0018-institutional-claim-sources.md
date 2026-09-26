@@ -8,7 +8,17 @@ A large share of the most consequential campaign claims originates not from poli
 
 This ADR maps the institutional claim-source landscape (researched 2026-09-08, with live probes for machine access) and defines how these organisations are ingested.
 
-**A structural note first:** these bodies span a spectrum from research organisations (NZIER publishes forecasts and peer-reviewable economic analysis) to advocacy groups (the Taxpayers' Union campaigns for lower taxes) to hybrid membership organisations (the NZ Initiative describes itself as a think tank *and* a business membership organisation). The pipeline treats them **as claim sources, never evidence authorities** — their reports and analysis are exactly the class of content that gets checked (their numbers against official series). Several maintain their own statistics or polls (Taxpayers' Union–Curia, NZIER Consensus Forecasts); a poll or model output published by an advocacy body is a *claim about the world*, not evidence of the world. This aligns with the A1–A6 authority map: advocacy-produced data is at best A6, and the provenance flag always travels with the claim. The audience/community descriptors in `SOURCE-TAXONOMY.md` §1.2 apply here too — organisations are described by observable characteristics (membership, funding type, stated mission), never by political-leaning labels.
+**A structural note first.** These bodies span a spectrum: research organisations (NZIER publishes
+forecasts and peer-reviewable economic analysis), advocacy groups (the Taxpayers' Union campaigns for
+lower taxes), and hybrid membership organisations (the NZ Initiative calls itself both a think tank and a
+business membership organisation). The pipeline treats them all **as claim sources, never evidence
+authorities.** Their reports and analysis are exactly the content that gets checked, their numbers against
+the official series. Several publish their own statistics or polls (Taxpayers' Union–Curia, NZIER
+Consensus Forecasts); a poll or model output from an advocacy body is a *claim about the world*, not
+evidence of the world. In the A1–A6 authority map, advocacy-produced data is at best A6, and the provenance
+flag travels with the claim. The audience descriptors in `SOURCE-TAXONOMY.md` §1.2 apply here too:
+organisations are described by observable characteristics — membership, funding type, stated mission —
+never by political-leaning labels.
 
 ## Decision
 

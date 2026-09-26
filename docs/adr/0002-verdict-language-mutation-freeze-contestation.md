@@ -6,8 +6,15 @@
 
 Three connected decisions shape how verdicts change and how they are worded:
 
-1. **The contestation mechanism.** The product's differentiator: verdicts mutate on **validated evidence**, not crowd consensus. Community-correction prior art (X Community Notes, Meta 2025) uses bridging-based rating, but bridging needs a large active rater pool with rating history — not achievable at NZ scale in an 8-week build (X's model needs ~100M+ daily users; Meta's consensus bar is criticised as too high for timely correction).
-2. **The language standard.** Verdicts implying persons lied invite defamation suits (civil, no anti-SLAPP in NZ); Electoral Act 1993 s 199A (publishing a statement of fact known to be false, with intent to influence voters) applies to material first published on election day or the two preceding days — a verdict mutated in that window is a first publication.
+1. **The contestation mechanism.** This is the product's differentiator: verdicts change on **validated
+evidence**, not on crowd consensus. Community-correction systems (X Community Notes, Meta in 2025) use
+bridging-based rating, which needs a large pool of active raters with rating history — not achievable at
+NZ scale in an 8-week build.
+2. **The language standard.** A verdict that implies a person lied invites a defamation suit. New Zealand
+has civil defamation and no anti-SLAPP defence. Separately, Electoral Act 1993 s 199A makes it an offence
+to publish a statement of fact known to be false with intent to influence voters, and it applies to
+material first published on election day or the two days before — so a verdict mutated in that window is a
+first publication.
 3. **The freeze window** follows from those two exposures.
 
 ## Decision

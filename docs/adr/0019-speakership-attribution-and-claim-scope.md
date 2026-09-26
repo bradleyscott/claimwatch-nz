@@ -25,7 +25,11 @@ No quotation marks, no attribution verb; RNZ's expository prose. A verdict was p
 3. **It is the wrong subject.** The project fact-checks claims made in political debate. Assessing a newsroom's prose is media criticism: a different product with a different standard, and it invites the objection that we fact-check journalists rather than politicians.
 4. **The safety analysis assumes an identifiable speaker.** ADR-0002's defamation and Electoral Act exposure is about statements by identifiable actors, and its contestation mechanism presupposes someone who can contest on the claim's behalf. Outlet prose has neither.
 
-**What must stay true.** ADR-0008 forbids filling context fields from speaker identity ("no inference from speaker identity — `attached_proposal` comes from the window text only"). TRIAGE §1 says triage "never sees claimant identity as a decision input (ADR-0002)". ADR-0006 says "attribution never guesses". Any rule here must not breach those, and the boundary between *eligibility* and *reading* has to be explicit, because a naive reading of the existing rules forbids this ADR outright.
+**What must stay true.** ADR-0008 forbids filling context fields from speaker identity: `attached_proposal`
+comes from the window text only. TRIAGE §1 says triage never uses claimant identity as a decision input.
+ADR-0006 says attribution never guesses. Any rule here must respect all three, and the boundary between
+*eligibility* and *reading* has to be explicit — a naive reading of the existing rules forbids this ADR
+outright.
 
 ## Decision
 
