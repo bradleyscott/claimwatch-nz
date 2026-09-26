@@ -14,6 +14,10 @@ export interface ResearchOutcome {
   confidence: number;
   verdictSignal: "supported" | "refuted" | "not_enough_evidence";
   gaps: string[];
+  /** Whether a query aimed at refuting the claim was run (ADR-0020 rule 3). */
+  refutationSearched: boolean;
+  /** Independent sources — distinct domains — in the evidence (ADR-0020 rule 3). */
+  independentSources: number;
 }
 
 export const RESEARCHER_PROMPT = `You are a research assessor verifying a factual claim.
@@ -21,21 +25,27 @@ You are given: the claim, the decomposed questions searched, and the evidence co
 (title, link, domain, snippet for each source).
 Assess:
 1. sufficient: is the evidence ENOUGH to settle the claim's key quantity/statement?
-   The bar: at least one source whose domain matches the claim's own jurisdiction,
-   directly stating the specific figure/period the claim asserts. Media commentary
-   about related numbers does NOT meet the bar.
+   The bar (ADR-0020): EITHER one official record for the claim's own jurisdiction that
+   directly states the specific figure/statement, OR at least two INDEPENDENT sources from
+   different domains. A single non-official source does NOT meet the bar. Media commentary
+   about related numbers does NOT meet the bar either.
 2. gaps: what specifically remains unverified (e.g. "no official source for the 27% figure").
 3. refinedQueries: 1-3 searches targeting the gaps. These must chase the MISSING evidence
    (official statistics, primary statements), not repeat what was already searched.
-4. verdictSignal: your current best reading — supported | refuted | not_enough_evidence.
-5. confidence: 0-1, reflecting how settled the evidence is.
-Reply with ONLY JSON: {"sufficient": boolean, "confidence": number, "gaps": string[], "refinedQueries": string[], "verdictSignal": "supported"|"refuted"|"not_enough_evidence"}`;
+4. refutationQuery: ONE search aimed at REFUTING the claim — the query most likely to surface
+   evidence that it is false or oversimplified. A search that only looks for confirmation is
+   not verification, so this is always required.
+5. verdictSignal: your current best reading — supported | refuted | not_enough_evidence.
+6. confidence: 0-1, reflecting how settled the evidence is.
+Reply with ONLY JSON: {"sufficient": boolean, "confidence": number, "gaps": string[], "refinedQueries": string[], "refutationQuery": string, "verdictSignal": "supported"|"refuted"|"not_enough_evidence"}`;
 
 export interface ResearchAssessment {
   sufficient: boolean;
   confidence: number;
   gaps: string[];
   refinedQueries?: string[];
+  /** A query aimed at refuting the claim (ADR-0020 rule 3). */
+  refutationQuery?: string;
   verdictSignal: "supported" | "refuted" | "not_enough_evidence";
 }
 
@@ -56,6 +66,27 @@ export interface ResearchInput {
 
 // Cost guard: decomposition × refinement cannot blow the search budget.
 export const MAX_SEARCHES = 12;
+
+function domainOf(link: string): string {
+  try {
+    return new URL(link).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Corroboration (ADR-0020 rule 3): how many DIFFERENT domains speak to the
+ * claim. Two pages on one site are one source; a claim resting on a single
+ * non-official source does not clear the bar.
+ */
+export function independentSourceCount(evidence: ReadonlyArray<{ link: string }>): number {
+  return new Set(evidence.map((e) => domainOf(e.link)).filter((d) => d.length > 0)).size;
+}
+
+export function meetsCorroboration(evidence: ReadonlyArray<{ link: string }>): boolean {
+  return independentSourceCount(evidence) >= 2;
+}
 
 export async function runDeepResearch(
   input: {
@@ -105,13 +136,12 @@ export async function runDeepResearch(
         if (seenLinks.has(r.link)) continue;
         seenLinks.add(r.link);
         evidence.push(r);
-        let domain = "";
-        try {
-          domain = new URL(r.link).hostname;
-        } catch {
-          domain = "";
-        }
-        evidenceForResearcher.push({ title: r.title, link: r.link, snippet: r.snippet, domain });
+        evidenceForResearcher.push({
+          title: r.title,
+          link: r.link,
+          snippet: r.snippet,
+          domain: domainOf(r.link),
+        });
       }
     }
 
@@ -130,6 +160,35 @@ export async function runDeepResearch(
     pendingQueries = assessment.refinedQueries ?? [];
   }
 
+  // ADR-0020 rule 3: a refutation search is not optional. The researcher names
+  // one; run it once if budget remains, then re-assess, because sufficiency
+  // judged without it is confirmation-only.
+  let refutationSearched = false;
+  const refutationQuery = assessment.refutationQuery?.trim();
+  if (refutationQuery && refutationQuery.length > 0 && searchesUsed < MAX_SEARCHES) {
+    const results = await deps.search(refutationQuery);
+    searchesUsed += 1;
+    refutationSearched = true;
+    for (const r of results.slice(0, deps.resultsPerQuery)) {
+      if (seenLinks.has(r.link)) continue;
+      seenLinks.add(r.link);
+      evidence.push(r);
+      evidenceForResearcher.push({
+        title: r.title,
+        link: r.link,
+        snippet: r.snippet,
+        domain: domainOf(r.link),
+      });
+    }
+    assessment = await deps.researcher.assessRound({
+      claim: input.claim,
+      round,
+      questions: input.questions,
+      evidence: evidenceForResearcher,
+      gaps: assessment.gaps,
+    });
+  }
+
   return {
     evidence,
     roundsUsed: round,
@@ -138,5 +197,7 @@ export async function runDeepResearch(
     confidence: assessment.confidence,
     verdictSignal: assessment.verdictSignal,
     gaps: assessment.gaps,
+    refutationSearched,
+    independentSources: independentSourceCount(evidence),
   };
 }

@@ -23,6 +23,7 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 | [0008](0008-claim-context-and-document-hierarchy.md) | Claim context — discourse window, publication/segment hierarchy, on-demand depth | Accepted |
 | [0009](0009-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure | Proposed |
 | [0019](0019-speakership-attribution-and-claim-scope.md) | Speakership attribution and claim scope — newsroom narration is not a claim | Accepted |
+| [0020](0020-research-strength-and-source-admissibility.md) | Research strength — research floor, source admissibility, corroboration | Proposed |
 
 ## Measurement and providers
 

@@ -47,6 +47,7 @@ import {
   type ResearcherLlm,
   runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
+import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import {
   ATTRIBUTION_PROMPT,
@@ -500,54 +501,79 @@ async function main(): Promise<void> {
     }
     const search = createSerperSearch(requireEnv("SERPER_API_KEY"));
 
+    // ADR-0020: resolve the cited document BEFORE choosing the path. A claim
+    // that names no document — or whose cited document is not admissible — does
+    // not get a citation check; it escalates to open-web research, which is the
+    // mode that actually searches for corroboration. The old path invented a
+    // citation from the claimant's name and took search result #1, which is how
+    // a Wikipedia biography became the evidence for a policing claim.
+    let citationTarget: { link: string; title: string; snippet: string; tier: number | null } | null =
+      null;
+    let citationRefusal: string | null = null;
     if (mode === "citation-check") {
-      // The cited source is named in the fingerprint; find it, fetch it, and
-      // compare the claim against what it actually says.
-      const citedName = fingerprint.source ?? domainKey;
-      console.log(`  cited source: ${citedName}`);
-      const found = await search.search(`${citedName} New Zealand`);
-      const candidate = found[0];
-      if (candidate == null) {
-        verdictClass = "not_enough_evidence";
-        justification = `The claim cites "${citedName}", but no citable document could be located to compare it against.`;
-        console.log("  no cited document located → not_enough_evidence");
-      } else {
-        const page = await fetchEvidenceText(candidate.link, undefined, {
-          snippet: candidate.snippet,
-        });
-        const known = await store.resolveAuthority(canonicalDomain(candidate.link));
-        const outcome = await citationCheck(verificationLlm as never, {
-          claim: claim.text,
-          citedDocument: {
-            source: candidate.link,
-            authorityTier: known?.tier ?? 6,
-            // Null text means the page did not yield readable content — the
-            // comparison then rests on the snippet, and the design's rule holds:
-            // a paywalled/uncitable source is quoted-claim-only, never
-            // circumvented (ADR-0006 paywall policy).
-            text: page.ok ? page.text.slice(0, 4000) : null,
-          },
-        });
-        verdictClass = outcome.verdict;
-        justification =
-          outcome.mismatch ??
-          `Compared against ${candidate.link}${outcome.bindingStrictness ? ` (${outcome.bindingStrictness} binding)` : ""}.`;
-        // The gate gets what the comparison actually read, not just the citation.
-        citedSpan = page.ok
-          ? `${candidate.title} (${candidate.link}): ${page.text.slice(0, 1400)}`
-          : `${candidate.title} — ${candidate.link} (page text unavailable)`;
-        evidence.push({
-          title: candidate.title,
-          link: candidate.link,
-          snippet: candidate.snippet,
-          finding: outcome.mismatch ?? "",
-          tier: known?.tier ?? null,
-        });
-        console.log(`  citation-check → ${verdictClass}`);
+      const citedName = fingerprint.source ?? null;
+      console.log(`  cited source: ${citedName ?? "(none named)"}`);
+      const found = citedName != null ? await search.search(`${citedName} New Zealand`) : [];
+      const tiers = new Map<string, number | null>();
+      for (const result of found) {
+        const known = await store.resolveAuthority(canonicalDomain(result.link));
+        tiers.set(result.link, known?.tier ?? null);
       }
+      const resolved = resolveCitationTarget({
+        citedSource: citedName,
+        results: found,
+        tierOf: (link) => tiers.get(link) ?? null,
+      });
+      if (resolved.ok) {
+        citationTarget = { ...resolved.target, tier: tiers.get(resolved.target.link) ?? null };
+      } else {
+        citationRefusal = resolved.reason;
+      }
+    }
+
+    if (mode === "citation-check" && citationTarget != null) {
+      console.log(`  citation-check against ${citationTarget.link}`);
+      const page = await fetchEvidenceText(citationTarget.link, undefined, {
+        snippet: citationTarget.snippet,
+      });
+      const outcome = await citationCheck(verificationLlm as never, {
+        claim: claim.text,
+        citedDocument: {
+          source: citationTarget.link,
+          authorityTier: citationTarget.tier ?? 6,
+          // Null text means the page did not yield readable content — the
+          // comparison then rests on the snippet, and the design's rule holds:
+          // a paywalled/uncitable source is quoted-claim-only, never
+          // circumvented (ADR-0006 paywall policy).
+          text: page.ok ? page.text.slice(0, 4000) : null,
+        },
+      });
+      verdictClass = outcome.verdict;
+      justification =
+        outcome.mismatch ??
+        `Compared against ${citationTarget.link}${outcome.bindingStrictness ? ` (${outcome.bindingStrictness} binding)` : ""}.`;
+      // The gate gets what the comparison actually read, not just the citation.
+      citedSpan = page.ok
+        ? `${citationTarget.title} (${citationTarget.link}): ${page.text.slice(0, 1400)}`
+        : `${citationTarget.title} — ${citationTarget.link} (page text unavailable)`;
+      evidence.push({
+        title: citationTarget.title,
+        link: citationTarget.link,
+        snippet: citationTarget.snippet,
+        finding: outcome.mismatch ?? "",
+        tier: citationTarget.tier,
+      });
+      console.log(`  citation-check → ${verdictClass}`);
     } else {
       // open-web: the default path (mode-routing.ts) — decompose, research the
-      // questions, read the pages, then adjudicate against full text.
+      // questions, read the pages, then adjudicate against full text. A
+      // citation-check that could not resolve its document escalates here
+      // (ADR-0020 rule 1) rather than abstaining after one query.
+      if (mode === "citation-check") {
+        console.log(
+          `  citation-check cannot run: ${citationRefusal ?? "no cited document"} → escalated to open-web`,
+        );
+      }
       const questions = await decomposeClaim({ claim: claim.text }, decomposeLlm);
       console.log(`  decomposed into ${questions.length} question(s)`);
       const outcome = await runDeepResearch(
