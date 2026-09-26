@@ -1,12 +1,19 @@
 # Evidence & verdict store design
 
-*Proposed. ADRs: 0002, 0005, 0009 (boundary), 0010, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0002, 0005, 0009 (boundary), 0010, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The store is the durable asset and single data plane: Postgres (pgvector + FTS), Drizzle schema in `packages/store`, shared by pipeline (write), site (read), harness (export) per ADR-0014 — with Graphile Worker as the job queue/scheduler on the same database (§2.3). Everything the system claims about a claim — record, evidence, verdict, provenance — lives here, append-only and versioned, because **audit-log integrity is the trust mechanism** for a system with no editorial masthead (ADR-0001).
+The store is the durable asset and the single data plane: Postgres with pgvector and full-text search,
+with the Drizzle schema in `packages/store`, shared by the pipeline (writes), the site (reads), and the
+harness (exports), and with Graphile Worker as the job queue on the same database (§2.3). Everything
+the system records about a claim — the record, the evidence, the verdict, the provenance — lives here,
+append-only and versioned, because **audit-log integrity is the trust mechanism** for a system with no
+editorial masthead (ADR-0001, ADR-0014).
 
-The slice exercises the store end-to-end on the five lanes and four modes plus harness label storage. The slice's deliverables (per-stratum accuracy, cost per claim) are only meaningful if the store faithfully records what the pipeline did: fallbacks, vintages, versions.
+The slice exercises the store end to end on the five lanes and four modes, plus label storage for the
+harness. Its deliverables — per-group accuracy and cost per claim — are only meaningful if the store
+faithfully records what the pipeline did: fallbacks, vintages, and versions.
 
 **In slice:** `publication`/`segment` (ADR-0008 hierarchy), `claim`, `evidence_item` (versioned, vintage-dated), `evidence_pack` (append-only), `verdict_version` + `verdict_transition_log`, `fallback_log`, `verdict_provenance`, `labels` (blind-rule isolated), Graphile Worker job tables (§2.3).
 
@@ -16,10 +23,13 @@ The slice exercises the store end-to-end on the five lanes and four modes plus h
 
 ### 1.1 What the store is not
 
-- **Not a claim source** — authority content enters only as referenced evidence items (ARCHITECTURE §1's structural distinction).
-- **Not the harness's ground truth for verification** — the store holds both pipeline objects and labels; the boundary is access, not schema (§2.8).
-- **Not a raw-web-content database** — publications store provenance + hash + raw document for reprocessing; the organising principle is the claim.
-- **Not an argument-chain store yet.**
+- **Not a claim source.** Authority content enters only as referenced evidence items (the structural
+  distinction in ARCHITECTURE §1).
+- **Not the harness's ground truth.** The store holds both pipeline objects and labels; the boundary is
+  access, not schema (§2.8).
+- **Not a raw-web-content database.** Publications keep provenance, a hash, and the raw document for
+  reprocessing. The organising principle is the claim.
+- **Not an argument-chain store yet** (ADR-0009).
 
 ## 2. Design
 
@@ -44,14 +54,31 @@ Retrieval is native: HNSW on `claim.embedding`, `tsvector` FTS — hybrid dense+
 
 The site's reads are part of this package, not `apps/site` (Sept 2026): `site-reader.ts` holds the read model (Zod-validated `VerdictPageData`/`FeedEntry`) and the only queries the reader plane runs, so "latest verdict per claim" and "the pack this verdict pins" are written once against the schema instead of as string SQL in a consumer. The site's connection is opened read-only at the session level (`default_transaction_read_only`), so "the site has no write path" survives a future query-list mistake.
 
-**The reader serves only eligible claims by default**, on two conditions that the pipeline decides and the store records — the site cannot infer either, so it does not guess:
+**The reader serves only eligible claims by default**, on two conditions the pipeline decides and the
+store records. The site cannot infer either, so it does not guess.
 
-- **Document provenance** (`claim.publication_id` present). ADR-0008's `publication → segment → claim` hierarchy is what makes a check traceable to a document a reader can open. Records without one are the AVeriTeC evaluation corpus and anything else a slice script wrote straight into the store. On 2026-09-13 the live store served 26 published verdicts of which 25 had no publication and 19 cited no evidence, with one claim text appearing up to twelve times carrying contradictory classes — ING-R10's "fixture records treated as a production lane" reaching the public site.
-- **Speakership** (`claim.speakership_class`, ADR-0019 §1). Whether the sentence was ours to check at all. The first live lane published a verdict about RNZ's own narration — a compound sentence the reporter synthesised, with no speaker — so a verdict could not say whose claim it assessed. Only `quoted-actor` and `author-claim` publish; `outlet-prose` and `unresolved` are recorded, never verified. The decision must also be **complete**: `speakership_method` (ADR-0019 §2 — a structural attribution and a classified one carry different confidence) and `genre` (the input that selected the rule) have to be recorded, because §5 makes the page disclose how the claim was attributed and a class with no provenance behind it cannot be disclosed honestly. A **null class, or a null method or genre, fails closed** — no decision recorded means not publishable, which is the state of every row ingested before ADR-0019 existed.
+- **Document provenance** (`claim.publication_id` present). The `publication → segment → claim`
+  hierarchy is what makes a check traceable to a document a reader can open (ADR-0008). Records without
+  one are the AVeriTeC evaluation corpus and anything a slice script wrote straight into the store. On
+  13 September 2026 the live store served 26 published verdicts, 25 with no publication and 19 citing
+  no evidence, with one claim text appearing up to twelve times carrying contradictory classes —
+  ING-R10's "fixture records treated as a production lane" reaching the public site.
+- **Speakership** (`claim.speakership_class`, ADR-0019 §1) — whether the sentence was ours to check at
+  all. The first live lane published a verdict about RNZ's own narration: a compound sentence the
+  reporter synthesised, with no speaker, so the verdict could not say whose claim it assessed. Only
+  `quoted-actor` and `author-claim` publish; `outlet-prose` and `unresolved` are recorded, never
+  verified. The decision must also be **complete**: `speakership_method` and `genre` have to be
+  recorded, because the page discloses how a claim was attributed and a class with no provenance
+  behind it cannot be disclosed honestly. A **null class, or a null method or genre, fails closed** —
+  no decision recorded means not publishable, which is the state of every row ingested before ADR-0019
+  existed.
 
 `SiteReadOptions.includeIneligible` (the site's `?corpus=all`) is the explicit escape hatch, so the corpus stays reachable for inspection without being the default and without deleting anything. One predicate gates both the page and the feed, so a record cannot be listable but unreadable.
 
-**Raw SQL is an enumerated exception, not a style choice** (audited Sept 2026). Everything that reads or writes claim/verdict/evidence rows goes through the Drizzle query builder; the `sql` template is used only where the expression is genuinely SQL-shaped (jsonb path extraction, CHECK constraints, `count(*)` projections). The complete list of hand-written statements, each with its reason:
+**Raw SQL is an enumerated exception, not a style choice.** Everything that reads or writes claim,
+verdict, or evidence rows goes through the Drizzle query builder. The `sql` template is used only where
+the expression is genuinely SQL-shaped: jsonb path extraction, CHECK constraints, and `count(*)`
+projections. Every hand-written statement, with its reason:
 
 | Where | Statement | Why not the builder |
 |---|---|---|
@@ -88,16 +115,25 @@ The store is the reconcilable historical truth for the funnel; a daily job compa
 | L3 scoring-run triggers | crontab, weekly + pre-release |
 | Ad-hoc jobs (reprocess this document, backfill) | `add_job` at runtime |
 
-Why this is not the "extra service" ADR-0014 rejected: the BullMQ/Redis rejection was about *Redis* — a second stateful service to run. Graphile Worker stores everything in the existing Postgres; no new infra, one more npm dependency. It also replaces what we'd have hand-rolled: built-in crontab with **backfill** (missed jobs — worker down at fire time — re-created on restart, `fill=2d` style), exponential-backoff retries (`max_attempts`), serial execution via named queues, and distributed-crontab safety (identical crontabs on multiple workers are ACID-safe; the `known_crontabs` lock table makes double-scheduling structurally impossible).
+This is not the "extra service" ADR-0014 rejected. That rejection was about *Redis* — a second stateful
+service to run. Graphile Worker keeps everything in the existing Postgres: no new infrastructure, one
+more npm dependency. It also replaces what we would otherwise hand-roll: a built-in crontab with
+**backfill** (a job missed while the worker was down is created on restart), exponential-backoff
+retries, serial execution through named queues, and distributed-crontab safety (identical crontabs on
+several workers are ACID-safe, and a `known_crontabs` lock table makes double-scheduling impossible).
 
 Properties: schedule state survives restarts (rows, not processes); a dead worker leaves the job visibly unfinished and backfillable; adding a job kind is code, not a deploy; `SKIP LOCKED` + job-key uniqueness make double-verification structurally impossible (CRO-R11). Job health (status, duration, retries, `run_at` history) lives in `graphile_worker.jobs` — feeding ADR-0012 job-health metrics and silence-detection.
 
 ### 2.4 Append-only enforcement (database, not convention)
 
-- **Roles and grants**: `pipeline` (INSERT/SELECT only), `site` (SELECT on published views), `harness` (labels schema). UPDATE/DELETE simply never granted; a `BEFORE UPDATE OR DELETE` trigger on the four append-only tables raises as defence-in-depth — executable documentation.
-- **Correction = new row**: revised series, re-fetched document, mutated verdict — new row + `supersedes` pointer. Rejected evidence is logged, never deleted.
-- **Forward-compatible evolution**: drizzle-kit migrations reviewed as SQL, applied in order, run in CI against a scratch Postgres before merge. No ad-hoc DDL against the live store, ever.
-- **Backups as the outer envelope** — nightly dumps, off-box, restore-tested (§5.2).
+- **Roles and grants.** `pipeline` gets INSERT and SELECT only; `site` gets SELECT on published views;
+  `harness` gets the labels schema. UPDATE and DELETE are never granted, and a `BEFORE UPDATE OR
+  DELETE` trigger on the append-only tables raises as defence in depth.
+- **A correction is a new row.** A revised series, a re-fetched document, or a mutated verdict adds a row
+  with a `supersedes` pointer. Rejected evidence is logged, never deleted.
+- **Evolution.** drizzle-kit migrations are reviewed as SQL, applied in order, and run in CI against a
+  scratch Postgres before merge. No ad-hoc DDL against the live store, ever.
+- **Backups as the outer envelope.** Nightly dumps, off-box, restore-tested (§5.2).
 
 ### 2.5 Versioning and diff
 
