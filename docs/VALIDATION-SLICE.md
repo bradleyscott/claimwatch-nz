@@ -4,7 +4,12 @@
 
 ## The design question
 
-The original slice covered three text-RSS lanes — clean HTML text, deterministic extraction, official prose. That measures one point of the risk surface and attests *nothing* about the risks that dominate the system: broadcast speech (Tier-2 captions), statistical cherry-picking (grid arithmetic), false context (provenance), extraction-ladder fallback rates. Accuracy and cost-per-claim are only meaningful if the input sample spans the risk surface. So the slice is designed around **risk coverage**, not lane simplicity.
+The original slice covered three text-RSS lanes: clean HTML, deterministic extraction, official prose. That
+measures one point of the risk surface and says *nothing* about the risks that dominate the system —
+broadcast speech (Tier-2 captions), statistical cherry-picking (grid arithmetic), false context
+(provenance), and extraction-ladder fallback rates. Accuracy and cost per claim are only meaningful if the
+input sample spans the risk surface, so the slice is designed around **risk coverage**, not lane
+simplicity.
 
 ## What the risks actually are
 
@@ -66,7 +71,11 @@ Explicitly **out of the site MVP**: contestation UI, submission system, argument
 
 ### Timeline reality
 
-Bigger than the original (five lanes vs three, site MVP vs none), but each added piece exercises already-designed machinery (ADR-0007's caption lane, ADR-0018's institution lane, the UX research's page set). Two weeks of focused build is realistic given the design completeness; the early-October soft launch holds **only if this slice starts this week** — the queue is: slice → measure → harden worst stratum → site polish → soft launch.
+This is bigger than the original — five lanes instead of three, plus a site MVP — but each added piece
+exercises machinery that is already designed (ADR-0007's caption lane, ADR-0018's institution lane, the
+page set from the UX research). Two weeks of focused build is realistic given that design completeness. The
+early-October soft launch holds **only if the slice starts this week**; the queue is slice → measure →
+harden the worst stratum → site polish → soft launch.
 
 ## What success looks like
 

@@ -12,7 +12,11 @@ Common pattern: intake is easy but **deliberately unpromise-keeping** — human 
 
 ## Our structural difference
 
-Every site above is bottlenecked by human capacity (~2–10 checks/day), so submissions compete for scarce human attention. **Our pipeline is automated and ingests continuously**: a submitted claim enters the same queue as pipeline-detected claims, gets the same check-worthiness triage, and gets a verdict on the same timeline. The honest contract changes from "we'll consider your suggestion" to "your claim enters the public queue and you can watch its status."
+Every site above is bottlenecked by human capacity — roughly 2 to 10 checks a day — so submissions
+compete for scarce human attention. **Our pipeline is automated and ingests continuously.** A submitted
+claim enters the same queue as a pipeline-detected claim, gets the same check-worthiness triage, and
+receives a verdict on the same timeline. The honest promise changes from "we'll consider your suggestion"
+to "your claim enters the public queue, and you can watch its status."
 
 This aligns with the never-trust rule (ADR-0006): a user-submitted quote is **never evidence of what was said**. Submissions are *pointers*; the claim enters the store only when the pipeline ingests the underlying publication itself, extracts the claim from the actual text, and anchors it.
 
