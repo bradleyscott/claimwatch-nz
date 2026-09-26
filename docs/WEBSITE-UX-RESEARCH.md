@@ -42,7 +42,9 @@
 
 ## How ClaimWatch NZ should present the analysis
 
-Our differentiators vs the famous sites: **fully automated verdicts, contestable, with machine-checkable evidence packs** — they're limited by human throughput to ~2–10 checks/day; we produce orders of magnitude more, and the site should make that scale visible.
+Our difference from the famous sites: **fully automated verdicts, contestable, with machine-checkable
+evidence packs.** They are limited by human throughput to roughly 2 to 10 checks a day; we produce orders
+of magnitude more, and the site should make that scale visible.
 
 ### Page 1: The claim card (the atom of the site)
 - **Verdict up top** — one of the four classes + confidence, rendered as a clean visual mark (a coloured band or glyph, not a smiley meter — we're NZ-serious, not US-quippy). "Accurate but incomplete" gets its own visual treatment — the most interesting verdict and the one that teaches media literacy.
