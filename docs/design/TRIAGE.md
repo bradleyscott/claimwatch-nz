@@ -1,21 +1,35 @@
 # Claim detection & triage design
 
-*Proposed. ADRs: 0004, 0005, 0008, 0010, 0014, 0019. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0004, 0005, 0008, 0010, 0014, 0019. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-Triage turns document records (INGESTION §3.1) into **claim records** and decides what does *not* become a claim. Its jobs:
+Triage turns document records (INGESTION §3.1) into **claim records**, and decides what does *not*
+become a claim. It does five things:
 
-1. **Checkability triage** — LLM sentence-level: checkable claim or not?
-2. **Claim typing** — statistical / citation-backed / broadcast-quote / institution-citation / false-context / other; the type selects the verification mode.
-3. **Claim fingerprint** — the six-tuple (indicator × population × geography × time window × baseline × unit) keying dedup, evidence-store matching, and idempotency.
-4. **Discourse-context extraction** — the optional typed ADR-0008 fields over the stored window; these select **material** grid rows in the stat engine, so errors here propagate into verdict rendering.
-5. **Publication/segment references** — the claim carries `publication_id` + `segment_id?` FKs; triage references the hierarchy, never duplicates it.
-6. **Drop logging** — every rejected sentence logged with window and rejection context. Triage recall is **measured, not assumed** (§2.5).
+1. **Checkability.** For each sentence, an LLM decides whether it is a checkable claim.
+2. **Typing.** It assigns a type — statistical, citation-backed, broadcast-quote, institution-citation,
+   false-context, or other — and the type selects the verification mode.
+3. **Fingerprint.** It extracts the six-part key (indicator, population, geography, time window,
+   baseline, unit) used for dedup, evidence-store matching, and idempotency.
+4. **Context extraction.** It fills the optional context fields over the stored window. These select
+   the **material** rows of the stat grid, so an error here reaches the verdict.
+5. **References and drops.** It links the claim to its publication and segment rather than copying the
+   hierarchy, and it logs every rejected sentence with its window and reason. Recall is **measured,
+   not assumed** (§2.5).
 
-Slice scope: triage runs on every ingested document. The false-context set skips checkability triage (pre-typed provenance items) but exercises typing and context extraction. Triage never verifies anything, never authors verdicts, and never sees claimant identity as a decision input (ADR-0002).
+Triage runs on every ingested document. The false-context set skips checkability (its items are
+pre-typed) but still exercises typing and context extraction. Triage never verifies, never writes a
+verdict, and never uses a claimant's identity to decide anything (ADR-0002).
 
-**The eligibility/reading boundary (ADR-0019).** "Never sees claimant identity as a decision input" governs how a claim is *read*, not which sentences arrive. **Eligibility** — whether a sentence is ours to check at all — is decided upstream at ingestion by speakership attribution (INGESTION §2.9), and reaches triage as a flag: outlet narration and unresolvable attribution are already excluded, and a quoted actor arrives as an attribution candidate, not as a person to reason about. **Reading** — checkability, typing, fingerprint, discourse context — then proceeds without the claimant influencing any of it (ADR-0008, AGENTS rule 5). Identity decides *whether* a sentence is checked; it never decides *what the check finds*.
+**Eligibility and reading are different things.** "Never uses a claimant's identity to decide
+anything" governs how a claim is *read*, not which sentences arrive. **Eligibility** — whether a
+sentence is ours to check at all — is decided upstream at ingestion, by speakership attribution
+(INGESTION §2.9). It reaches triage as a flag: outlet narration and unresolvable attribution are
+already excluded, and a quoted actor arrives as an attribution candidate rather than a person to
+reason about. **Reading** — checkability, typing, fingerprint, context — then runs with the claimant
+playing no part. Identity decides *whether* a sentence is checked; it never decides *what the check
+finds* (ADR-0008, ADR-0019).
 
 ## 2. Design
 
@@ -29,15 +43,40 @@ Slice scope: triage runs on every ingested document. The false-context set skips
        └─ yes → context extraction → claim record → verification queue + store
 ```
 
-**What the orchestrator actually calls (Sept 2026).** The diagram above is the contract; this is the implementation, stated because the two had drifted: document triage makes `triage-checkability` calls (one per chunk, each returning `claimType` and `mode` per sentence) and one `triage-context` call per checkable claim whose sentence has a window. It does **not** call `triage-typing` — typing is folded into the checkability call, which returns the type and mode — and it does **not** call `triage-fingerprint`, so `claim.fingerprint` is null on every row and TRIAGE §2.1's fingerprint step is unmet.
+**What the orchestrator actually calls.** The diagram above is the contract. The implementation
+differs, and the difference is worth stating: document triage makes `triage-checkability` calls (one
+per chunk, each returning `claimType` and `mode` per sentence) and one `triage-context` call per
+checkable claim that has a window. It does **not** call `triage-typing` — typing is folded into the
+checkability call — and it does **not** call `triage-fingerprint`, so `claim.fingerprint` is null on
+every row and the fingerprint step in the diagram above is unmet.
 
-That drift was invisible for weeks because every stage has its own passing tests and nothing asserted the *call set*. `contextFromLlm` was exercised by its TRI-R5/TRI-R6 tests and called by nothing, so `attached_proposal` was null on every real claim and the verdict page's "as deployed" line (a required section, SITE-MVP §2.2 rule 1) could not render. A test in `triage.test.ts` now pins the role set and fails if a stage stops being called — and it pins the two that are not called, so wiring one is a decision rather than an accident. Whether to run typing and fingerprint per claim is open question 2.
+That drift went unnoticed for weeks because every stage had its own passing tests and nothing checked
+the *call set*. `contextFromLlm` was covered by its TRI-R5/TRI-R6 tests but called by nothing, so
+`attached_proposal` was null on every real claim and the verdict page's "as deployed" line — a
+required section — could not render. A test in `triage.test.ts` now pins the roles triage calls and
+fails if a stage stops being called; it also pins the two roles that are not called, so wiring one is
+a decision rather than an accident. Whether to run typing and fingerprint per claim is open
+question 2.
 
-Model routing per ADR-0011: triage/typing/fingerprint is the high-volume structured-extraction role (Flash-class, batch-priced, harness-gated); the context pass is separate, Flash-class, short-circuits cleanly. Sampling settings are declared on the shared config surface (`SAMPLING`, CROSS-CUTTING §2) and passed on every call — **but they are advisory, and on the configured models they are discarded**: the SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter model ignores `seed`, so the 31-vs-42 claim flap that motivated the pin is not fixed by it. Determinism needs a mechanism that survives an unseedable model (agreement across repeats, a seed-honouring model for the variance-critical roles, or measurement and disclosure of the variance) — open question 9.
+Model routing (ADR-0011): triage, typing, and fingerprint are the high-volume structured-extraction
+role (Flash-class, batch-priced, harness-gated); the context pass is separate and short-circuits
+cleanly. Sampling settings live on the shared config surface (`SAMPLING`, CROSS-CUTTING §2) and are
+passed on every call — **but they are advisory, and on the configured models they are discarded.**
+The SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter model ignores
+`seed`, so the pin does not fix the 31-versus-42 claim flap that motivated it. Determinism needs a
+mechanism that survives a model with no seed: agreement across repeats, a seed-honouring model for
+the variance-critical roles, or measuring and disclosing the variance. Open question 9.
 
 ### 2.2 Checkability
 
-Sentence-level; the window conditions but never makes a non-claim checkable. **Eligibility is already settled** by the time a sentence reaches this stage: speakership attribution (ADR-0019, INGESTION §2.9) has excluded outlet narration and unresolvable attribution upstream, so triage is never asked whether a statement is *ours to check* — only whether it is checkable. Classes: checkable / not-checkable (opinion, rhetoric, procedure, satire — satire is triaged *out*, never "checked") / pledge-conditional (→ "pledge — not yet checkable", checkable only as consistency claims). Output is decision + retained evidence (sentence, window span, rejection class). The prompt is a versioned artefact.
+This runs per sentence. The window can support a claim but never turns a non-claim into a checkable
+one. **Eligibility is already settled** by now: speakership attribution (INGESTION §2.9) has excluded
+outlet narration and unresolvable attribution upstream, so triage is never asked whether a statement
+is *ours to check* — only whether it is checkable. The classes are: checkable; not-checkable
+(opinion, rhetoric, procedure, satire — satire is triaged *out*, never "checked"); and
+pledge-conditional ("pledge — not yet checkable", checkable only as a consistency claim). Output is
+the decision plus the evidence behind it: the sentence, its window span, and the rejection class. The
+prompt is a versioned artefact.
 
 **Call bound (TRI-R12, Sept 2026).** The call returns one result per sentence, so its response grows with the document while the adapter's output budget is fixed — an unbounded request is a truncation waiting for the first long article. The document is therefore split into chunks of at most **20 sentences or 6000 characters** (whichever binds first), and a chunk whose response fails schema validation is retried at **half size** before the document is failed. A document that fits in one chunk still makes exactly one call with the unchanged payload. Consequences worth stating:
 
@@ -56,26 +95,42 @@ Sentence-level; the window conditions but never makes a non-claim checkable. **E
 | `false-context` | provenance mode (curated set only) | `is_curated_fixture` item, or decontextualisation signal |
 | `other` | open-web loop (capped) | default; least reliable mode |
 
-Conservative at the boundary: a statistical signal with an unusable fingerprint degrades to `other` **with the fingerprint attempt retained** — never silently generic (TRI-R3).
+At the boundary we are conservative: a statistical signal with an unusable fingerprint degrades to
+`other`, **with the fingerprint attempt kept**, rather than turning silently generic (TRI-R3).
 
 ### 2.4 Fingerprint and dedup
 
-- **Fingerprint**: the ADR-0005 six-tuple, normalised (units, date phrasing, per-capita flags) into structured fields + canonical key; pgvector embedding over claim text is the adjacent-match channel.
-- **Repeat handling**: fingerprint/embedding match adds a **source-occurrence** — never a new queue entry. Occurrences carry publication/segment refs.
-- **Idempotency**: re-running triage over the same document resolves to the same claim records. Fingerprint normalisation is versioned config — a normalisation change is a pipeline change that re-runs the harness.
-- **Non-merge conservatism**: near-fingerprint matches with different claimant/window/context are flagged for review, not merged.
+- **Fingerprint.** The six-part key (ADR-0005), normalised for units, date phrasing, and per-capita
+  flags into structured fields and a canonical key. A pgvector embedding over the claim text catches
+  near matches.
+- **Repeats.** A fingerprint or embedding match adds a **source-occurrence**, never a new queue entry.
+  Occurrences carry their publication and segment references.
+- **Idempotency.** Re-running triage on the same document resolves to the same claim records.
+  Fingerprint normalisation is versioned config, so changing it is a pipeline change that re-runs the
+  harness.
+- **No merging on near matches.** A near match with a different claimant, window, or context is
+  flagged for review, not merged.
 
 ### 2.5 Drop logging (recall is measured, not assumed)
 
-Every dropped sentence writes a drop-log record (refs, sentence span, verbatim text, window, rejection class, provenance tuple). Drop-log records are first-class harness inputs:
+Every dropped sentence writes a drop-log record: references, span, verbatim text, window, rejection
+class, and the provenance tuple. Those records are inputs to the harness, not a by-product.
 
-- **Drop-rate telemetry**: `triaged (checkable / dropped)` per lane; a drop-rate shift is the claim-detection-drift tripwire.
-- **Recall measurement**: the L3 harness labels a stratified sample of the drop log — "should this have been a claim?" — so triage recall is a reported number like any other. Without this, under-detection is invisible: what was never detected never enters the labelled-claim sample.
-- Dropped sentences retained with provenance, so a prompt change can re-triage past drops and measure the delta.
+- **Drop-rate telemetry.** `triaged (checkable / dropped)` per lane; a shift is the
+  claim-detection-drift tripwire.
+- **Recall measurement.** The L3 harness labels a sample of the drop log — "should this have been a
+  claim?" — so triage recall is a reported number. Without it, under-detection is invisible: what was
+  never detected never enters the labelled-claim sample.
+- **Re-triage.** Dropped sentences are kept with their provenance, so a prompt change can re-triage
+  past drops and measure the difference.
 
 ### 2.6 What triage never does
 
-Never assigns verdicts or confidence (ADR-0004 is adjudication's contract) · never resolves attribution (ADR-0002 firewall) · never infers `attached_proposal` from speaker identity, party, or history — window text only (ADR-0008) · never treats Tier-2 caption wording as reviewed text — caption claims inherit `transcript_tier` and the "claim pointer, never evidence for a number" rule (ADR-0007).
+Triage never assigns a verdict or a confidence — that is adjudication's contract (ADR-0004). It never
+resolves attribution (ADR-0002). It never infers `attached_proposal` from speaker identity, party, or
+history; window text only (ADR-0008). And it never treats Tier-2 caption wording as reviewed text:
+caption claims inherit `transcript_tier` and the "claim pointer, never evidence for a number" rule
+(ADR-0007).
 
 ## 3. Interfaces
 
@@ -110,14 +165,26 @@ Never assigns verdicts or confidence (ADR-0004 is adjudication's contract) · ne
 
 A claim with all-null context still verifies (no hard gate — the page shows no "as deployed" line); every field is published and contestable.
 
-**Two names for one thing (Sept 2026).** These fields are triage's *extraction* shape. The **stored** shape (`StoredDiscourseContext` in `@cw/store`) uses different names — `speech_context`, `policy_topic`, `argument_direction`, `context_qualifiers` — and nothing mapped between them, which is the mechanical reason the context pass was never wired into an orchestrated run. `toStoredDiscourseContext()` in `packages/pipeline/src/triage.ts` is that boundary now, and it carries `window` through verbatim. `argument_direction` was specified here from the start and extracted by nothing, so its column could only ever be null; the extraction schema and the prompt ask for it as of `triage-context@2`.
+**Two names for one thing.** The fields above are triage's *extraction* shape. The **stored** shape
+(`StoredDiscourseContext` in `@cw/store`) uses different names for some of them, and nothing mapped
+between the two — which is why the context pass was never wired into an orchestrated run.
+`toStoredDiscourseContext()` in `packages/pipeline/src/triage.ts` is now that boundary, and it
+carries `window` through verbatim. `argument_direction` was specified here from the start and
+extracted by nothing, so its column could only ever be null; the extraction schema and prompt ask for
+it as of `triage-context@2`.
 
 A claim whose sentence has **no window** gets no context call and an all-null context, because the rule above is window text only: a missing window means absent, never "read it off the claim".
 
 ### 3.3 Handoffs
 
 - **To verification**: claim record + type → mode routing; the default context pack attaches automatically (ADR-0008).
-- **To store**: append-idempotent on the claim's content identity (`claim.claim_key`, unique: sentence text + window + type, i.e. `TypedClaim.claimId`); occurrences append. **Not the fingerprint**, as this section previously said: a fingerprint exists for statistical claims only, so it could not dedupe a quotation or a cited-document claim, and `triage-fingerprint` is not run at all (Open question 2). What the key buys is that a re-ingest reaching the same conclusion about the same sentence finds the claim it already made; what it cannot do is withdraw a claim a later run would not have made — the graph grows with the union across runs, because a published claim is not retractable.
+- **To the store.** Writes are append-idempotent on the claim's content identity
+  (`claim.claim_key`, unique on sentence text plus window plus type, i.e. `TypedClaim.claimId`);
+  occurrences append. It is **not** the fingerprint — that exists only for statistical claims, so it
+  could not dedupe a quotation or a cited-document claim, and `triage-fingerprint` does not run
+  (open question 2). The key means a re-ingest that reaches the same conclusion about the same
+  sentence finds the claim it already made. It cannot withdraw a claim a later run would not make:
+  the graph grows with the union across runs, because a published claim is not retractable.
 - **To harness**: exports in AVeriTeC-aligned shape via the shared Drizzle/Zod definitions; harness and store schema versions must match.
 - **Drop-log**: pipeline-owned (blind rule doesn't apply to it); its *labels* live on the harness side.
 
