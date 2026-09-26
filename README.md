@@ -2,7 +2,7 @@
 
 An open-source system for checking factual claims made during New Zealand political debate. Every step of the checking process is inspectable, contestable, and correctable by the public.
 
-**Status: documentation and design phase.** No pipeline code yet; approach decisions are being made publicly via Architecture Decision Records in [`docs/adr/`](docs/adr/).
+**Status: working code.** The store, pipeline, LLM plumbing, harness, and site all have implementations and tests, and `ops/*.ts` runs live end-to-end one-claim slices. `docs/design/` and `docs/adr/` are the spec; the code is the truth.
 
 ## What it does
 
