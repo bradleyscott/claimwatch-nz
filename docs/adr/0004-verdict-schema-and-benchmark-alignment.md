@@ -4,9 +4,18 @@
 
 ## Context
 
-The verdict vocabulary is where epistemics, legal posture, and benchmark comparability meet. The design needs verdict classes that are (a) mechanically derivable from published evidence, (b) directly comparable to the international benchmark field, and (c) honest about abstention — with presentation language plain enough for the public while exact enough to re-derive.
+The words we publish as verdicts have to do three jobs at once. They must follow mechanically from the
+published evidence; they must line up with the international benchmark, so our numbers are comparable;
+and they must be honest when we cannot decide. The public wording also has to be plain enough for a
+reader and exact enough to re-derive.
 
-**The benchmark anchor:** AVeriTeC (FEVER workshop shared task) is the field's standard: ~4,568 real-world claims from 50 fact-checking organisations, each with human-annotated question–answer evidence pairs, a public evaluation script, and published reference scores (2024 winner 63% with GPT-4o; 2025 open-weights winner 33%; baseline 11%). Its four verdict classes are the field's taxonomy — and its fourth class explicitly covers "technically true claims that mislead by excluding important context," independently confirming that selective framing is a first-class verdict, not our invention.
+**The benchmark anchor.** AVeriTeC (a FEVER workshop shared task) is the field's standard: about
+4,568 real-world claims from 50 fact-checking organisations, each with human-annotated
+question-and-answer evidence pairs, a public evaluation script, and published reference scores (2024
+winner 63% with GPT-4o; 2025 open-weights winner 33%; baseline 11%). Its four verdict classes are the
+field's taxonomy, and its fourth class explicitly covers "technically true claims that mislead by
+excluding important context" — independent confirmation that selective framing is a first-class
+verdict rather than our invention.
 
 ## Decision
 
@@ -27,7 +36,11 @@ The verdict vocabulary is where epistemics, legal posture, and benchmark compara
 
 ### What the benchmark does and does not measure
 
-AVeriTeC measures **end-to-end open-web verification skill** against a published field. It is blind to the NZ machinery (no NZ sources, no evidence store, no sensitivity grid) and its distribution is ~62% Refuted by construction (fact-checker selection bias). It is the Layer-1 benchmark (ADR-0010); the NZ-labelled calibration set is Layer 2. The two are reported separately, never blended.
+AVeriTeC measures **end-to-end open-web verification skill** against a published field. It is blind to
+the New Zealand machinery — no NZ sources, no evidence store, no sensitivity grid — and its
+distribution is about 62% Refuted by construction, because of how fact-checkers choose claims. It is
+the Layer-1 benchmark (ADR-0010); the NZ-labelled calibration set is Layer 2. The two are reported
+separately and never blended.
 
 ## Alternatives considered
 

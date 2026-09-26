@@ -4,7 +4,12 @@
 
 ## Context
 
-The product publishes machine-generated verdicts on political claims. Automated fact-checking accuracy on real-world claims is limited (AVeriTeC: 63% unrestricted in 2024; 33% open-weights-only in 2025; retrieval is the bottleneck; rankings flip across domains — see `RESEARCH-REVIEW.md` §2.2). A false or skewed verdict published as authoritative — during an election — would damage the project beyond repair at the first failure. Human editorial verdicts are excluded by the operating model: no permanent employed editorial staff.
+The product publishes machine-generated verdicts on political claims. Automated fact-checking on
+real-world claims is not accurate enough to publish as fact: on AVeriTeC it scored 63% unrestricted in
+2024 and 33% with open weights only in 2025, retrieval is the bottleneck, and rankings flip between
+domains (`RESEARCH-REVIEW.md` §2.2). One false or skewed verdict published as authoritative, during an
+election, would do damage beyond repair. Human editorial verdicts are ruled out by the operating model:
+there is no employed editorial staff.
 
 ## Decision
 
