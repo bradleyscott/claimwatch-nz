@@ -55,7 +55,11 @@ import {
   SPEAKERSHIP_SCHEMAS,
   speakershipFor,
 } from "../packages/pipeline/src/speakership.ts";
-import { splitSentences, triageDocument } from "../packages/pipeline/src/triage.ts";
+import {
+  splitSentences,
+  TRIAGE_CONTEXT_PROMPT,
+  triageDocument,
+} from "../packages/pipeline/src/triage.ts";
 import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import { citationCheck, nliAudit } from "../packages/pipeline/src/verification.ts";
 import type {
@@ -143,6 +147,7 @@ const PROMPTS: Record<string, string> = {
     'You classify political sentences for checkability AND type the checkable ones. The input contains a "sentences" array with "id" and "text" per sentence. For EVERY sentence return one result. Reply with ONLY JSON: {"results": [{"sentenceId": string, "checkable": true, "claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web"} | {"sentenceId": string, "checkable": false, "rejectionClass": "opinion"|"rhetoric"|"procedure"|"satire"|"pledge-conditional"|"question"}]}. Mode mapping: statistical→stat-grid, citation-backed→citation-check, broadcast-quote→quote-fidelity, institution-citation→citation-check, false-context→provenance, other→open-web.',
   "triage-typing":
     'You type a checkable claim and route it to a verification mode. Reply with ONLY JSON: {"claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web", "sentence": string, "fingerprint": {"core": string, "claimant": string|null, "domain": string|null, "temporal": string|null, "quantity": string|null, "source": string|null} | null}.',
+  "triage-context": TRIAGE_CONTEXT_PROMPT,
   "claim-decompose": DECOMPOSITION_PROMPT,
   "research-assess": RESEARCHER_PROMPT,
   "citation-compare": `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).

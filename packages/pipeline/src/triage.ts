@@ -158,6 +158,12 @@ const TypingOutput = z.object({
 
 const ContextOutput = z.object({
   speaker: z.string().nullable(),
+  // The VENUE: where, or on what occasion, the words were said — "in the House",
+  // "at a post-Cabinet press conference", "on RNZ Morning Report". Optional with
+  // a null default, because a window that does not say where must not have a
+  // venue guessed for it (ADR-0008: absent is data). This is what
+  // `speechContext` stores; it must never be the speaker.
+  venue: z.string().nullable().default(null),
   topic: z.string().nullable(),
   proposal: z.string().nullable(),
   attachedProposal: z.string().nullable(),
@@ -190,11 +196,11 @@ export function toStoredDiscourseContext(
   return {
     window,
     // `speechContext` is the VENUE — where, or on what occasion, the words were
-    // said. It must NOT hold the speaker: attribution is the `attribute` stage's
-    // job and already rides on the claim (`attribution_candidates`), so writing
-    // the speaker here printed the same name twice, side by side. No venue is
-    // extracted yet, so this is null rather than a duplicate.
-    speechContext: null,
+    // said — read from the window by the context pass (`triage-context@3`). It
+    // must NOT hold the speaker: attribution is the `attribute` stage's job and
+    // already rides on the claim (`attribution_candidates`), so writing the
+    // speaker here printed the same name twice, side by side.
+    speechContext: context.venue,
     policyTopic: context.topic,
     attachedProposal: context.attachedProposal,
     argumentDirection: context.argumentDirection,
@@ -232,10 +238,28 @@ const PROMPT_VERSIONS = {
   "triage-checkability": "triage-checkability@1",
   "triage-typing": "triage-typing@1",
   "triage-fingerprint": "triage-fingerprint@1",
-  // @2: the extraction now asks for `argumentDirection`. A prompt edit is a
-  // model-equivalent behaviour change, so the version moves with it.
-  "triage-context": "triage-context@2",
+  // @2: the extraction asks for `argumentDirection`. @3: it asks for `venue`
+  // (the occasion/where), the field `speechContext` is meant to hold. A prompt
+  // edit is a model-equivalent behaviour change, so the version moves with it.
+  "triage-context": "triage-context@3",
 } as const;
+
+/**
+ * The `triage-context` prompt (@3). House convention: a prompt lives in the
+ * module that uses it (like `search/decompose.ts`), so this is the one
+ * definition the live scripts read rather than each carrying its own copy — two
+ * of them had none at all and fell back to a generic "match the schema" string.
+ *
+ * `venue` is asked for here because `speechContext` stores it, and the prompt
+ * must say what it is: where or on what occasion the words were said, never the
+ * speaker (whose name is attribution, not venue).
+ */
+export const TRIAGE_CONTEXT_PROMPT = `Extract discourse context from a window of text. Reply with ONLY JSON:
+{"speaker": string|null, "venue": string|null, "topic": string|null, "proposal": string|null, "attachedProposal": string|null, "qualifiers": string[], "argumentDirection": "problem"|"success"|null}.
+All fields null if absent — never infer from speaker identity alone.
+- speaker: who the words are attributed to.
+- venue: where or on what occasion the words were said ("in the House", "at a post-Cabinet press conference", "on RNZ Morning Report"). Null when the window does not say, and NEVER just the speaker's name.
+- argumentDirection: the stance the window takes (problem = a fault to fix, success = a result being claimed), null when not clear.`;
 
 function claimIdFor(text: string, window: string | undefined, claimType: string): string {
   return createHash("sha256")
@@ -407,6 +431,7 @@ export async function contextFromLlm(
   // Absent is data (ADR-0008): every field null-if-absent, never defaulted.
   return {
     speaker: value.speaker,
+    venue: value.venue,
     topic: value.topic,
     proposal: value.proposal,
     attachedProposal: value.attachedProposal,

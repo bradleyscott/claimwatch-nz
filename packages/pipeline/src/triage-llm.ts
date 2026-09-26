@@ -100,6 +100,14 @@ export class MockTriageLlm extends ScriptedLlm<TriageRole> {
               : expected.speaker === "present"
                 ? "Minister"
                 : (expected.speaker ?? null),
+          venue:
+            expected.venue === "absent"
+              ? null
+              : expected.venue === "present"
+                ? "Parliament"
+                : typeof expected.venue === "string"
+                  ? expected.venue
+                  : null,
           topic:
             expected.topic === "absent"
               ? null
@@ -156,6 +164,7 @@ export class MockTriageLlm extends ScriptedLlm<TriageRole> {
      */
     context: {
       speaker?: string | null;
+      venue?: string | null;
       topic?: string | null;
       attachedProposal?: string | null;
       argumentDirection?: "problem" | "success" | null;
@@ -169,6 +178,7 @@ export class MockTriageLlm extends ScriptedLlm<TriageRole> {
           ok: true,
           value: {
             speaker: context.speaker ?? null,
+            venue: context.venue ?? null,
             topic: context.topic ?? null,
             proposal: null,
             attachedProposal: context.attachedProposal ?? null,

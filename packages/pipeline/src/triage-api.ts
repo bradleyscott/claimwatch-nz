@@ -95,6 +95,8 @@ export interface CanonicalFingerprintKey {
 
 export interface DiscourseContext {
   speaker: string | null;
+  /** Where or on what occasion the words were said (venue). Null if unstated. */
+  venue: string | null;
   topic: string | null;
   proposal: string | null;
   attachedProposal: string | null;

@@ -226,6 +226,11 @@ describe("discourse-context extraction (ADR-0008)", () => {
       } else if (exp.speaker === "present") {
         expect(context.speaker).toBeTruthy();
       }
+      if (exp.venue === "absent") {
+        expect(context.venue).toBeNull();
+      } else if (exp.venue === "present") {
+        expect(context.venue).toBeTruthy();
+      }
       if (exp.topic === "absent") {
         expect(context.topic).toBeNull();
       } else if (typeof exp.topic === "string") {
@@ -477,6 +482,7 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
       attachedProposal: "the announced housing package",
       argumentDirection: "problem",
       speaker: "Minister",
+      venue: "Parliament",
       topic: "housing",
     });
     const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
@@ -485,10 +491,11 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
     // Field names are the STORED ones — the two contracts differ, and nothing but
     // this boundary maps between them.
     expect(claim?.discourseContext.argumentDirection).toBe("problem");
-    // The stored field is the VENUE, and the mock supplies no venue: the speaker
-    // the context pass reads is attribution, which the `attribute` stage owns.
-    // Writing it here is what printed "Mark Mitchell, Mark Mitchell" on the page.
-    expect(claim?.discourseContext.speechContext).toBeNull();
+    // The stored field is the VENUE. The context pass reads a speaker too, but
+    // that is attribution — the `attribute` stage owns it and it rides on
+    // `attribution_candidates`. Writing the speaker here is what printed
+    // "Mark Mitchell, Mark Mitchell" on the page.
+    expect(claim?.discourseContext.speechContext).toBe("Parliament");
     expect(claim?.discourseContext.policyTopic).toBe("housing");
   });
 

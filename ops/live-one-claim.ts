@@ -15,7 +15,11 @@ import {
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
-import { TRIAGE_SCHEMAS, triageDocument } from "../packages/pipeline/src/triage.ts";
+import {
+  TRIAGE_CONTEXT_PROMPT,
+  TRIAGE_SCHEMAS,
+  triageDocument,
+} from "../packages/pipeline/src/triage.ts";
 import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import {
   agreeOnVerdictClass,
@@ -293,10 +297,9 @@ function promptFor(role: string): string {
     case "triage-fingerprint":
       return 'Extract the fingerprint six-tuple from a claim. Reply with ONLY JSON: {"fingerprint": {"core": string, "claimant": string|null, "domain": string|null, "temporal": string|null, "quantity": string|null, "source": string|null}}.';
     case "triage-context":
-      // @2 (Sept 2026): argumentDirection added — TRIAGE §3.2 has always listed
-      // it and the stored shape has always had a field for it, but the prompt
-      // never asked, so it could only ever be null.
-      return 'Extract discourse context from a window of text. Reply with ONLY JSON: {"speaker": string|null, "topic": string|null, "proposal": string|null, "attachedProposal": string|null, "qualifiers": string[], "argumentDirection": "problem"|"success"|null}. All fields null if absent — never infer from speaker identity alone; argumentDirection is the stance the window takes (problem = a fault to fix, success = a result being claimed), null when not clear.';
+      // @3: asks for `venue` (what `speechContext` stores). The text lives in the
+      // pipeline module that uses it, so every live script reads the same copy.
+      return TRIAGE_CONTEXT_PROMPT;
     case "grid-materiality":
       return 'You select which grid rows are material to how a claim is deployed. Reply with ONLY JSON: {"materialRows": string[]}.';
     case "citation-compare":

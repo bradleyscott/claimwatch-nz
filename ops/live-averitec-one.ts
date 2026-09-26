@@ -31,7 +31,7 @@ import {
   runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
-import { triageDocument } from "../packages/pipeline/src/triage.ts";
+import { TRIAGE_CONTEXT_PROMPT, triageDocument } from "../packages/pipeline/src/triage.ts";
 import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import {
   citationCheck,
@@ -228,6 +228,7 @@ Rules for "narrative":
 "sourceFindings": for EACH source, what it actually says that is relevant to the claim (one sentence, quote the figure where possible), and its reliability tier (1 = official statistics/government for the claim's jurisdiction, 2 = academic, 3 = major media, 5 = NGO, 6 = unknown).
 If no source states the specific figure, the honest verdict is not_enough_evidence.`,
 
+  "triage-context": TRIAGE_CONTEXT_PROMPT,
   "claim-decompose": DECOMPOSITION_PROMPT,
   "research-assess": RESEARCHER_PROMPT,
   "nli-audit":

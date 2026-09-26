@@ -1,11 +1,12 @@
 {
-  "description": "Discourse-context variants (ADR-0008). Identity-only windows → attached_proposal null (TRI-R6). Null-if-absent everywhere; absence is data, never imputation. All-null context still routes (context is never a hard gate — TRI-R7 boundary).",
+  "description": "Discourse-context variants (ADR-0008). Identity-only windows → attached_proposal null (TRI-R6). Null-if-absent everywhere; absence is data, never imputation. All-null context still routes (context is never a hard gate — TRI-R7 boundary). `venue` is the where/occasion: present only when the window states it, never inferred from the speaker.",
   "variants": [
     {
       "id": "ctx-with-proposal",
       "window": "The Government announced a new housing package. That package will build 10,000 homes over five years.",
       "expected": {
         "speaker": "present",
+        "venue": "absent",
         "topic": "present",
         "proposal": "present",
         "attachedProposal": "present"
@@ -16,6 +17,7 @@
       "window": "This has been going on for years. This has been going on for years.",
       "expected": {
         "speaker": "present",
+        "venue": "absent",
         "topic": "present",
         "proposal": "absent"
       }
@@ -25,6 +27,7 @@
       "window": "The Prime Minister was asked about crime at today's press conference.",
       "expected": {
         "speaker": "present",
+        "venue": "present",
         "topic": "crime",
         "proposal": "absent",
         "attachedProposal": null
@@ -35,6 +38,7 @@
       "window": "It is worse than ever.",
       "expected": {
         "speaker": "absent",
+        "venue": "absent",
         "topic": "absent",
         "proposal": "absent",
         "attachedProposal": null,
