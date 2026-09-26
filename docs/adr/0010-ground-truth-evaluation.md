@@ -6,7 +6,13 @@
 
 ADR-0001 makes the evaluation harness load-bearing. The harness needs (a) an immediately usable benchmark to test the pipeline against, and (b) a domain-calibrated labelled set reflecting what the production system will actually face. These are two different jobs; a single dataset construction method was conflating them.
 
-The NZ-specificity question, examined: does claim content need to be NZ-specific to measure verification accuracy? **The claim text itself does not** — verification skill (question decomposition, evidence retrieval, verdict calibration) transfers across jurisdictions. **The evidence environment does** — NZ claims are verified against NZ sources (Stats NZ, Hansard, policedata.nz, NZ ministry sites), and a pipeline tuned or scored only against claims whose evidence lives in Wikipedia/Reddit/international news learns retrieval habits that don't transfer cleanly to the NZ source landscape. So the NZ-specific dimension is real, but it is specifically a **source-ecosystem problem** — which is exactly why the two-layer design below separates them.
+**Does claim content need to be NZ-specific to measure verification accuracy?** The claim text does not:
+question decomposition, evidence retrieval, and verdict calibration all transfer across jurisdictions. The
+evidence environment does. NZ claims are verified against NZ sources — Stats NZ, Hansard, policedata.nz,
+NZ ministry sites — and a pipeline tuned only against claims whose evidence lives in Wikipedia, Reddit, or
+international news learns retrieval habits that do not transfer to the NZ source landscape. The
+NZ-specific dimension is real, then, but it is specifically a **source-ecosystem problem**, which is why
+the two-layer design separates the two.
 
 ## Decision
 

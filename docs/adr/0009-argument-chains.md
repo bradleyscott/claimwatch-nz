@@ -8,9 +8,21 @@ Verdicts are claim-level, and claims in isolation are only half the picture. A s
 
 The single-claim verdict cannot reveal this. A "Supported" verdict on a statistic tells the reader the number checks out; it does not tell them whether the argument built on it survives — the inference may be broken (per-capita crime fell; the rise predates the policy being attacked). Equally, a "Refuted" premise may be peripheral to the argument rather than fatal. Readers evaluating a proposition want the chain, not fifteen disconnected verdicts.
 
-The building blocks all exist: per-claim verdicts, typed claim relationships (ADR-0005), discourse context with detected proposals (ADR-0008), publication/segment structure (ADR-0008). What is missing is the explicit **chain assembly** — and its central risk, identified throughout this project's design history: **reconstructing an argument can fabricate positions the speaker never voiced**. A hallucinated premise node is an unmade claim attributed to a named person — the worst failure mode in the system (ADR-0007's reasoning, applied to structure rather than transcription). The design therefore rests on one load-bearing rule: **chains are assembled from stored, verified artefacts; edges must be grounded in the quoted discourse; nothing is inferred that isn't in the text.**
+The building blocks already exist: per-claim verdicts, typed claim relationships (ADR-0005), context with
+detected proposals (ADR-0008), and publication/segment structure (ADR-0008). What is missing is **chain
+assembly**, and its central risk: **reconstructing an argument can fabricate positions the speaker never
+voiced.** A hallucinated premise node is an unmade claim attributed to a named person — the worst failure
+this system can produce. The design therefore rests on one rule: **chains are assembled from stored,
+verified artefacts, and every edge must be grounded in the quoted discourse — nothing is inferred that is
+not in the text.**
 
-**Evidence base:** LLM-based argument mining is now a mature research area (survey: arXiv:2506.16383, 2025) — claim extraction, premise–claim relation detection, stance detection, and argument summarisation are all demonstrated components; political-domain argument mining is the standard application domain. Argument mining outputs are treated in that literature as *structured extractions from text* — which is what the grounding rule makes them here. The CheckThat! 2026 Task 3 pipeline (full fact-check article generation with NLI-based citation auditing) demonstrates the assemble-then-audit pattern at article level; we apply the same discipline at argument level.
+**Evidence base.** LLM-based argument mining is a mature research area (survey: arXiv:2506.16383, 2025):
+claim extraction, premise–claim relation detection, stance detection, and argument summarisation are all
+demonstrated, with political argument mining as the standard application. That literature treats
+argument-mining output as *structured extractions from text*, which is exactly what the grounding rule
+makes them here. The CheckThat! 2026 Task 3 pipeline — full fact-check article generation with NLI-based
+citation auditing — demonstrates the assemble-then-audit pattern at article level; we apply the same
+discipline at argument level.
 
 ## Decision
 

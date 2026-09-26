@@ -8,7 +8,12 @@
 
 A large share of campaign claims is made in spoken interviews — TV, radio, and podcasts — not in releases or news text: the weekly leader-interview circuit on radio, daily talkback panels ("The Huddle", "Perspective"), podcast interviews, and the five scheduled 2026 debates (1 Oct Stuff multi-party; 6 Oct TVNZ leaders; 13 Oct TVNZ multi-party; 14 Oct NZH/ZB/Three leaders; 20 Oct Stuff leaders). The ingestion ADR (ADR-0006) initially deferred broadcast transcription wholesale. Two questions precede any decision to transcribe: **how much claim-bearing speech is there, and are published transcripts already available?** This ADR answers both with live probes (2026-09-08) and sets the access strategy.
 
-**Probing result — the transcripts-first finding:** the intuition that transcription is necessary turns out to be mostly wrong, because the interview circuit **already produces published text in three overlapping channels**, and the highest-claim-density interview content is on YouTube, where **auto-generated caption tracks are available for essentially every video** (verified: Q+A, 1News, Newstalk ZB, RNZ uploads all carry `captionTracks` with English ASR). Full ASR self-hosting is the *fallback* for the residual gap, not the primary mechanism.
+**The probe result: transcripts already exist.** The intuition that we need to transcribe turns out to be
+mostly wrong. The interview circuit already produces published text through three overlapping channels,
+and its highest-claim-density content is on YouTube, where **auto-generated caption tracks exist for
+essentially every video** — verified on Q+A, 1News, Newstalk ZB, and RNZ uploads, all carrying
+`captionTracks` with English speech recognition. Running our own transcription is the *fallback* for the
+residual gap, not the primary mechanism.
 
 ## Decision
 
