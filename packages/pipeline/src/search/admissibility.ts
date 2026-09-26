@@ -63,6 +63,80 @@ export function meetsAuthorityFloor(tier: number | null | undefined): boolean {
 }
 
 /**
+ * Hosts we treat as an official record for a jurisdiction. A heuristic, and
+ * deliberately wider than one country: the pipeline verifies any claim, so any
+ * national government domain counts as official for ITS jurisdiction.
+ */
+const OFFICIAL_SUFFIXES = [".govt.nz", ".gov", ".gov.uk", ".gov.au", ".gov.in", ".govt", ".mil"];
+const OFFICIAL_HOSTS = [
+  "parliament.nz",
+  "hansard.parliament.nz",
+  "elections.nz",
+  "policedata.nz",
+  "stats.govt.nz",
+  "treasury.govt.nz",
+];
+
+export function looksOfficial(link: string): boolean {
+  const host = hostOf(link);
+  if (host == null) return false;
+  return (
+    OFFICIAL_HOSTS.includes(host) || OFFICIAL_SUFFIXES.some((suffix) => host.endsWith(suffix))
+  );
+}
+
+/** How many DIFFERENT domains speak to the claim. Two pages on one site are one source. */
+export function independentSourceCount(
+  evidence: ReadonlyArray<{ link: string }>,
+): number {
+  return new Set(evidence.map((e) => hostOf(e.link)).filter((h) => h != null)).size;
+}
+
+export function meetsCorroboration(evidence: ReadonlyArray<{ link: string }>): boolean {
+  return independentSourceCount(evidence) >= 2;
+}
+
+/**
+ * The evidence floor for a decisive verdict (ADR-0020 rule 3): `supported` and
+ * `refuted` may rest only on either one official record or two INDEPENDENT
+ * admissible sources. Anything less downgrades to `not_enough_evidence` — the
+ * honest class — rather than publishing a decisive finding on a single weak
+ * source.
+ */
+export interface EvidenceFloorOutcome {
+  verdictClass: string;
+  downgraded: boolean;
+  reason?: string;
+}
+
+export function enforceEvidenceFloor(input: {
+  verdictClass: string;
+  evidence: ReadonlyArray<{ link: string; tier?: number | null }>;
+}): EvidenceFloorOutcome {
+  if (input.verdictClass !== "supported" && input.verdictClass !== "refuted") {
+    return { verdictClass: input.verdictClass, downgraded: false };
+  }
+  const admissible = input.evidence.filter((e) =>
+    isAdmissibleEvidence({ link: e.link, tier: e.tier ?? null }),
+  );
+  if (admissible.length === 0) {
+    return {
+      verdictClass: "not_enough_evidence",
+      downgraded: true,
+      reason: "no admissible source backs a decisive verdict",
+    };
+  }
+  if (!admissible.some((e) => looksOfficial(e.link)) && !meetsCorroboration(admissible)) {
+    return {
+      verdictClass: "not_enough_evidence",
+      downgraded: true,
+      reason: "a single non-official source cannot settle the claim",
+    };
+  }
+  return { verdictClass: input.verdictClass, downgraded: false };
+}
+
+/**
  * May this source be the record a verdict rests on? Both rules must pass:
  * admissible in kind, and at or above the authority floor.
  */

@@ -47,6 +47,7 @@ import {
   type ResearcherLlm,
   runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
+import { enforceEvidenceFloor } from "../packages/pipeline/src/search/admissibility.ts";
 import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import {
@@ -145,7 +146,7 @@ const VERIFICATION_SCHEMAS: Record<string, ZodTypeAny> = {};
 
 const PROMPTS: Record<string, string> = {
   "triage-checkability":
-    'You classify political sentences for checkability AND type the checkable ones. The input contains a "sentences" array with "id" and "text" per sentence. For EVERY sentence return one result. Reply with ONLY JSON: {"results": [{"sentenceId": string, "checkable": true, "claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web"} | {"sentenceId": string, "checkable": false, "rejectionClass": "opinion"|"rhetoric"|"procedure"|"satire"|"pledge-conditional"|"question"}]}. Mode mapping: statistical→stat-grid, citation-backed→citation-check, broadcast-quote→quote-fidelity, institution-citation→citation-check, false-context→provenance, other→open-web.',
+    'You classify political sentences for checkability AND type the checkable ones. The input contains a "sentences" array with "id" and "text" per sentence. For EVERY sentence return one result. Reply with ONLY JSON: {"results": [{"sentenceId": string, "checkable": true, "claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web"} | {"sentenceId": string, "checkable": false, "rejectionClass": "opinion"|"rhetoric"|"procedure"|"satire"|"pledge-conditional"|"question"}]}. Mode mapping: statistical→stat-grid, citation-backed→citation-check, broadcast-quote→quote-fidelity, institution-citation→citation-check, false-context→provenance, other→open-web. A statement about what someone would, will or intends to do is a POLICY COMMITMENT: type it "other" (open-web), NOT "institution-citation" and NOT "citation-backed", unless it explicitly cites a specific document. A news report quoting a politician about a plan is not an institution citing its own record.',
   "triage-typing":
     'You type a checkable claim and route it to a verification mode. Reply with ONLY JSON: {"claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web", "sentence": string, "fingerprint": {"core": string, "claimant": string|null, "domain": string|null, "temporal": string|null, "quantity": string|null, "source": string|null} | null}.',
   "triage-context": TRIAGE_CONTEXT_PROMPT,
@@ -342,20 +343,29 @@ async function main(): Promise<void> {
       .map((paragraph) => paragraph.trim())
       .filter((paragraph) => paragraph.length > 0);
     const WINDOW_WORDS = 300;
+    const lead = paragraphs[0] ?? "";
     const windowFor = (sentenceText: string): string => {
       const paragraph = paragraphs.find((p) => p.includes(sentenceText));
-      if (paragraph == null) {
-        // No containing paragraph found (should not happen for extracted
-        // article text): fall back to the desk line rather than to the sentence
-        // itself, which would make the window a copy of the claim.
-        return `${item.title} — RNZ Politics, ${item.publishedAt.toISOString().slice(0, 10)}`;
+      const body =
+        paragraph ?? `${item.title} — RNZ Politics, ${item.publishedAt.toISOString().slice(0, 10)}`;
+      let capped = body;
+      const words = body.split(/\s+/);
+      const at = body.indexOf(sentenceText);
+      if (words.length > WINDOW_WORDS && at >= 0) {
+        // Cap centred on the sentence, so the claim is always inside its own window.
+        const before = body.slice(0, at).split(/\s+/).length;
+        const start = Math.max(0, before - Math.floor(WINDOW_WORDS / 2));
+        capped = words.slice(start, start + WINDOW_WORDS).join(" ");
       }
-      const words = paragraph.split(/\s+/);
-      if (words.length <= WINDOW_WORDS) return paragraph;
-      // Cap centred on the sentence, so the claim is always inside its own window.
-      const before = paragraph.slice(0, paragraph.indexOf(sentenceText)).split(/\s+/).length;
-      const start = Math.max(0, before - Math.floor(WINDOW_WORDS / 2));
-      return words.slice(start, start + WINDOW_WORDS).join(" ");
+      // ADR-0020 rule 4: the window carries the headline and the lead with the
+      // containing paragraph. A paragraph can be a single sentence ("Police
+      // spokesperson Mark Mitchell said the team would…"), and the referent it
+      // leaves dangling — which team — lives in the headline and lead, which the
+      // window excluded before, so the context pass had nothing to resolve it
+      // with and no venue to read.
+      return [item.title, lead !== capped ? lead : null, capped]
+        .filter((part): part is string => part != null && part.length > 0)
+        .join("\n");
     };
     // The `attribute` stage: whose words is each sentence?
     const attributionInput = {
@@ -574,7 +584,20 @@ async function main(): Promise<void> {
           `  citation-check cannot run: ${citationRefusal ?? "no cited document"} → escalated to open-web`,
         );
       }
-      const questions = await decomposeClaim({ claim: claim.text }, decomposeLlm);
+      // ADR-0020 rule 4: seed the research with the claim's OWN publication. The
+      // article that carried the claim is the best pointer to the event, and it
+      // finds corroborating coverage of the same thing — which the old path never
+      // looked for, because it only ever searched the claim sentence.
+      const decomposed = await decomposeClaim({ claim: claim.text }, decomposeLlm);
+      const questions = item.title
+        ? [
+            ...decomposed,
+            {
+              question: `Corroborating coverage of the event the claim came from: ${item.title}`,
+              queries: [item.title],
+            },
+          ]
+        : decomposed;
       console.log(`  decomposed into ${questions.length} question(s)`);
       const outcome = await runDeepResearch(
         { claim: claim.text, questions },
@@ -677,6 +700,19 @@ async function main(): Promise<void> {
               finding: finding?.finding ?? "",
               tier: finding?.tier ?? null,
             });
+          }
+          // ADR-0020 rule 3: a decisive verdict rests on an official record or
+          // two independent admissible sources. Anything less downgrades to
+          // not_enough_evidence rather than publishing a finding on one weak
+          // source — the discipline that would have stopped the Wikipedia case.
+          const floored = enforceEvidenceFloor({
+            verdictClass,
+            evidence: evidence.map((e) => ({ link: e.link, tier: e.tier ?? null })),
+          });
+          if (floored.downgraded) {
+            console.log(`  evidence floor: ${floored.reason} → not_enough_evidence`);
+            justification = `${justification} ${floored.reason}.`;
+            verdictClass = floored.verdictClass;
           }
           console.log(`  open-web → ${verdictClass}`);
         }

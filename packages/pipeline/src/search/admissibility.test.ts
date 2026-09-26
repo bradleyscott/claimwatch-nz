@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   admissibilityRefusal,
   DECISIVE_AUTHORITY_FLOOR,
+  enforceEvidenceFloor,
   hostOf,
+  independentSourceCount,
   isAdmissibleEvidence,
   isNeverTheRecord,
+  looksOfficial,
   meetsAuthorityFloor,
 } from "./admissibility.ts";
 
@@ -56,5 +59,52 @@ describe("source admissibility (ADR-0020 rule 2)", () => {
     const unknown = admissibilityRefusal({ link: "https://example.com/post", tier: 6 });
     expect(unknown).toContain("not a source we can establish");
     expect(admissibilityRefusal({ link: "https://www.policedata.nz/", tier: 1 })).toBeNull();
+  });
+});
+
+describe("evidence floor for a decisive verdict (ADR-0020 rule 3)", () => {
+  const nonOfficial = { link: "https://example.com/a", tier: 6 };
+  const news = { link: "https://www.rnz.co.nz/a", tier: 3 };
+  const news2 = { link: "https://www.newsroom.co.nz/b", tier: 3 };
+  const official = { link: "https://www.stats.govt.nz/x", tier: 1 };
+
+  it("recognises an official record by host", () => {
+    expect(looksOfficial("https://www.policedata.nz/")).toBe(true);
+    expect(looksOfficial("https://census.gov/data")).toBe(true);
+    expect(looksOfficial("https://www.rnz.co.nz/")).toBe(false);
+  });
+
+  it("leaves non-decisive classes alone", () => {
+    const out = enforceEvidenceFloor({ verdictClass: "not_enough_evidence", evidence: [] });
+    expect(out.downgraded).toBe(false);
+  });
+
+  it("downgrades a decisive verdict with no admissible source", () => {
+    const out = enforceEvidenceFloor({ verdictClass: "supported", evidence: [nonOfficial] });
+    expect(out.verdictClass).toBe("not_enough_evidence");
+    expect(out.reason).toContain("no admissible source");
+  });
+
+  it("downgrades a single non-official source", () => {
+    const out = enforceEvidenceFloor({ verdictClass: "refuted", evidence: [news] });
+    expect(out.downgraded).toBe(true);
+    expect(out.reason).toContain("single non-official source");
+  });
+
+  it("allows one official record, or two independent sources", () => {
+    expect(enforceEvidenceFloor({ verdictClass: "supported", evidence: [official] }).downgraded).toBe(
+      false,
+    );
+    expect(
+      enforceEvidenceFloor({ verdictClass: "supported", evidence: [news, news2] }).downgraded,
+    ).toBe(false);
+    // Two pages on ONE site are still one source.
+    expect(
+      enforceEvidenceFloor({
+        verdictClass: "supported",
+        evidence: [news, { link: "https://rnz.co.nz/c", tier: 3 }],
+      }).downgraded,
+    ).toBe(true);
+    expect(independentSourceCount([news, news2])).toBe(2);
   });
 });

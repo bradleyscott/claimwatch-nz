@@ -4,6 +4,7 @@
 // gaps, refines on the gaps — capped rounds, cap recorded, budget-capped
 // searches. Sufficiency is an explicit judgement against a stated bar.
 
+import { independentSourceCount } from "./admissibility.ts";
 import type { SearchResult } from "./serper-adapter.ts";
 
 export interface ResearchOutcome {
@@ -75,18 +76,9 @@ function domainOf(link: string): string {
   }
 }
 
-/**
- * Corroboration (ADR-0020 rule 3): how many DIFFERENT domains speak to the
- * claim. Two pages on one site are one source; a claim resting on a single
- * non-official source does not clear the bar.
- */
-export function independentSourceCount(evidence: ReadonlyArray<{ link: string }>): number {
-  return new Set(evidence.map((e) => domainOf(e.link)).filter((d) => d.length > 0)).size;
-}
-
-export function meetsCorroboration(evidence: ReadonlyArray<{ link: string }>): boolean {
-  return independentSourceCount(evidence) >= 2;
-}
+// Corroboration lives with the other evidence-shape rules (ADR-0020). Re-exported
+// here so the research loop's own tests and callers reach it where it belongs.
+export { independentSourceCount, meetsCorroboration } from "./admissibility.ts";
 
 export async function runDeepResearch(
   input: {
