@@ -1,6 +1,6 @@
 # ADR-0008: Claim context — discourse window, publication/segment hierarchy, and on-demand depth
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
 
 *(Consolidates the claim-contextualisation design with the publication/segment document hierarchy; both are context, at different levels.)*
 

@@ -1,6 +1,6 @@
 # ADR-0002: Contestation, mutation, verdict language, and the election-window freeze
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted (2026-09-26; freeze, append-only versions and the language check built) · Date: 2026-09-08 · Deciders: Dave*
 
 ## Context
 

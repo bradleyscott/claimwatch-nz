@@ -1,6 +1,6 @@
 # ADR-0019: Speakership attribution and claim scope
 
-*Status: Proposed · Date: 2026-09-13 · Deciders: Dave*
+*Status: Accepted (2026-09-26) · Date: 2026-09-13 · Deciders: Dave*
 
 ## Context
 

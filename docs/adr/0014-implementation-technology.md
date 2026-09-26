@@ -1,6 +1,6 @@
 # ADR-0014: Implementation technology choices — TypeScript-first, Postgres as the data plane
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
 
 ## Context
 
