@@ -245,7 +245,7 @@ export interface SiteReader {
 //
 // Deliberately still excluded: VALIDATING, MUTATED and AUDIT. The page's
 // vocabulary names four states, those three are unexercised (STO-R9), and which
-// of them a reader should reach is not decided — STORE §6 open question 11. A
+// of them a reader should reach is not decided — STORE §5 open question 11. A
 // verdict in VALIDATING is arguably still contested-and-under-review from the
 // reader's view, which is exactly why it needs a decision rather than a guess.
 const SITE_VISIBLE_STATUSES = ["DRAFT", "PUBLISHED", "CONTESTED", "FROZEN"] as const;

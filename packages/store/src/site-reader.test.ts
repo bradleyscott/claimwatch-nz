@@ -458,7 +458,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
   it("still hides a claim whose latest verdict has no public rendering decision", async () => {
     // The filter keeps teeth. VALIDATING is reachable in the store's lifecycle
     // (PUBLISHED → CONTESTED → VALIDATING) but its public treatment is undecided,
-    // so it is excluded by decision rather than by omission — STORE §6 open
+    // so it is excluded by decision rather than by omission — STORE §5 open
     // question 11.
     const { claim, verdictId } = await publishVerdictWithId();
     await store.logTransition(verdictId, { from: "PUBLISHED", to: "CONTESTED" });

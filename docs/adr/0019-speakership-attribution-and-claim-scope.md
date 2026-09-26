@@ -89,4 +89,4 @@ A consequence worth stating as a boundary: this is a scope rule about whose clai
 - **Triage recall measurement (TRIAGE §2.5) changes shape**: the labelled drop-log sample must distinguish a missed claim from correctly excluded outlet prose, or the recall number is diluted by text the project never intended to check.
 - **Provenance gains a user-visible line** ("what X said, as reported by RNZ"), which the verdict page can only render once the decision is stored — the "who" line is currently empty for every lane-produced claim.
 - **Existing published artefacts produced under the old rule are mis-scoped.** The honest remedy is a superseding verdict version once the rule is implemented, never a silent edit (ADR-0002 append-only).
-- **Not decided here**: whether an outlet's own *factual error* is ever in scope (currently no), and how political relevance is operationalised for opinion pieces — see INGESTION §6.
+- **Not decided here**: whether an outlet's own *factual error* is ever in scope (currently no), and how political relevance is operationalised for opinion pieces — see INGESTION §5.

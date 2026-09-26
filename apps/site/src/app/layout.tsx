@@ -46,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <a href="/methodology">How this works</a>
               </Button>
             </nav>
-            {/* Decorative until site search ships (SITE-MVP §6.5) — rendered
+            {/* Decorative until site search ships (SITE-MVP open question 5) — rendered
                 disabled rather than as a live-looking box that does nothing. */}
             <div className="relative ml-auto hidden sm:block">
               <Search
