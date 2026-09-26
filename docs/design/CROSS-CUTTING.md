@@ -1,6 +1,6 @@
 # Cross-cutting design
 
-*Proposed. ADRs: 0005, 0006, 0011, 0012, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, the component designs in `docs/design/`.*
+*ADRs: 0005, 0006, 0011, 0012, 0014. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, the component designs in `docs/design/`.*
 
 Concerns that span every component: config, prompts, secrets, observability, error handling, schema policy, the blind-rule boundary, environments, backups, cost. This doc does not re-derive component behaviour — it defines the shared mechanisms and the test posture for each. Stack per ADR-0014: TypeScript (Vercel AI SDK), Postgres (pgvector + FTS), Drizzle, pnpm monorepo, Graphile Worker for job scheduling/queueing (STORE §2.3). Guardrails (lint/format/tests/CI pipelines) live in `TOOLCHAIN.md`. Test layers L1–L4 per `TEST-STRATEGY.md` §2.
 
