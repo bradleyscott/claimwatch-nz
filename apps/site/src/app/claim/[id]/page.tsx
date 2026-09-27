@@ -96,6 +96,7 @@ export default async function ClaimPage({
     verificationMode: data.verificationMode,
     triageRecord: data.triageRecord,
     publisher: data.publisher,
+    sourceUrl: data.sourceUrl,
     claimPromptVersions: data.claimPromptVersions,
     claimModelVersion: data.claimModelVersion,
     checkedAt: data.checkedAt,
@@ -171,6 +172,24 @@ export default async function ClaimPage({
                 })}
               </>
             ) : null}
+          </div>
+        ) : null}
+        {/* The original item, so a reader can read it themselves — the claim is a
+            sentence pulled out of it, and checking us means being able to see it
+            in place. Rendered whenever the store holds a publication, even for a
+            claim with no attributed speaker. */}
+        {data.sourceUrl ? (
+          <div className="mt-3 text-[13.5px] text-muted-foreground">
+            As reported in{" "}
+            <a
+              href={data.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Read the original article"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              {data.publisher ?? sourceHost(data.sourceUrl)}
+            </a>
           </div>
         ) : null}
       </Card>
@@ -300,4 +319,13 @@ export default async function ClaimPage({
       <VerdictTrail trail={model.trail} />
     </main>
   );
+}
+
+/** A publication's display name when the store holds no publisher: its host. */
+function sourceHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }

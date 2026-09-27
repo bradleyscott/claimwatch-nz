@@ -150,6 +150,11 @@ export const VerdictPageData = z.object({
   /** Publisher of the item the claim appeared in (publication.publisher). */
   publisher: z.string().nullable().default(null),
   /**
+   * The original item the claim came from (publication.canonical_url), so a
+   * reader can go and read it. Null for records with no publication.
+   */
+  sourceUrl: z.string().nullable().default(null),
+  /**
    * Prompt versions recorded ON THE CLAIM (claim.prompt_versions) — the triage
    * roles, written when the claim was typed. The verdict's provenance carries
    * the whole run's roles; this is the claim's own record, and it is what makes
@@ -331,6 +336,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           claimPromptVersions: s.claim.promptVersions,
           claimModelVersion: s.claim.modelVersion,
           publisher: s.publication.publisher,
+          sourceUrl: s.publication.canonicalUrl,
           sourceRetrievedAt: s.publication.retrievedAt,
           verdictClass: s.verdictVersion.verdictClass,
           // numeric drains as a string; cast in SQL so the value stays exact to
@@ -460,6 +466,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         verificationMode: row.verificationMode ?? null,
         triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,
+        sourceUrl: row.sourceUrl ?? null,
         claimPromptVersions: row.claimPromptVersions ?? {},
         claimModelVersion: row.claimModelVersion ?? null,
         // The pack is one row per claim (append-only, latest pack last): the

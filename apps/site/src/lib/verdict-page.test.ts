@@ -22,6 +22,7 @@ const input = (
   speaker: "Hon Sample Minister",
   speakerVenue: "at a press conference",
   speakerAffiliation: "National",
+  sourceUrl: "https://www.rnz.co.nz/news/politics/x",
   publishedAt: new Date("2026-09-08"),
   confidence: 0.72,
   attachedProposal: null,

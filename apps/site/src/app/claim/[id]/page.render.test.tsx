@@ -20,6 +20,7 @@ const pageData = {
   speaker: "Hon Sample Minister",
   speakerVenue: "at a press conference",
   speakerAffiliation: "National",
+  sourceUrl: "https://www.rnz.co.nz/news/politics/x",
   publishedAt: new Date("2026-09-09T10:12:00+12:00"),
   verdictClass: "conflicting_cherry_picking" as const,
   confidence: 0.72,
@@ -270,6 +271,9 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // "claim made" step was folded into section 1's audit line, so this pins
     // that the absolute date still reaches the reader.
     expect(html).toContain("8 September 2026");
+    // The original item is linked, so a reader can read the claim in place.
+    expect(html).toContain("As reported in");
+    expect(html).toContain("https://www.rnz.co.nz/news/politics/x");
     // What the claim was read as, and which check that produced.
     expect(html).toContain("a number stated over a period");
     expect(html).toContain("check stat-grid");

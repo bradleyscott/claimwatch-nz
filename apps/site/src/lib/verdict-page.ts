@@ -149,6 +149,8 @@ export interface VerdictPageInput {
    */
   triageRecord?: TriageRecordInput | null;
   publisher: string | null;
+  /** The original item the claim came from, so a reader can read it themselves. */
+  sourceUrl: string | null;
   /** Roles recorded on the claim itself (claim.prompt_versions) — its triage. */
   claimPromptVersions: Record<string, string>;
   /** Model that typed the claim (claim.model_version); null when unrecorded. */
