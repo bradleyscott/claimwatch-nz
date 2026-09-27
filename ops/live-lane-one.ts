@@ -25,6 +25,11 @@ setDefaultResultOrder("ipv4first");
 import { createHash } from "node:crypto";
 import type { ZodTypeAny } from "zod";
 import {
+  deriveJurisdiction,
+  entityQueries,
+  resolveReferent,
+} from "../packages/pipeline/src/claim-context.ts";
+import {
   assertLaneHealthy,
   computeContentHash,
   dedupeKey,
@@ -38,6 +43,8 @@ import {
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
+import { enforceEvidenceFloor } from "../packages/pipeline/src/search/admissibility.ts";
+import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
 import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
 import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidence.ts";
@@ -47,8 +54,6 @@ import {
   type ResearcherLlm,
   runDeepResearch,
 } from "../packages/pipeline/src/search/research-loop.ts";
-import { enforceEvidenceFloor } from "../packages/pipeline/src/search/admissibility.ts";
-import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
 import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapter.ts";
 import {
   ATTRIBUTION_PROMPT,
@@ -152,8 +157,13 @@ const PROMPTS: Record<string, string> = {
   "triage-context": TRIAGE_CONTEXT_PROMPT,
   "claim-decompose": DECOMPOSITION_PROMPT,
   "research-assess": RESEARCHER_PROMPT,
-  "citation-compare": `You are explaining a fact-check to a member of the public. You receive the claim and sources (title/link/snippet, plus fetched pageText where available).
-Decide the verdict, then EXPLAIN it in plain language. Write for someone with no statistics training — short sentences, no jargon.
+  "citation-compare": `You are explaining a fact-check to a member of the public. You receive:
+- claim: the sentence as published; resolvedClaim: the same sentence with a definite reference resolved ("the charity" → the named charity).
+- claimSource: the document the claim came from. THIS is the record that the statement was made — it is never a source to search for, and its presence is never a reason to say the statement is unattested.
+- sources: independent sources retrieved for the SUBSTANCE of the claim (title/link/snippet, plus fetched pageText where available).
+- researchGaps: what the research could not settle.
+Answer two questions SEPARATELY: (1) Attribution — does claimSource record this statement? Quote it if it does. (2) Substance — what do the independent sources establish about what the statement asserts.
+Decide the verdict on the SUBSTANCE, then EXPLAIN it in plain language. Write for someone with no statistics training — short sentences, no jargon.
 Reply with ONLY JSON (types matter: paragraphs is an ARRAY of strings; tier is a NUMBER):
 {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking",
  "bindingStrictness": "direct"|"decorative",
@@ -468,6 +478,11 @@ async function main(): Promise<void> {
       tier: number | null;
     }> = [];
 
+    // ADR-0021: the attributed speaker is the referent for a sentence that says
+    // "the charity", and the strongest query term we hold. Derived here because
+    // verification runs before the claim record is written.
+    const speakerName = speakershipFor(attribution, claim.sourceSentenceId)?.speaker ?? null;
+
     if (mode === "provenance") {
       console.log(
         "  REFUSED: provenance mode runs only on the curated false-context fixtures " +
@@ -518,8 +533,12 @@ async function main(): Promise<void> {
     // mode that actually searches for corroboration. The old path invented a
     // citation from the claimant's name and took search result #1, which is how
     // a Wikipedia biography became the evidence for a policing claim.
-    let citationTarget: { link: string; title: string; snippet: string; tier: number | null } | null =
-      null;
+    let citationTarget: {
+      link: string;
+      title: string;
+      snippet: string;
+      tier: number | null;
+    } | null = null;
     let citationRefusal: string | null = null;
     if (mode === "citation-check") {
       const citedName = fingerprint.source ?? null;
@@ -585,20 +604,38 @@ async function main(): Promise<void> {
           `  citation-check cannot run: ${citationRefusal ?? "no cited document"} → escalated to open-web`,
         );
       }
-      // ADR-0020 rule 4: seed the research with the claim's OWN publication. The
-      // article that carried the claim is the best pointer to the event, and it
-      // finds corroborating coverage of the same thing — which the old path never
-      // looked for, because it only ever searched the claim sentence.
-      const decomposed = await decomposeClaim({ claim: claim.text }, decomposeLlm);
-      const questions = item.title
-        ? [
-            ...decomposed,
-            {
-              question: `Corroborating coverage of the event the claim came from: ${item.title}`,
-              queries: [item.title],
-            },
-          ]
-        : decomposed;
+      // ADR-0021: research the RESOLVED claim, bias every query to the document's
+      // jurisdiction, and anchor on the speaker's own name — the terms that find
+      // the article rather than New Mexico. The old path searched the raw
+      // sentence, which names neither a country nor the charity.
+      const jurisdiction = deriveJurisdiction({
+        publicationUrl: item.link,
+        sourceId: LANE.sourceId,
+      });
+      const resolved = resolveReferent(claim.text, { speaker: speakerName });
+      console.log(
+        `  jurisdiction: ${jurisdiction ?? "unknown"}` +
+          (resolved.resolved ? `; "${resolved.referent}" → ${speakerName}` : ""),
+      );
+      const decomposed = await decomposeClaim({ claim: resolved.text, jurisdiction }, decomposeLlm);
+      const entity = entityQueries({
+        entities: speakerName ? [speakerName] : [],
+        jurisdiction,
+      });
+      const questions = [
+        ...decomposed,
+        ...(item.title
+          ? [
+              {
+                question: `Corroborating coverage of the event the claim came from: ${item.title}`,
+                queries: [item.title],
+              },
+            ]
+          : []),
+        ...(entity.length > 0
+          ? [{ question: `What has ${speakerName} said about this?`, queries: entity }]
+          : []),
+      ];
       console.log(`  decomposed into ${questions.length} question(s)`);
       const outcome = await runDeepResearch(
         { claim: claim.text, questions },
@@ -636,17 +673,32 @@ async function main(): Promise<void> {
         // comes back `fail (hallucinated-content)` while the evidence underneath
         // is sound (Sept 2026). The gate must judge the finding against exactly
         // the material the finding was made from.
-        citedSpan = withText
-          .map(
+        // The document the claim came from, handed to the gate FIRST: it is the
+        // record for whether the statement was made at all — the question this
+        // claim's first verdict got wrong.
+        const claimSource = {
+          title: item.title,
+          link: item.link,
+          text: doc.text.slice(0, 2000),
+        };
+        citedSpan = [
+          `${claimSource.title}\n${claimSource.link}\nThe document the claim came from:\n${claimSource.text}`,
+          ...withText.map(
             (source) =>
               `${source.title}\n${source.link}\nSnippet: ${source.snippet}\nPage text: ${source.pageText}`,
-          )
-          .join("\n\n---\n\n");
+          ),
+        ].join("\n\n---\n\n");
         const adjudication = (await verificationLlm.generateObject(
           "citation-compare",
           // No researchConfidence is passed: the researcher's self-reported number
           // is not a measurement and nothing has calibrated it (Sept 2026).
-          { claim: claim.text, sources: withText, researchGaps: outcome.gaps },
+          {
+            claim: claim.text,
+            resolvedClaim: resolved.text,
+            claimSource,
+            sources: withText,
+            researchGaps: outcome.gaps,
+          },
           {
             parse: (v: unknown) =>
               v as {

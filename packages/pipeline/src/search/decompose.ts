@@ -4,21 +4,35 @@
 // (schema-constrained, versioned prompt); a fallback to the raw claim keeps
 // the loop honest when the LLM fails. Cost guard: MAX_QUESTIONS.
 
+import { biasQueries } from "../claim-context.ts";
+
 export interface DecomposedQuestion {
   question: string;
   queries: string[];
 }
 
 export interface DecompositionLlm {
-  decompose(input: { claim: string }): Promise<{ questions: DecomposedQuestion[] }>;
+  decompose(input: {
+    claim: string;
+    /** The country the claim's own document is from (ADR-0021). */
+    jurisdiction?: string | null;
+  }): Promise<{ questions: DecomposedQuestion[] }>;
 }
 
 export const MAX_QUESTIONS = 6;
 
+// The jurisdiction instruction used to read "Queries must NOT be biased toward any
+// country unless the claim itself concerns it" — which, for a sentence with no
+// country in it, meant no bias at all. A claim about "the charity" and "$140,000"
+// then returned American infrastructure pages. The bias comes from the DOCUMENT,
+// which the input carries as `jurisdiction` (ADR-0021).
 const DECOMPOSITION_PROMPT = `Decompose a factual claim into its atomic verifiable questions.
 Each question must be independently checkable against public data or reporting.
 For each question, provide 1-2 web-search queries that would find authoritative evidence.
-Queries must NOT be biased toward any country unless the claim itself concerns it.
+The input carries \`jurisdiction\`: the country the claim's own document is from. Bias EVERY query
+to that jurisdiction by naming the country in it, even when the claim sentence does not. Never search
+without a jurisdiction bias when one is given. If the claim is reported speech — "X said Y" — one
+question must be whether the statement was made, and the rest about the substance of Y.
 Reply with ONLY JSON: {"questions": [{"question": string, "queries": string[]}]}
 Maximum 6 questions.`;
 
@@ -30,21 +44,26 @@ function fallbackQuestion(claim: string): DecomposedQuestion[] {
 }
 
 export async function decomposeClaim(
-  input: { claim: string },
+  input: { claim: string; jurisdiction?: string | null },
   llm: DecompositionLlm,
 ): Promise<DecomposedQuestion[]> {
+  const jurisdiction = input.jurisdiction ?? null;
+  // Every query gets the jurisdiction bias, whatever the model returned — the
+  // prompt asks for it, this guarantees it (ADR-0021 rule 2).
+  const applied = (questions: DecomposedQuestion[]): DecomposedQuestion[] =>
+    questions.map((q) => ({ question: q.question, queries: biasQueries(q.queries, jurisdiction) }));
   try {
-    const result = await llm.decompose({ claim: input.claim });
+    const result = await llm.decompose({ claim: input.claim, jurisdiction });
     const questions = (result.questions ?? [])
       .filter((q) => q && typeof q.question === "string" && Array.isArray(q.queries))
       .slice(0, MAX_QUESTIONS)
       // Every question must carry at least one query — drop hollow entries.
       .filter((q) => q.queries.length > 0);
-    if (questions.length === 0) return fallbackQuestion(input.claim);
-    return questions;
+    if (questions.length === 0) return applied(fallbackQuestion(input.claim));
+    return applied(questions);
   } catch {
     // Decomposition failure degrades to claim-as-question: the loop still
     // researches, just less precisely. Never throws into the verdict path.
-    return fallbackQuestion(input.claim);
+    return applied(fallbackQuestion(input.claim));
   }
 }
