@@ -26,6 +26,7 @@ import { createHash } from "node:crypto";
 import type { ZodTypeAny } from "zod";
 import {
   deriveJurisdiction,
+  describeContext,
   entityQueries,
   resolveReferent,
 } from "../packages/pipeline/src/claim-context.ts";
@@ -42,6 +43,7 @@ import {
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
+import { assessMateriality } from "../packages/pipeline/src/materiality.ts";
 import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { enforceEvidenceFloor } from "../packages/pipeline/src/search/admissibility.ts";
 import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
@@ -483,6 +485,28 @@ async function main(): Promise<void> {
     // verification runs before the claim record is written.
     const speakerName = speakershipFor(attribution, claim.sourceSentenceId)?.speaker ?? null;
 
+    // ADR-0022: is this claim worth verifying at all? Triage decides *checkable*
+    // and (via the attribute stage) *ours to check*; this decides
+    // *consequential*. It is a PRIORITY filter, not a truth filter — an
+    // immaterial claim is recorded with its reason and not verified. Structural
+    // and party-blind (materiality.ts); it fails open when no passage was read.
+    const materiality = assessMateriality({
+      claimType: claim.claimType,
+      context: {
+        topic: claim.discourseContext?.policyTopic ?? null,
+        attachedProposal: claim.discourseContext?.attachedProposal ?? null,
+        argumentDirection: claim.discourseContext?.argumentDirection ?? null,
+      },
+      assessed: (claim.discourseContext?.window ?? "").trim().length > 0,
+    });
+    console.log(
+      `  materiality: ${materiality.material ? "kept" : "SET ASIDE"} — ${materiality.reason}`,
+    );
+    if (!materiality.material) {
+      console.log("  not worth a verdict — recorded, not verified (ADR-0022).");
+      return;
+    }
+
     if (mode === "provenance") {
       console.log(
         "  REFUSED: provenance mode runs only on the curated false-context fixtures " +
@@ -613,11 +637,26 @@ async function main(): Promise<void> {
         sourceId: LANE.sourceId,
       });
       const resolved = resolveReferent(claim.text, { speaker: speakerName });
+      // ADR-0021 rule 5: the claim's place in an argument, so research is framed
+      // by what was being argued — not only by the number.
+      // The STORED context shape (StoredDiscourseContext) — its names differ from
+      // the extraction shape: policyTopic/speechContext here, topic/venue there.
+      const claimContext = {
+        topic: claim.discourseContext?.policyTopic ?? null,
+        attachedProposal: claim.discourseContext?.attachedProposal ?? null,
+        argumentDirection: claim.discourseContext?.argumentDirection ?? null,
+        venue: claim.discourseContext?.speechContext ?? null,
+      };
       console.log(
         `  jurisdiction: ${jurisdiction ?? "unknown"}` +
           (resolved.resolved ? `; "${resolved.referent}" → ${speakerName}` : ""),
       );
-      const decomposed = await decomposeClaim({ claim: resolved.text, jurisdiction }, decomposeLlm);
+      const contextLine = describeContext(claimContext);
+      if (contextLine) console.log(`  context: ${contextLine}`);
+      const decomposed = await decomposeClaim(
+        { claim: resolved.text, jurisdiction, context: claimContext },
+        decomposeLlm,
+      );
       const entity = entityQueries({
         entities: speakerName ? [speakerName] : [],
         jurisdiction,
@@ -696,6 +735,7 @@ async function main(): Promise<void> {
             claim: claim.text,
             resolvedClaim: resolved.text,
             claimSource,
+            context: contextLine ?? "no argumentative context recorded",
             sources: withText,
             researchGaps: outcome.gaps,
           },

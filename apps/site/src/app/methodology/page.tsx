@@ -183,6 +183,26 @@ export default function MethodologyPage() {
           </li>
         </ul>
       </Section>
+
+      <Section label="What we choose to check" title="We don't check everything we can">
+        <p className="mt-3 text-[15px] leading-relaxed">
+          A statement can be checkable and still not be worth a verdict — a figure mentioned in
+          passing, with no policy topic and no argument around it. We set those aside, and we record
+          the reason. The test is fixed and published in advance:
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed">
+          <li>It was used in support of a proposal, or</li>
+          <li>it takes a side in an argument, or</li>
+          <li>it is about a policy topic.</li>
+        </ul>
+        <p className="mt-3 text-[15px] leading-relaxed">
+          If none of those is true, the statement is recorded but not checked. This is a choice
+          about what is worth your attention, never a claim that something is false or unimportant —
+          and it cannot see who said it, because the rule reads the argument and not the person.
+          When we cannot read the passage a statement came from, it is kept rather than set aside,
+          so a gap in our reading never becomes a reason to skip something.
+        </p>
+      </Section>
     </main>
   );
 }

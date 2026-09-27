@@ -25,6 +25,7 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 | [0019](0019-speakership-attribution-and-claim-scope.md) | Speakership attribution and claim scope — newsroom narration is not a claim | Accepted |
 | [0020](0020-research-strength-and-source-admissibility.md) | Research strength — research floor, source admissibility, corroboration | Proposed |
 | [0021](0021-a-claim-carries-its-document-referents-and-jurisdiction.md) | A claim carries its document, its referents and its jurisdiction | Proposed |
+| [0022](0022-materiality-worth-checking.md) | Materiality — a pre-declared test for whether a claim is worth checking | Proposed |
 
 ## Measurement and providers
 

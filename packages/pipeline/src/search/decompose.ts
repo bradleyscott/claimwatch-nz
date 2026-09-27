@@ -4,7 +4,7 @@
 // (schema-constrained, versioned prompt); a fallback to the raw claim keeps
 // the loop honest when the LLM fails. Cost guard: MAX_QUESTIONS.
 
-import { biasQueries } from "../claim-context.ts";
+import { biasQueries, type ClaimContextBundle } from "../claim-context.ts";
 
 export interface DecomposedQuestion {
   question: string;
@@ -16,6 +16,8 @@ export interface DecompositionLlm {
     claim: string;
     /** The country the claim's own document is from (ADR-0021). */
     jurisdiction?: string | null;
+    /** The claim's place in an argument, so questions can be framed by it. */
+    context?: ClaimContextBundle | null;
   }): Promise<{ questions: DecomposedQuestion[] }>;
 }
 
@@ -33,6 +35,10 @@ The input carries \`jurisdiction\`: the country the claim's own document is from
 to that jurisdiction by naming the country in it, even when the claim sentence does not. Never search
 without a jurisdiction bias when one is given. If the claim is reported speech — "X said Y" — one
 question must be whether the statement was made, and the rest about the substance of Y.
+The input may also carry \`context\`: the claim's place in an argument — \`topic\`, the \`attachedProposal\`
+it was deployed in support of, and the \`argumentDirection\` (problem|success). Where an argument exists,
+at least one question must be about THE ARGUMENT — whether this evidence supports the proposal it was
+used for — not only about the number or statement on its own.
 Reply with ONLY JSON: {"questions": [{"question": string, "queries": string[]}]}
 Maximum 6 questions.`;
 
@@ -44,7 +50,7 @@ function fallbackQuestion(claim: string): DecomposedQuestion[] {
 }
 
 export async function decomposeClaim(
-  input: { claim: string; jurisdiction?: string | null },
+  input: { claim: string; jurisdiction?: string | null; context?: ClaimContextBundle | null },
   llm: DecompositionLlm,
 ): Promise<DecomposedQuestion[]> {
   const jurisdiction = input.jurisdiction ?? null;
@@ -53,7 +59,11 @@ export async function decomposeClaim(
   const applied = (questions: DecomposedQuestion[]): DecomposedQuestion[] =>
     questions.map((q) => ({ question: q.question, queries: biasQueries(q.queries, jurisdiction) }));
   try {
-    const result = await llm.decompose({ claim: input.claim, jurisdiction });
+    const result = await llm.decompose({
+      claim: input.claim,
+      jurisdiction,
+      context: input.context ?? null,
+    });
     const questions = (result.questions ?? [])
       .filter((q) => q && typeof q.question === "string" && Array.isArray(q.queries))
       .slice(0, MAX_QUESTIONS)

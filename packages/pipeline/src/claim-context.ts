@@ -9,6 +9,37 @@
 // infrastructure" and returned American pages — and the verdict concluded no
 // charity had made a statement its own source recorded.
 
+/**
+ * The claim's place in an argument (ADR-0008 fields, ADR-0021 rule 5). This is
+ * the "why it is relevant" link: a crime figure is checkable on its own, but it
+ * *means* something because it was deployed in support of a claim about whether
+ * increased policing is working.
+ */
+export interface ClaimContextBundle {
+  /** The policy topic the passage is about. */
+  topic?: string | null | undefined;
+  /** The proposal the claim was deployed in support of. */
+  attachedProposal?: string | null | undefined;
+  /** The stance the passage takes: a fault to fix, or a result claimed. */
+  argumentDirection?: "problem" | "success" | null | undefined;
+  /** Where or on what occasion it was said. */
+  venue?: string | null | undefined;
+}
+
+/** One plain sentence describing the context, for a prompt or an audit line. */
+export function describeContext(context: ClaimContextBundle | null | undefined): string | null {
+  if (context == null) return null;
+  const parts: string[] = [];
+  if (context.topic) parts.push(`about ${context.topic}`);
+  if (context.attachedProposal) {
+    parts.push(`used in support of the proposal "${context.attachedProposal}"`);
+  }
+  if (context.argumentDirection === "problem") parts.push("arguing a problem to fix");
+  if (context.argumentDirection === "success") parts.push("arguing a result to claim");
+  if (context.venue) parts.push(`said ${context.venue}`);
+  return parts.length > 0 ? parts.join("; ") : null;
+}
+
 /** A jurisdiction code, kept short and query-biased through {@link queryBias}. */
 export type Jurisdiction = string;
 
