@@ -39,7 +39,7 @@ faithfully records what the pipeline did: fallbacks, vintages, and versions.
 |---|---|---|
 | `publication` | source_id, canonical_url, content_hash, retrieved_at/method, publisher + publication metadata, transcript (once), `transcript_tier` | Unit of document dedupe, health checks, reprocessing. Hash enforces re-ingest identity. |
 | `segment` | publication_id FK, span, descriptive summary, turn structure | Only where structure exists. |
-| `claim` | text, type, fingerprint, embedding, `discourse_window`, optional context fields (all nullable, never defaulted), publication/segment FKs, `media_anchor`, `transcript_tier`, `spoken_at` | Fingerprint = the six-tuple; embedding powers repeat match. `spoken_at` is when the claim was MADE (broadcast moment / item publication date), distinct from `created_at` (when we ingested it) — the public trail states both dates and omits the step when this one is absent rather than guessing (SITE-MVP §2.3). |
+| `claim` | text, type, embedding, `discourse_window`, optional context fields (all nullable, never defaulted), publication/segment FKs, `media_anchor`, `transcript_tier`, `spoken_at` | The embedding powers repeat match. The fingerprint and `verification_mode` columns were removed by ADR-0023: a claim carries a PLAN (`verification_plan`), and its window and magnitude are parsed inside the procedure that needs them. `spoken_at` is when the claim was MADE (broadcast moment / item publication date), distinct from `created_at` (when we ingested it) — the public trail states both dates and omits the step when this one is absent rather than guessing (SITE-MVP §2.3). |
 | `claimant_entity` | person/party, aliases, affiliation **at time of statement**, cross-links | Conservative attribution, never guessed. The verification loop never receives claimant identity. The candidate stored on the claim itself (`attribution_candidates`) requires only a `name`: `kind` and `confidence` are optional and are **not defaulted**, because the stage that produces it can honestly state the name the text attributes the words to, and nothing has yet resolved the entity. A required confidence forced the first wired lane to write `1` — the placeholder-confidence pattern already removed once for verdict confidence (SIT-R6). |
 | `evidence_item` | claim_id, authority ref, series identity, **vintage_date**, URL, **archive_snapshot_url**, hash, version | One row per fetched version; re-fetch creates a version, never an update. |
 | `evidence_pack` | claim_id, item refs, grid result, justifications, NLI outcome | Append-only; the pack that triggered a verdict is frozen and referenced by it. |
@@ -47,6 +47,8 @@ faithfully records what the pipeline did: fallbacks, vintages, and versions.
 | `verdict_transition_log` | from_status, to_status, reason, actor, at | Every transition logged; nothing silently edited; carries public evidence rejections. |
 | `fallback_log` | lane, source_id, stage, tier, reason | Feeds the per-lane Tier-2 fallback rate. |
 | `verdict_provenance` | pipeline_version, prompt_versions, model_versions, search refs, cost/latency refs | Rendered as the site's provenance block. |
+| `procedure` | procedure_ref, version, kind, title, consumes, produces, cannot_establish, rationale, discovered_by, status | The procedure library (ADR-0023). Fixed shape, emergent population, append-only; `retired` is a status change, never a deletion. Seeded with the five former modes. |
+| `verification_plan` | pack_id FK, plan (jsonb) | The plan a verification ran: ordered steps, each naming a procedure and version, its reason, whether it ran or was declined and why, and its outcome. Its own table rather than a column on `evidence_pack`, which is append-only and would have had history backfilled into it. |
 | `labels` (harness schema) | claim ref, verdict, cited sources, reasoning, evidence-availability, source-ecosystem, labeller, label-set version | Same object design as pipeline tables, versioned together; separate schema + access boundary (§2.8). |
 | job state | job name, schedule, last_run, status | `cron.job_run_details` feeds silence-detection. |
 
@@ -97,7 +99,6 @@ Every other parallel encoding of a schema fact (the drill's table lists, the sto
 |---|---|---|
 | `claim.embedding` | HNSW | repeat detection, adjacency, store retrieval |
 | claim/publication text | FTS | keyword retrieval, claim-locating search |
-| `claim.fingerprint` | composite | exact match into the evidence store (stat-mode fast path) |
 | `publication.content_hash` | unique | idempotent writes on lane retries |
 | `verdict_version (claim_id, version)` | unique | monotonic versioning per claim |
 | funnel views | SQL views | ADR-0012 dashboards; daily reconciliation vs event counts |
@@ -155,7 +156,7 @@ One schema design, two access boundaries: labels are generated from the **same D
 
 | Consumer | Reads | Writes | Contract |
 |---|---|---|---|
-| Verification engine | claim + context pack, fingerprint matches, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
+| Verification engine | claim + context pack + procedure library, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
 | Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role, and the read path is the store's own typed read model (`packages/store/src/site-reader.ts`) — the site holds no SQL and its connection is a read-only session. Serves **eligible** records only: document provenance present (ADR-0008) and a positively in-scope speakership class (ADR-0019); everything else is reachable only through an explicit reader option (the site's `?corpus=all`). ClaimReview from store fields; methodology table from harness files, never hand-edited. |
 | Harness | verdicts + evidence paths (read-only) | labels, label-set versions, scoring-run outputs | Blind rule: writes labels; pipeline cannot read them. |
 | Graphile Worker | claims, evidence, verdicts (via task handlers) | jobs, job runs, retries | Postgres-backed scheduler + executor (§2.3). Node work runs in worker containers; no separate queue service. |

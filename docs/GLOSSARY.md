@@ -17,7 +17,6 @@ everyday meaning beside it — never as the explanation itself.
 | official source | verifier authority | A public, structured source we trust for one domain (Stats NZ, police data). Consulted as evidence, never checked as a claim. |
 | the evidence behind the verdict | evidence pack | The frozen record of the sources and figures a verdict used. |
 | added to, never edited | append-only | A verdict changes by writing a new version. Old versions stay. |
-| claim key | fingerprint | The fields that say two claims are the same number: indicator, group, place, period, baseline, unit. |
 | the full field / the other ways to count it | sensitivity grid | The fixed set of alternative framings we test every claim against. Same set for every speaker. |
 | re-check of the reasoning | NLI audit | A second pass that checks the written justification actually follows from the evidence. |
 | who said it | speakership | Which sentence belongs to which actor — a quoted minister, the outlet's own prose, or nobody we can name. |
@@ -25,6 +24,9 @@ everyday meaning beside it — never as the explanation itself.
 | group | stratum | One slice of the labelled set — a source kind, a claim type. |
 | what the claim was arguing for | discourse context | The proposal a claim was deployed in support of. Absent stays absent. |
 | the check / the pipeline | (formerly "adjudicator") | The automated step that produced a verdict. Not a person. Prefer "the check". |
+| the plan for a claim | verification plan | The ordered list of checks built for one claim. A claim can need several — a quoted number needs the quotation checked *and* the figure checked. |
+| a kind of check we can run | procedure | One auditable, versioned way of deciding something (the figures check, the recording check). Stored as a record, so the set of them grows; the plan picks which to use. |
+| which procedures we know about | procedure library | The stored set of procedures, with a stated limit and reason for each. It suggests; it never decides what a plan must contain. |
 | we couldn't reach a verdict | abstention | The honest outcome when the evidence does not decide. |
 | verdict | verdict class | The published word: supported, refuted, and so on. |
 | a second source | corroboration | Independent agreement from another source. |

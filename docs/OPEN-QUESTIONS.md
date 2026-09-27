@@ -24,17 +24,16 @@ question where it lives, then update its line here.
 
 ## Triage
 
-[Full text](design/TRIAGE.md#5-open-questions) · 9 open
+[Full text](design/TRIAGE.md#5-open-questions) · 8 open
 
 1. Checkability calibration
 2. One pass or two
-3. Fingerprint normalisation rules
-4. Type-taxonomy closure
-5. Drop-log sampling design
-6. Pledge typing detail
-7. Caption sentence splitting
-8. Dedupe embedding model
-9. Determinism, given no usable sampling knob (Sept 2026)
+3. Type-taxonomy closure
+4. Drop-log sampling design
+5. Pledge typing detail
+6. Caption sentence splitting
+7. Dedupe embedding model
+8. Determinism, given no usable sampling knob (Sept 2026)
 
 ## Verification
 
@@ -45,9 +44,18 @@ question where it lives, then update its line here.
 3. Quote-fidelity tolerance policy
 4. Provenance-mode graduation criteria
 5. NLI-auditor calibration bar
-6. Depth-cap values per mode
-7. Stat-mode verdict for misquoted-but-real numbers (right indicator, wrong figure)
-8. Causal claims have no mode (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Needs either a sixth mode (pre-trend tests, unaffected comparison group, difference-in-differences) or an explicit out-of-scope refusal
+6. Depth-cap values per procedure
+7. Figures-procedure verdict for misquoted-but-real numbers (right indicator, wrong figure)
+8. Causal claims have no procedure (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Since ADR-0023 this is a *procedure* to add rather than a sixth mode: the plan can name one the library has never seen, so difference-in-differences can ship as a library row without a routing change
+
+## Verification plans and the procedure library
+
+[Full text](design/VERIFICATION.md#5-open-questions) · owned by [ADR-0023](adr/0023-verification-plans-and-the-procedure-library.md)
+
+1. **Novel-method stratum** — the L3 stratum of claims whose correct procedure is not in the library, so a library that has closed into a rut shows up as measurable recall failure. Must exist before the library has anything in it, or the guard is added after the fact
+2. **Plan agreement** — should the class-agreement gate (VERIFICATION §2.7a) extend to the plan itself, so two runs of one claim cannot choose different procedures, or is a visible plan diff enough?
+3. **Library growth policy** — who promotes a procedure the planner proposed into a library row, and what evidence justifies it
+4. **Suggestion weighting** — frequency of use is the current signal. What, if anything, may be added without learning from outcomes (which ADR-0023 rejects)?
 
 ## Store
 

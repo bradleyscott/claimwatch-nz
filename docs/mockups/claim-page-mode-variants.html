@@ -1,3 +1,18 @@
+<!--
+  DESIGN TEMPLATE — partly superseded (ADR-0023, Sept 2026).
+
+  This mockup shows the trail as ONE check per page, with the check selected from a
+  single recorded mode (`claim.verification_mode`). ADR-0023 replaced the mode with a
+  PLAN: an ordered list of steps, so a claim can have been checked more than one way.
+  The layout below is still the right shape for the common case (a plan with one
+  step), and section 3 of the real page now renders one block per step that ran, each
+  with its own stated bound, plus the steps the plan considered and declined.
+
+  Read the "mode" in this file as "the check", and see:
+    docs/adr/0023-verification-plans-and-the-procedure-library.md
+    docs/design/VERIFICATION.md  §2.1
+    apps/site/src/lib/verification-mode.ts   (PROCEDURE_DESCRIPTIONS, resolvePlan)
+-->
 <!DOCTYPE html>
 <html lang="en-NZ">
 <head>

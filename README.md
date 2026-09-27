@@ -10,7 +10,7 @@ Ahead of the 2026 NZ general election (7 November 2026):
 
 1. **Monitors** official sources — Beehive releases, party releases, Hansard, news RSS, broadcast captions (publisher-published text only), and institutional claim sources.
 2. **Detects and types** checkable factual claims, with a focus on statistics used to support policy propositions.
-3. **Verifies** claims against primary and official evidence. The flagship mode targets the most common campaign pattern: a statistic quoted accurately but painting a selective picture.
+3. **Verifies** claims against primary and official evidence. Each claim gets a **plan** — an ordered list of checks built from what the claim actually is, not one of a fixed set — and the flagship check targets the most common campaign pattern: a statistic quoted accurately but painting a selective picture. The checks themselves are a versioned library that grows as claim traffic shows what is needed.
 4. **Publishes** verdicts as automated assessments, open to contest — validated contest evidence mutates the verdict with a public diff and append-only audit log.
 5. **Measures itself** against a labelled set of NZ political claims and publishes the numbers.
 
@@ -29,7 +29,7 @@ Ahead of the 2026 NZ general election (7 November 2026):
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | The two vocabularies: everyday words for prose and public copy, internal names for code and schema. |
 | [`docs/OPEN-QUESTIONS.md`](docs/OPEN-QUESTIONS.md) | Index of every open question, across all component docs (the owning doc keeps the full text). |
 | [`docs/RESEARCH-REVIEW.md`](docs/RESEARCH-REVIEW.md) | State of the art: automated fact-checking research, existing systems, community-correction evidence, NZ data infrastructure. |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The proposed system architecture, with diagrams and per-component reasoning. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The system architecture, with diagrams and per-component reasoning. |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | The two-layer evaluation harness (AVeriTeC benchmark + NZ-labelled set). |
 | [`docs/COVERAGE.md`](docs/COVERAGE.md) | Live-probed access map for every cited source: feeds, bot protection, degradation, mitigations. |
 | [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Claim-source coverage matrix (anti-bias) and the evidence-authority map (T1–T6 tiers, per-domain, precedence rules). |

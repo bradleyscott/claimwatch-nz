@@ -109,8 +109,8 @@ The Kākā vs NZIER (per VALIDATION-SLICE):
 | Paywall | Paid + free tiers on Substack | Some member-gated |
 
 **Recommendation: The Kākā.** It delivers R6's real test — a claim paired with its own evidence,
-routed to citation-check — over the deterministic feed path, with no new infrastructure. That keeps
-the slice measuring the verification mode rather than scraper engineering. NZIER is the natural next
+checked by the document procedure — over the deterministic feed path, with no new infrastructure. That keeps
+the slice measuring the verification rather than scraper engineering. NZIER is the natural next
 institution source once a scrape path exists. For paid Kākā items, ingest the truncated feed item and
 apply the paywall policy; never scrape around it. Advocacy-poll handling is post-slice (ADR-0018).
 
@@ -143,7 +143,7 @@ same views, so the ops view and the public view cannot diverge.
 
 - **Document level.** GUID, canonical URL, and content hash. This is the only dedupe that must run
   here.
-- **Claim level** (fingerprint plus embedding, with a repeat becoming a source-occurrence). This
+- **Claim level** (claim key plus embedding, with a repeat becoming a source-occurrence). This
   straddles ingestion and triage: ingestion computes the embedding inputs and the occurrence records,
   and does not merge claims.
 
@@ -229,8 +229,8 @@ Highlights:
 | ING-R2 | Per-media-type extraction quality varies; generic parser silently mangles a lane | The AVeriTeC 297/500 failure mode repeats: extraction "succeeds" but drops content | Per-format parser tests incl. adversarial; tier numeric cross-check; failure-cause persistence | Per-lane Tier-2 fallback rate; tier cross-check; fixture diffs | L1 |
 | ING-R3 | `kind:"asr"` misdetection when a creator-uploaded track exists — tier misclassified | Tier-2 trusted as reviewed — the exact ADR-0007 failure | `captionTracks` payload fixtures: asr → publisher-auto; manual → publisher-reviewed; none → explicit out-of-scope | Track-metadata-derived tier vs fixture expectation | L1 |
 | ING-R4 | media_anchor extraction failure breaks "hear it" links | Demo feature dead-ends; L4 smoke fails at demo time | Anchor construction tests (cue → padded window → deep-link shape); L4 resolves the link | L1 anchor-field assertions; L4 deep-link check | L1 + L4a |
-| ING-R5 | Duplicate documents/claims on re-ingest | Double triage cost, corrupted per-stratum counts | Dedupe fixture pairs: identical copies collapse; near-fingerprint distinct claims don't merge | GUID/hash dedupe counters | L1 |
-| ING-R6 | Dedupe false positives — distinct claims merged | Real occurrence swallowed; provenance lost | Dedupe fixture pairs: identical copies collapse; near-fingerprint distinct claims don't merge | Fixture-pair tests; fingerprint collision tests | L1 |
+| ING-R5 | Duplicate documents/claims on re-ingest | Double triage cost, corrupted per-stratum counts | Dedupe fixture pairs: identical copies collapse; near-duplicate distinct claims don't merge | GUID/hash dedupe counters | L1 |
+| ING-R6 | Dedupe false positives — distinct claims merged | Real occurrence swallowed; provenance lost | Dedupe fixture pairs: identical copies collapse; near-duplicate distinct claims don't merge | Fixture-pair tests; claim-key collision tests | L1 |
 | ING-R7 | YouTube ToS / rate limits breached by over-fetching | Lane shut off; legal exposure | Request-budget test against a local fixture server; rate metric asserted | Request-rate metric per lane | L1 |
 | ING-R8 | Encoding/malformed HTML — mis-encoded Māori macrons, broken markup | Silent text corruption; attribution downstream damaged | Macron round-trips, double-encoded entities, malformed HTML — byte-exact comparisons | Adversarial fixture round-trips | L1 |
 | ING-R9 | Paywalled content mishandled — truncated text treated as complete | Mis-verification; ToS breach | Paid-tier fixture: truncated item → quoted-claim-only; no full-text fetch attempted | Fixture: paid-tier item → quoted-claim-only flag | L1 |
@@ -246,7 +246,7 @@ Highlights:
 | Accuracy | — | — | Per-stratum extraction quality is a measured L3 output, not an assumption |  | L3 |
 | Site | — | — | Hear-it links, ClaimReview on caption-derived pages, methodology table |  | L4 |
 
-**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant, + valid-entity variant — a page whose `&amp;` escapes are correct must extract, which the old guard denied); stale/broken feeds (200-zero-items, frozen, malformed XML); speakership set (quoted with in-sentence attribution, cross-sentence attribution, unattributed pull-quote, opinion-piece author claim, Hansard turn markup, press-release forwarded sentence); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-fingerprint, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
+**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant, + valid-entity variant — a page whose `&amp;` escapes are correct must extract, which the old guard denied); stale/broken feeds (200-zero-items, frozen, malformed XML); speakership set (quoted with in-sentence attribution, cross-sentence attribution, unattributed pull-quote, opinion-piece author claim, Hansard turn markup, press-release forwarded sentence); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-duplicate, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
 
 ## 5. Open questions
 

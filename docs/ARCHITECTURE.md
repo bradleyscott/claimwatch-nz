@@ -46,8 +46,8 @@ flowchart TB
     subgraph CW["ClaimWatch (open source)"]
         INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0006)"]
         TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0008)"]
-        VERIFY["Verification engine<br/>multi-mode (ADR-0005)"]
-        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)"]
+        VERIFY["Verification engine<br/>plans over a procedure library<br/>(ADR-0023)"]
+        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)<br/>+ procedure library (ADR-0023)"]
         SITE["Public site<br/>ClaimReview markup"]
         CONTEST["Contestation intake<br/>+ evidence validation (ADR-0002)"]
     end
@@ -85,19 +85,19 @@ flowchart LR
     A["Raw document<br/>release / Hansard / article"] --> B["Sentence split<br/>+ metadata"]
     B --> C{"LLM triage:<br/>checkable claim?"}
     C -- "no" --> Z["dropped<br/>(logged for eval)"]
-    C -- "yes" --> D["Claim record:<br/>text + type + fingerprint<br/>+ discourse context (ADR-0008)<br/>+ publication/segment refs (ADR-0008)"]
-    D --> E{"Claim type"}
-    E -- "statistical" --> F["Fingerprint match<br/>to evidence store"]
+    C -- "yes" --> D["Claim record:<br/>text + type<br/>+ discourse context (ADR-0008)<br/>+ publication/segment refs (ADR-0008)"]
+    D --> E["Plan the claim<br/>(ADR-0023)"]
+    E --> F["Procedure library<br/>suggests by category;<br/>required procedures cannot be dropped"]
     F --> G["Sensitivity grid<br/>over official series"]
-    E -- "citation-backed" --> H["Fetch cited doc<br/>claim-vs-source check"]
-    E -- "other factual" --> I["Open-web loop<br/>question decomposition,<br/>confidence-capped depth"]
-    G --> J["Evidence pack<br/>+ verdict + confidence"]
+    F --> H["Fetch cited doc<br/>claim-vs-source check"]
+    F --> I["Open-web research<br/>question decomposition,<br/>capped depth"]
+    G --> J["Evidence pack<br/>+ plan + verdict"]
     H --> J
     I --> J
     J --> K["Verdict store<br/>versioned, labelled open-to-contest"]
 ```
 
-Three verification modes by claim class (ADR-0005). Statistical claims resolve against the claim-anchored evidence store; citation-backed claims get a bounded claim-vs-source comparison; everything else gets the open-web loop with confidence-capped retrieval depth — AVeriTeC shows this mode is the least reliable, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
+A claim gets a **plan**, not one of five modes (ADR-0023). The plan is an ordered list of steps, each invoking a **procedure**: the figures check over an official series, a bounded claim-vs-source comparison, the recording check, the context check, or open-web research with capped depth. A claim may need several — a sentence that quotes a person *and* asserts a number needs both answers. Procedures live in a versioned library that grows as claim traffic shows what is needed; the library suggests and never constrains, while a claim's own features set a floor so the check it needs cannot be silently omitted. AVeriTeC shows open-web research is the least reliable of these, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
 
 ## 3. Verdict lifecycle (the mutation model)
 

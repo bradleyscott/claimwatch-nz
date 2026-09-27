@@ -70,7 +70,7 @@ claim sentence is a poor search string; its entities are good ones.
 
 - `not_enough_evidence` becomes expensive to reach, and therefore meaningful: it will report the search
   trail that produced it.
-- Cost rises for claims that previously took the cheap path — bounded by the per-mode cap and the
+- Cost rises for claims that previously took the cheap path — bounded by the per-procedure cap and the
   campaign budget alert. This is intended: effort follows difficulty, not claim type.
 - The verification modes become framings over a shared research pass rather than four independent
   pipelines. `citation-check` and `quote-fidelity` gain the escape hatch they lacked.

@@ -17,7 +17,7 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 
 | ADR | Title | Status |
 |---|---|---|
-| [0005](0005-verification-layer.md) | The verification layer — multi-mode engine, sensitivity grid, evidence store | Accepted |
+| [0005](0005-verification-layer.md) | The verification layer — multi-mode engine, sensitivity grid, evidence store | Accepted (§2.1 mode routing superseded by [0023](0023-verification-plans-and-the-procedure-library.md)) |
 | [0006](0006-ingestion-architecture.md) | Ingestion — six lanes, extraction ladder, health checking, dedupe, retrieval discipline | Accepted |
 | [0007](0007-broadcast-and-context-scope.md) | Broadcast/podcast interviews and the context scope boundary | Proposed |
 | [0008](0008-claim-context-and-document-hierarchy.md) | Claim context — discourse window, publication/segment hierarchy, on-demand depth | Accepted |
@@ -26,6 +26,7 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 | [0020](0020-research-strength-and-source-admissibility.md) | Research strength — research floor, source admissibility, corroboration | Proposed |
 | [0021](0021-a-claim-carries-its-document-referents-and-jurisdiction.md) | A claim carries its document, its referents and its jurisdiction | Proposed |
 | [0022](0022-materiality-worth-checking.md) | Materiality — a pre-declared test for whether a claim is worth checking | Proposed |
+| [0023](0023-verification-plans-and-the-procedure-library.md) | Verification plans and an emergent procedure library | Accepted |
 
 ## Measurement and providers
 

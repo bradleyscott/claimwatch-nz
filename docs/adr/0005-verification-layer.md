@@ -2,6 +2,13 @@
 
 *Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
 
+> **Partly superseded (Sept 2026) by [ADR-0023](0023-verification-plans-and-the-procedure-library.md).**
+> Claims no longer route to one of five modes; each gets a **plan** over a growing **procedure library**.
+> The five modes survive as the library's seeded procedures, and the sensitivity grid, the authority
+> map, and the claim-anchored evidence store are unchanged. The **fingerprint is removed entirely** —
+> read the mentions of it below as the claim's typed window and magnitude, parsed at the point of use.
+> §2.1's routing rule is superseded; everything else in this ADR still holds.
+
 ## Context
 
 The project's core risk class is a **statistic quoted accurately to paint a convenient, incomplete, or

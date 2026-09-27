@@ -24,7 +24,7 @@ the ADR-0005 stat engine targets — is one important member of that family, not
 
 | Class (Wardle type) | NZ election relevance | Verification approach | Machine tractability |
 |---|---|---|---|
-| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) | **ADR-0005 stat engine**: fingerprint + evidence store + sensitivity grid | **High** (claim-vs-official-series) |
+| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) | **ADR-0005 stat engine**: official series + evidence store + sensitivity grid (procedure `stat-grid`, ADR-0023) | **High** (claim-vs-official-series) |
 | **4. False context / decontextualisation** | Dominant EU-2024 technique; cheap: old footage re-dated, other-country incidents framed as NZ, ex-MP statements re-attributed | **Provenance matching**: retrieve original context (date, source, place), compare to claimed context; image/date search; archived-source tracing | Medium-high for text; medium for media |
 | **7. Fabricated content** | Second in EU: pure falsehoods, invented quotes, fabricated statistics | **Open-web verification loop** (capped FIRE-style mode) | Medium-low (AVeriTeC ceiling applies) — hence capped, confidence-labelled |
 | **6. Manipulated media / deepfakes** | Candidate-impersonation audio/video | **Provenance-first**: C2PA/Content Credentials where present; reverse search for originals; detection models unreliable — never verdict on "is this AI" alone | **Out of scope v1**; partner-referral path; methodology states the limit honestly |

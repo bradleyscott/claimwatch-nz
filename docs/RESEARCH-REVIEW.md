@@ -43,7 +43,7 @@ policy proposals, and the biggest risk is a statistic quoted accurately to paint
 or skewed picture. Standard automated fact-checking handles this badly, because the claim sentence itself
 is not false. Academic work does exist — cherry-picking detection as missing-statement identification
 (arXiv:2401.05650, 2024; the UTA "Filling the Blanks" thesis, 2025) — so this is a live research frontier
-we would be productising. The mechanism (a canonical fingerprint plus a sensitivity grid over official
+we would be productising. The mechanism (a sensitivity grid over official
 series, with the verdict "accurate but incomplete") is in ADR-0005.
 
 ### 2.5 NZ-specific data and distribution infrastructure

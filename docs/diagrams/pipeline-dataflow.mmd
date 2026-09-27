@@ -2,7 +2,7 @@ flowchart LR
     A["Raw document<br/>release / Hansard / article"] --> B["Sentence split<br/>+ metadata"]
     B --> C{"LLM triage:<br/>checkable claim?"}
     C -- "no" --> Z["dropped<br/>(logged for eval)"]
-    C -- "yes" --> D["Claim record:<br/>text + type + fingerprint"]
+    C -- "yes" --> D["Claim record:<br/>text + type"]
     D --> E{"Claim type"}
     E -- "statistical" --> F["Fingerprint match<br/>to evidence store"]
     F --> G["Sensitivity grid<br/>over official series"]

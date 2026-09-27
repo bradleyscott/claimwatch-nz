@@ -27,7 +27,7 @@ anything" governs how a claim is *read*, not which sentences arrive. **Eligibili
 sentence is ours to check at all — is decided upstream at ingestion, by speakership attribution
 (INGESTION §2.9). It reaches triage as a flag: outlet narration and unresolvable attribution are
 already excluded, and a quoted actor arrives as an attribution candidate rather than a person to
-reason about. **Reading** — checkability, typing, fingerprint, context — then runs with the claimant
+reason about. **Reading** — checkability, typing, context — then runs with the claimant
 playing no part. Identity decides *whether* a sentence is checked; it never decides *what the check
 finds* (ADR-0008, ADR-0019).
 
@@ -45,20 +45,25 @@ finds* (ADR-0008, ADR-0019).
 
 **What the orchestrator actually calls.** The diagram above is the contract. The implementation
 differs, and the difference is worth stating: document triage makes `triage-checkability` calls (one
-per chunk, each returning `claimType` and `mode` per sentence) and one `triage-context` call per
-checkable claim that has a window. It does **not** call `triage-typing` — typing is folded into the
-checkability call — and it does **not** call `triage-fingerprint`, so `claim.fingerprint` is null on
-every row and the fingerprint step in the diagram above is unmet.
+per chunk, each returning `claimType` per sentence) and one `triage-context` call per checkable claim
+that has a window. It does **not** call `triage-typing` — typing is folded into the checkability call.
+
+**The fingerprint step was removed outright (ADR-0023).** It extracted a six-part identity object
+before any evidence was fetched; the figures procedure then read its window and magnitude out of two
+free-text fields by regex, and a failed parse degraded the claim's *type* to `other`, silently
+rerouting it to a different check. Nothing read the identity key it also produced. The claim's window
+and magnitude are now parsed at the point of use, inside the procedure that needs them, as a typed
+step (`claim-parameters.ts`), and an unreadable magnitude abstains rather than rerouting. `mode` is
+gone from `TypedClaim` too: a claim's procedures are the plan's (`plan.ts`, ADR-0023).
 
 That drift went unnoticed for weeks because every stage had its own passing tests and nothing checked
 the *call set*. `contextFromLlm` was covered by its TRI-R5/TRI-R6 tests but called by nothing, so
 `attached_proposal` was null on every real claim and the verdict page's "as deployed" line — a
 required section — could not render. A test in `triage.test.ts` now pins the roles triage calls and
-fails if a stage stops being called; it also pins the two roles that are not called, so wiring one is
-a decision rather than an accident. Whether to run typing and fingerprint per claim is open
-question 2.
+fails if a stage stops being called; it also pins the role that is not called, so wiring typing is a
+decision rather than an accident. Open question 2 is now only about typing.
 
-Model routing (ADR-0011): triage, typing, and fingerprint are the high-volume structured-extraction
+Model routing (ADR-0011): triage and typing are the high-volume structured-extraction
 role (Flash-class, batch-priced, harness-gated); the context pass is separate and short-circuits
 cleanly. Sampling settings live on the shared config surface (`SAMPLING`, CROSS-CUTTING §2) and are
 passed on every call — **but they are advisory, and on the configured models they are discarded.**
@@ -84,32 +89,45 @@ prompt is a versioned artefact.
 - Token counts are summed across chunks; the run's provenance records **one** model, so chunks that disagree (an ADR-0011 escalation mid-document) fail loudly instead of recording the first chunk's model for all of them.
 - Truncation is named where it happens: the adapter surfaces `finish_reason`, so a cut response reads as `finish_reason: length` rather than "the model did not return a response".
 
-### 2.3 Claim typing (mode routing)
+### 2.3 Claim typing
 
-| Type | Routes to | Signal |
+Triage answers **what kind of claim this is**. It does not decide which check the claim gets: that is the
+**plan** (ADR-0023, `VERIFICATION.md` §2.1), built from the claim's features and the procedure library.
+The type still matters, because a type is what makes a required procedure *required* — a quantified
+assertion is why the figures procedure must be decided on.
+
+| Type | Signal | What the type makes required |
 |---|---|---|
-| `statistical` | stat-engine grid mode | quantified assertion; fingerprint extractable |
-| `citation-backed` | citation-check mode | explicit citation of a retrievable document |
-| `broadcast-quote` | quote-fidelity mode | caption-derived claim whose wording matters |
-| `institution-citation` | citation-check mode, institution stratum (R6) | institution claim paired with own evidence |
-| `false-context` | provenance mode (curated set only) | `is_curated_fixture` item, or decontextualisation signal |
-| `other` | open-web loop (capped) | default; least reliable mode |
+| `statistical` | quantified assertion | the figures procedure |
+| `citation-backed` | explicit citation of a retrievable document | the document procedure |
+| `broadcast-quote` | caption-derived claim whose wording matters | the recording procedure |
+| `institution-citation` | institution claim paired with own evidence | the document procedure (institution stratum, R6) |
+| `false-context` | `is_curated_fixture` item, or decontextualisation signal | the context procedure (curated set only) |
+| `other` | default | nothing required; the research procedure is the floor |
 
-At the boundary we are conservative: a statistical signal with an unusable fingerprint degrades to
-`other`, **with the fingerprint attempt kept**, rather than turning silently generic (TRI-R3).
+At the boundary we are conservative: a statistical signal whose magnitude cannot be parsed abstains
+rather than degrading to `other`. Rerouting a claim to a different check because its *parse* failed
+was the old behaviour (TRI-R3) and it hid the failure in the claim's type; the parse now fails inside
+the procedure, where an abstention is the honest reading of "we could not tell what number this is".
 
 ### 2.4 Fingerprint and dedup
 
-- **Fingerprint.** The six-part key (ADR-0005), normalised for units, date phrasing, and per-capita
-  flags into structured fields and a canonical key. A pgvector embedding over the claim text catches
-  near matches.
-- **Repeats.** A fingerprint or embedding match adds a **source-occurrence**, never a new queue entry.
+- **Fingerprint — removed (ADR-0023).** The six-part key was extracted at triage time, and two of its
+  fields were the only thing anything consumed: the figures procedure read the window out of
+  `temporal` with `/(?:since|from)\s+(\d{4})/i` and the magnitude out of `quantity` with "the first
+  number in the string". Neither format was declared anywhere, so a claim parsed as `2017-2026`
+  produced an abstention and a magnitude stated as "a third" was indistinguishable from no magnitude
+  at all. The key itself had no reader. The window and magnitude are now typed and parsed at the point
+  of use (`claim-parameters.ts`). A pgvector embedding over the claim text still catches near matches.
+- **Repeats.** An embedding match adds a **source-occurrence**, never a new queue entry. (A fingerprint
+  match did the same until ADR-0023 removed the fingerprint.)
   Occurrences carry their publication and segment references.
 - **Idempotency.** Re-running triage on the same document resolves to the same claim records.
   Fingerprint normalisation is versioned config, so changing it is a pipeline change that re-runs the
   harness.
 - **No merging on near matches.** A near match with a different claimant, window, or context is
-  flagged for review, not merged.
+  flagged for review, not merged. With the fingerprint gone, the embedding is the whole near-match
+  mechanism, which is the part that was doing the work anyway.
 
 ### 2.5 Drop logging (recall is measured, not assumed)
 
@@ -143,7 +161,6 @@ caption claims inherit `transcript_tier` and the "claim pointer, never evidence 
 | `sentence_span` / `utterance_text` | verbatim source span — the quotable artefact, never paraphrased into verdicts |
 | `text` | normalised standalone claim (the utterance and window remain the auditable originals) |
 | `claim_type` | enum (§2.3) |
-| `fingerprint?` | six fields + normalised key (statistical; attempt retained on degradation) |
 | `embedding_ref` | repeat/adjacency matching |
 | `discourse_context` | the ADR-0008 field set (§3.2) |
 | `media_anchor?` / `transcript_tier?` / `caption_quality_flag?` | caption-sourced claims |
@@ -177,11 +194,11 @@ A claim whose sentence has **no window** gets no context call and an all-null co
 
 ### 3.3 Handoffs
 
-- **To verification**: claim record + type → mode routing; the default context pack attaches automatically (ADR-0008).
+- **To verification**: claim record + type, from which the plan is built (ADR-0023); the default context pack attaches automatically (ADR-0008).
 - **To the store.** Writes are append-idempotent on the claim's content identity
   (`claim.claim_key`, unique on sentence text plus window plus type, i.e. `TypedClaim.claimId`);
-  occurrences append. It is **not** the fingerprint — that exists only for statistical claims, so it
-  could not dedupe a quotation or a cited-document claim, and `triage-fingerprint` does not run
+  occurrences append. It is **not** the removed fingerprint — that existed only for statistical
+  claims, so it could not dedupe a quotation or a cited-document claim, and the stage never ran
   (open question 2). The key means a re-ingest that reaches the same conclusion about the same
   sentence finds the claim it already made. It cannot withdraw a claim a later run would not make:
   the graph grows with the union across runs, because a published claim is not retractable.
@@ -198,8 +215,8 @@ Highlights:
 |---|---|---|---|---|---|
 | TRI-R1 | Over-detection: opinions/rhetoric/satire/pledges promoted to claims | Verification spend on uncheckable text; satire "checked" | Checkability fixtures: opinion/rhetoric/satire/pledge must NOT become claims; genuine claims must | Labelled precision sample; pledge/satire fixtures | L1 + L3 |
 | TRI-R2 | Under-detection: checkable claims dropped silently | Highest-harm classes missing while the funnel looks healthy | Drop-log recall sample scored at each L3 run; drop-rate alert wired | Drop-log recall sample; drop-rate shift alert | L3 + monitor |
-| TRI-R3 | **Wrong-mode routing — the highest-consequence triage failure** | A statistical claim sent to open-web loses the grid entirely; the flagship verdict becomes unreachable | Routing-conformance fixtures per type assert the mode entered; per-type accuracy is an L3 deliverable | Per-type routing accuracy; type-vs-verdict-path check | L1 + L2 + L3 |
-| TRI-R4 | Fingerprint collisions/misses break dedup | Corrupted claim graph; double spend or swallowed repeats | Fingerprint triples: same-normalisation merge; near-tuple no-merge; adjacent-window occurrence; macron/number-format round-trips | Fingerprint fixture pairs; double-run idempotency | L1 |
+| TRI-R3 | **Wrong typing — the highest-consequence triage failure** | A statistical claim typed `other` never makes the figures procedure required, so the flagship verdict becomes unreachable without anything looking wrong | Typing-conformance fixtures per type assert the mode entered; per-type accuracy is an L3 deliverable | Per-type routing accuracy; type-vs-verdict-path check | L1 + L2 + L3 |
+| TRI-R4 | Claim-key collisions/misses break dedup | Corrupted claim graph; double spend or swallowed repeats | Dedupe pairs: identical merge; near-duplicate no-merge; adjacent-window occurrence; macron/number-format round-trips | Fingerprint fixture pairs; double-run idempotency | L1 |
 | TRI-R5 | Context-extraction errors silently change grid-row selection | "As deployed" asserts a framing the speaker didn't deploy | Grid-materiality integration: context variants → asserted material-row differences; L3 context ablation | Context labels in L3; with/without-context ablation | L1 + L3 |
 | TRI-R6 | Context over-inference from speaker identity/party | ADR-0008's no-inference guardrail broken; partisan fabrications | Identity-only windows → asserted null `attached_proposal` | Fixture: identity-only signals → null fields | L1 |
 | TRI-R7 | Normalised text drifts from utterance (omission-of-context failure) | Pipeline verifies a claim the speaker didn't quite make | Utterance/window/text persistence asserted; normalisation derivable from utterance + window | Verbatim-vs-normalised fixture pairs | L1 + L2 |
@@ -215,12 +232,12 @@ Highlights:
 
 Triage has no lane-health surface; its instruments are the ADR-0012 funnel (drop rate, schema-failure rate, type-distribution shift) plus L2/L3.
 
-**L1 fixture list**: checkability classes (claims, opinion, rhetoric, procedure, satire, pledge, question-forms); type-routing set (one per type); fingerprint triples + normalisation variants; context variants (with/without proposal, ambiguous, identity-only, qualifiers); normalisation pairs (multi-clause omission-prone sentences); caption triage items (punctuation-less cues, tier/flag variants); idempotency corpus.
+**L1 fixture list**: checkability classes (claims, opinion, rhetoric, procedure, satire, pledge, question-forms); type-routing set (one per type); context variants (with/without proposal, ambiguous, identity-only, qualifiers); normalisation pairs (multi-clause omission-prone sentences); caption triage items (punctuation-less cues, tier/flag variants); idempotency corpus.
 
 ## 5. Open questions
 
 1. **Checkability calibration** — what recall/precision trade-off to target before L3 numbers exist; the initial operating point is a judgement call.
-2. **One pass or two** — checkability + typing + fingerprint in a single `generateObject` call vs separate passes; leaning per-stage for auditability. **This is now a live divergence, not a preference (Sept 2026):** the implementation folds typing into the checkability call (which returns `claimType` and `mode` per sentence) and never calls `triage-fingerprint` at all — `fingerprintFromLlm` has no caller anywhere, its only reference in its own test file is an unused import, and `triage-api.ts` still carries a `NOT IMPLEMENTED` stub for it beside the real body in `triage.ts`. Two consequences are already visible: `claim.fingerprint` and `fingerprint_key` are null and unused on every row, and `triage-fingerprint`'s TRI-R3 tests cannot be failing because nothing runs the stage they cover. Wiring it is spec-conformant (the §2 diagram has always shown it) and would populate the stat-grid parse the verdict page wants to show; it also means one more LLM call per statistical claim, which is why it is a decision rather than a fix. Whichever way it goes, the stub in `triage-api.ts` should not survive.
+2. **One pass or two** — checkability + typing in a single `generateObject` call vs separate passes; leaning per-stage for auditability. **Live divergence (Sept 2026):** the implementation folds typing into the checkability call (which returns `claimType` per sentence) and never calls `triage-typing`. A test pins the call set and the one role that is not called, so wiring it is a decision rather than an accident. This question was previously tangled with the fingerprint, which ADR-0023 removed; the `NOT IMPLEMENTED` stubs for both are gone with it.
 3. **Fingerprint normalisation rules** — which canonicalisations apply before the key; versioned config, initial set unwritten.
 4. **Type-taxonomy closure** — is `institution-citation` a distinct type or a stratum of `citation-backed` (routing identical; distinction analytic)?
 5. **Drop-log sampling design** — sample size and stratification for the recall measurement.

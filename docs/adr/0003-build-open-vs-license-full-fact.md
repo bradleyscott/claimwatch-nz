@@ -19,7 +19,7 @@ Two paths to a monitoring/triage engine:
 **Build open-source.** Deciding factors:
 
 - The project's credibility mechanism (published methodology, open scrutiny) is incompatible with a closed core.
-- The flagship feature — statistical-fingerprint verification against NZ official series — is not something the licensed tooling does; it would be built regardless.
+- The flagship feature — statistical verification against NZ official series (a pre-declared sensitivity grid, ADR-0005; the "fingerprint" named here was removed by ADR-0023) — is not something the licensed tooling does; it would be built regardless.
 - Election-cycle timing made licensing conversations slow relative to build capacity.
 - The dataset and audit-log assets are strategically valuable *because* they are ours.
 

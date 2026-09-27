@@ -20,10 +20,10 @@ The slice's headline deliverable is the **per-stratum accuracy table** — so th
 
 - **L1** covers the large deterministic surface with conventional tests: per-lane extraction fixtures
   (including adversarial ones — `kind:"asr"` tracks, malformed feeds, empty transcripts, paywalled
-  pages), stat-grid arithmetic as pure logic (the highest-complexity mode, and the cheapest to test
+  pages), stat-grid arithmetic as pure logic (the highest-complexity procedure, and the cheapest to test
   exhaustively), NLI must-pass and must-fail packs, and fallback-counter assertions. Everything that
   depends on an LLM is mocked.
-- **L2** snapshots verdict + confidence + evidence path + justifications for ~20 pinned claims spanning lanes and modes. Any pipeline change produces a **visible behaviour diff**, not merely "tests pass" — the cheap smoke layer catching drift between full runs.
+- **L2** snapshots verdict + confidence + evidence path + justifications for ~20 pinned claims spanning lanes and procedures. Any pipeline change produces a **visible behaviour diff**, not merely "tests pass" — the cheap smoke layer catching drift between full runs.
 - **L3** is EVALUATION.md made operational: AVeriTeC with the public eval script from week 1, which
   regression-gates the generic loop, plus the NZ set of n=100 stratified per VALIDATION-SLICE, about 30%
   double-labelled. The **blind rule is enforced in code** — the pipeline process structurally cannot read

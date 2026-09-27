@@ -1,7 +1,7 @@
 # Evaluation: measuring the pipeline and the community layer
 
 *Defines the two-layer harness the project treats as its core trust asset. ADRs: 0010 (ground-truth
-evaluation), 0001 (automation posture), 0005 (verification modes).*
+evaluation), 0001 (automation posture), 0005 (verification), 0023 (plans and the procedure library).*
 
 ## 1. Why this is the core asset
 
@@ -22,7 +22,7 @@ The harness is **two-layer** (ADR-0010), reported separately, never blended:
 
 - **Source**: the public AVeriTeC dataset (CC BY-NC 4.0 — evaluation use fine; not for training a commercial product; verify terms at time of use), with question–answer evidence annotations, a public evaluation script (EV2R / Hungarian-METEOR scoring), and published reference scores (2024 winner 63% with GPT-4o; 2025 open-weights winner 33%).
 - **Measures**: the generic open-web loop — question decomposition, evidence retrieval, verdict calibration, justification quality. **Blind to the NZ machinery**: no NZ official-series retrieval, no evidence store, no sensitivity grid. A high AVeriTeC score means the generic loop works, not that the NZ engine works.
-- **Role**: regression gate for the generic verification mode from week 1; position against the published field is interpretable from day one.
+- **Role**: regression gate for the research procedure from week 1; position against the published field is interpretable from day one.
 
 ### 2.2 Layer 2 — the NZ-labelled set (n=100)
 

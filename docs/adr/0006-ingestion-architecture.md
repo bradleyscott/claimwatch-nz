@@ -63,6 +63,11 @@ Per-source monitors: liveness (200-but-zero-items is a distinct alarm), structur
 
 ### Deduplication (by claim, not by document)
 
+**Note (Sept 2026):** the *fingerprint* half of the claim-level match was removed by
+[ADR-0023](0023-verification-plans-and-the-procedure-library.md). The embedding is what actually
+matched near-duplicates, and the rule stated here — a repeat gains a source-occurrence, never a new
+queue entry — is unchanged. Read "fingerprint + embedding" below as "claim key + embedding".
+
 Document-level dedupe only for identical syndicated copies. Claim-level: fingerprint + embedding match — a repeat claim gains a **source-occurrence** ("claimed by X in Hansard, repeated by Y on RNZ") rather than a new queue entry; occurrences strengthen the importance score. Cross-lane provenance preserved — "everyone was saying it" is auditable as fact.
 
 ### Fetch-from-source discipline

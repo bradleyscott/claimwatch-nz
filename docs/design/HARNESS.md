@@ -11,7 +11,7 @@ a component with its own failure modes, so this doc says what it produces and ho
 | Deliverable | Detail |
 |---|---|
 | Label schema | Shared claim/verdict/evidence objects with the pipeline store, versioned together |
-| Stratified sample | ~110 NZ labels across five lanes × four modes, verdict-mix targets enforced |
+| Stratified sample | ~110 NZ labels across five lanes × four procedures, verdict-mix targets enforced |
 | Double-labelling | ~30%; IAA reported with the accuracy number |
 | Blind rule | Pipeline structurally cannot read labels — separate database, enforced and tested |
 | Scoring runs | Layer 1 (AVeriTeC, official eval script) from week 1; Layer 2 (NZ n≈110) per cadence D3 |
@@ -43,21 +43,34 @@ The label schema does **not** redefine claim or verdict types — it imports the
 
 ### 2.2 Stratum grid
 
-**The tension, first.** The gate wants at least 20 labels per stratum, but the obvious 5-lane × 4-mode
+**The tension, first.** The gate wants at least 20 labels per stratum, but the obvious 5-lane × 4-procedure
 grid would need 400 labels against a budget of about 100. Five labels per cell means nothing
 statistically, and the gate would collapse to advisory everywhere.
 
-**The gate axis is the verification mode, not lane × mode.** Lane is reported for diagnosis, never
-gated. That is honest about the deliverable: the slice's example rows are mode-level, and the mode is
-what exercises the machinery.
+**The gate axis is the procedure, not lane × procedure.** Lane is reported for diagnosis, never
+gated. That is honest about the deliverable: the slice's example rows are procedure-level, and the
+procedure is what exercises the machinery.
+
+**Procedures, not modes (ADR-0023).** The gate used to stratify by the single mode a claim was routed
+to. A claim now carries a **plan**, which may name several procedures, so a label can contribute to
+more than one procedure stratum. Two consequences, both deliberate:
+
+- **A label counts once per procedure it exercised**, not once in total. The totals below are
+  label-procedure pairs, so the gated count can exceed the label count — and the gate thresholds
+  (n≥20) apply to the pairs.
+- **Per-procedure accuracy is reported where n is large enough, and the headline figure is for the
+  mixture of plans actually run**, described that way. A claim checked two ways contributes to two
+  procedure numbers; it contributes to the mixture once. A fall in accuracy can then be traced either
+  to a procedure or to a shift in the mix of procedures being run, which is a distinction the old
+  per-procedure table could not make.
 
 | Gate stratum | n | Lane feed | Verdict-mix emphasis | Gate |
 |---|---|---|---|---|
-| Stat-engine grid | 30 | Beehive 15, RNZ 8, institution 7 | ≥12 cherry-picking (oversampled), ≥5 NEI | Block at n≥20 |
-| Quote-fidelity | 25 | YouTube captions | Supported-heavy + NEI oversample | Block at n≥20 |
-| Citation-check | 20 | Institution 15, RNZ 5 | Claims paired with own evidence | Block at n=20 |
-| Open-web loop | 25 | Hansard/news 20, commentary 5 | Supported-heavy natural mix | Block at n≥20 |
-| Provenance | 10 | Curated set only | By construction | **Advisory** (n<20) |
+| Figures (stat-grid) | 30 | Beehive 15, RNZ 8, institution 7 | ≥12 cherry-picking (oversampled), ≥5 NEI | Block at n≥20 |
+| Recording (quote-fidelity) | 25 | YouTube captions | Supported-heavy + NEI oversample | Block at n≥20 |
+| Document (citation-check) | 20 | Institution 15, RNZ 5 | Claims paired with own evidence | Block at n=20 |
+| Research (open-web-research) | 25 | Hansard/news 20, commentary 5 | Supported-heavy natural mix | Block at n≥20 |
+| Context (provenance) | 10 | Curated set only | By construction | **Advisory** (n<20) |
 | **Total** | **110** | | | 95 gated |
 
 **Claim volume is not a constant.** The per-lane budgets above assumed every sentence of a document
@@ -66,14 +79,14 @@ before a claim exists, so a news report now yields only its quoted in-scope acto
 measured live, 15 of 46 sentences were potential outlet prose. The budgets must therefore be
 **re-derived from measured in-scope yields per lane** before the L3 run, and the sampler must record
 the natural pre-stratification distribution so the shrinkage is visible rather than absorbed. The gate
-axis — mode, not lane — is unaffected.
+axis — procedure, not lane — is unaffected.
 
 Verdict-mix targets across the gated labels: Supported ~40% (the corrective to AVeriTeC's 62%-Refuted skew) · Conflicting/Cherry-picking ~25% (the flagship class, deliberately oversampled) · NEI ~20% (abstention is a measured capability) · Refuted ~15%. If labelling yields fewer than 100 usable labels, provenance is cut first, then citation-check goes advisory — never the three core strata.
 
 **A re-derivation appends; it never edits or deletes.** `stratum_assignment` is keyed `(claim_id, assignment_version)` and `label.label_set_version` pairs with `label_set`, so a re-derived grid is a new `assignment_version` plus a new label set, with the prior rows untouched. That is already the shape the labels chain provides. Two consequences follow, and the cheap move is the wrong one in both cases:
 
 - A claim labelled under the previous grid **keeps its label** even when the new scope rule puts it out of scope. Deleting those labels mixes two grids inside a single recall number, exactly as a re-run that silently drops drop-log entries would (TRIAGE §2.5), and leaves the L3 history unreproducible. Labels are history (STO-R17); nothing in the schema prevents an in-place `UPDATE`/`DELETE`, so this is a discipline the guards now enforce rather than a convention.
-- The run must **pin which label set it scored against**. The provenance tuple carries `pipeline_version`, prompt/model versions, `grid_axes_version`, `store_schema_version`, `dataset_version` and search config — but no field that names the label set or the assignment version. `dataset_version` is not a safe stand-in: it has to mean the AVeriTeC dev-set checkout for Layer 1 and the NZ label set for Layer 2, so overloading it would encode that ambiguity into the tuple whose job is to remove ambiguity. Add `label_set_version` and `assignment_version` explicitly, required for Layer 2 and absent for Layer 1 (`layer` is already a manifest field). Until that exists, two L3 runs against different stratum grids are indistinguishable in the published table's provenance — which is what makes "no hand-edited numbers" checkable at all (AGENTS 4). `grid_axes_version` is not a substitute either: it is the ADR-0005 sensitivity-grid axes (CROSS-CUTTING §2), so bumping it would change the tuple without making it mean the right thing.
+- The run must **pin which label set it scored against**. The provenance tuple carries `pipeline_version`, prompt/model versions, `grid_axes_version`, `procedure_library_version` (ADR-0023 §6 — the library a run scored against), `store_schema_version`, `dataset_version` and search config — but no field that names the label set or the assignment version. `dataset_version` is not a safe stand-in: it has to mean the AVeriTeC dev-set checkout for Layer 1 and the NZ label set for Layer 2, so overloading it would encode that ambiguity into the tuple whose job is to remove ambiguity. Add `label_set_version` and `assignment_version` explicitly, required for Layer 2 and absent for Layer 1 (`layer` is already a manifest field). Until that exists, two L3 runs against different stratum grids are indistinguishable in the published table's provenance — which is what makes "no hand-edited numbers" checkable at all (AGENTS 4). `grid_axes_version` is not a substitute either: it is the ADR-0005 sensitivity-grid axes (CROSS-CUTTING §2), so bumping it would change the tuple without making it mean the right thing.
 
   **This requirement lands with the manifest implementation, not before it.** `buildRunManifest`, `assertManifestCompleteness`, `compareGoldenSnapshots` and `renderGoldenDiff` all still throw `NOT IMPLEMENTED`, so nothing enforces any of the above today — which is also why now is the cheapest moment to add the fields, with no legacy tuples to migrate. `assertManifestCompleteness` is the natural enforcement point, and `StratumResult` could carry the assignment version it was computed from so a run file is self-describing rather than requiring a lookup against the labels database.
 

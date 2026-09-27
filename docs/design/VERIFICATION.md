@@ -1,26 +1,29 @@
 # Verification engine design
 
-*ADRs: 0001, 0005, 0008, 0011, 0018. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0001, 0005, 0008, 0011, 0018, 0023. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The verification engine turns triaged claims into a verdict, a confidence, an evidence pack, and an audit
-result, and appends them to the store (ADR-0005). It has several modes because misleading-information
-classes differ in mechanism (`MISINFO-TAXONOMY.md`). Two findings from the research shape it.
+The verification engine turns triaged claims into a verdict, a **plan**, an evidence pack, and an audit
+result, and appends them to the store (ADR-0005, ADR-0023). It runs several kinds of check because
+misleading-information classes differ in mechanism (`MISINFO-TAXONOMY.md`). Two findings from the
+research shape it.
 
 First, **retrieval is the main bottleneck** — gold evidence lifts accuracy by 14 to 22 points — so
-every mode that can anchor to a specific source does. Second, **claim against a specific source beats
-claim against the open web**, so the open-web loop is the capped catch-all rather than the default.
+every check that can anchor to a specific source does. Second, **claim against a specific source beats
+claim against the open web**, so the open-web research pass is the capped catch-all rather than the
+default.
 
-| Mode | Claims routed | Slice exercise |
+| Procedure | Used for | Slice exercise |
 |---|---|---|
-| Stat-engine grid | statistical (R2) | fingerprint + sensitivity grid over official series |
-| Citation-check | institution claims (R6) | fetch cited doc, claim-vs-source |
-| Quote-fidelity | broadcast claims (R3) | claim text vs Tier-2 caption text |
-| Provenance | false-context samples (R5) | curated ~10-item set only — demonstrate, never production-ready |
-| Open-web loop | everything else | capped, labelled, most visibly open to contest |
+| Figures (`stat-grid`) | claims stating a number (R2) | sensitivity grid over official series |
+| Document (`citation-check`) | institution claims, and any claim citing a source (R6) | fetch cited doc, claim-vs-source |
+| Recording (`quote-fidelity`) | broadcast claims (R3) | claim text vs Tier-2 caption text |
+| Context (`provenance`) | false-context samples (R5) | curated ~10-item set only — demonstrate, never production-ready |
+| Research (`open-web-research`) | everything else | capped, labelled, most visibly open to contest |
 
-All modes share the same spine: question decomposition, retrieval depth capped by confidence (the FIRE
+These five are the **library's seeded population, not the set of available checks** (§2.1a). Every
+procedure shares the same spine: question decomposition, retrieval depth capped by confidence (the FIRE
 pattern, which cut LLM cost 7.6× and search cost 16.5×), per-lane fallback logging from the extraction
 ladder, evidence packs with vintages and Internet Archive snapshots, and the **NLI audit as the
 publication gate** — it runs before publication, not after.
@@ -30,36 +33,82 @@ mutation (contestation), and the harness.
 
 ## 2. Design
 
-### 2.1 Mode routing
+### 2.1 Planning a claim — plans and the procedure library
 
-Triage assigns the claim type, and the engine routes on it — a pure function of the claim record. No
-claimant identity enters (ADR-0005).
+**This section replaces mode routing (ADR-0023, Sept 2026).** A claim is not routed to one of five
+modes. It gets a **plan**: an ordered list of steps, each invoking a **procedure**. The previous rule —
+`claimType → mode`, a pure function of the claim record — is superseded, and the five modes survive as
+the library's first five procedure records.
 
-```
-statistical → stat-engine grid · citation-backed → citation-check · quote-fidelity → quote-fidelity
-false-context → provenance (curated only) · other → open-web loop (capped)
-```
+**Why the change.** Three problems, each visible in the code before the change.
 
-A misroute is a failure in its own right. The routing decision is stored on the evidence pack so L3 can
-measure per-mode accuracy on the stratum the claim was *routed* to, and catch routing drift. Since
-September 2026 the decision is also stored on the **claim** (`claim.verification_mode`) and published
-on the verdict page, which picks its explanation of the check from it. The site cannot re-derive a
-statistical claim's mode, because that one depends on an authority-registry lookup the reader cannot
-see.
+1. **Real claims are compound, and the data model could not record that.** ADR-0021 rule 5 requires
+   *was it said* and *is it true* to be answered separately: the first by the claim's own document, the
+   second by research. `claim.verification_mode` held exactly one of five values, so a sentence that
+   quotes a person *and* asserts a number had one slot for two answers.
+2. **The taxonomy was written before any claim arrived.** ADR-0005 rejected pre-computed topic packs
+   because "precomputation bets on a prediction that cannot be checked in advance"; the five modes were
+   that same bet applied to methods.
+3. **The mode was not even what decided the check.** A statistical claim reached the figures grid only
+   on an authority-registry hit, so the same claim routed differently before and after discovery found
+   an authority — a fuzzy text match plus campaign timing deciding rigour, rather than the type.
 
-**No mode tests causation.** Of the 500 AVeriTeC dev claims, 54 (11%) are causal, and the five modes
+**A procedure is a record, not a branch.** Fixed schema, append-only, retired by status change. Fields:
+`procedure_ref`, `version`, `kind` (`deterministic` | `research`), `title`, `consumes`, `produces`,
+`cannot_establish`, `rationale`, `provenance`, `status`. A procedure may compute anything; it may
+**not** define its own thresholds — tolerances and admissibility tiers are published criteria that live
+in code (ADR-0004, ADR-0020) and are referenced, never owned.
+
+**The library suggests; it never constrains.** `suggestProcedures` ranks procedures by how often past
+plans in the **same canonical category** used them. Frequency of use only, never outcomes: learning from
+outcomes would optimise selection toward agreeing with the pipeline's own past verdicts and turn its
+blind spots into conventions. A planner may always add a procedure the library has never seen, which is
+the seam that keeps the library from becoming the old taxonomy under a new name.
+
+**The suggestion key carries no speaker.** `PlanFeatures` is `{category, assertsNumber, quotesPerson,
+citesDocument, attachesToProposal}` — no speaker, no party, structurally, in the shape of ADR-0022 rule
+1 and for the same reason: a selection function that can see who said something can give one claim a
+different method from another. Pinned by test.
+
+**A minimum plan, not a fixed one.** A claim's own features impose a floor, so a plan can never
+silently omit the check a claim needed:
+
+| Claim feature | Procedure that must be decided on |
+|---|---|
+| asserts a number | figures (`stat-grid`) |
+| quotes a person | recording (`quote-fidelity`) |
+| cites a document | document (`citation-check`) |
+
+The planner may add anything, including procedures absent from the library, and may always include a
+research pass. It may not drop a requirement without recording a reason: a dropped requirement **with** a
+reason is an auditable decision, one **without** a reason is a defect, and `planDefects` is the single
+place that distinction lives.
+
+**Plans are stored and published.** The plan is its own append-only row (`verification_plan`, keyed to
+the evidence pack — not a column on `evidence_pack`, which is append-only and would have had history
+backfilled into it). Each step carries the procedure, its version, the reason it is in the plan, whether
+it ran or was declined, and its outcome. The verdict page renders one block per step that ran, with
+**one bound per check**, and lists the declined steps with their reasons. A single bound printed for a
+multi-check verification would attach to the wrong finding.
+
+**Measured as a mixture.** Per-procedure accuracy is reported where the sample is large enough; the
+headline figure is for the mixture of plans actually run, and is described that way. `PROCEDURE_LIBRARY_VERSION`
+joins the run provenance tuple, so a scoring run pins the library it scored against.
+
+**No procedure tests causation.** Of the 500 AVeriTeC dev claims, 54 (11%) are causal, and the five modes
 above test numbers, documents, quotations, and context attachments. None establishes that one thing
-caused another. We publish that gap rather than paper over it: every mode's section on the verdict
-page states what its check cannot establish, and the open-web bound names causation explicitly, so a
-causal claim graded on timing evidence says so on the page instead of being silently over-read.
+caused another. We publish that gap rather than paper over it: every check's block on the verdict page
+states what it cannot establish, and the research bound names causation explicitly, so a causal claim
+graded on timing evidence says so on the page instead of being silently over-read.
 
-A purely causal claim is currently typed `other` and sent to the open-web loop, where its timing
-evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap means
-a sixth mode — pre-trend tests, an unaffected comparison group, or difference-in-differences against a
-series the intervention did not touch — with its own trail section. Until then the gap is stated on the
-page and on `/methodology`, and it is not treated as covered.
+A purely causal claim is currently typed `other` and planned onto the research procedure, where its
+timing evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap
+is now **adding a procedure** rather than adding a sixth mode: pre-trend tests against an unaffected
+comparison group, or difference-in-differences against a series the intervention did not touch, ship as
+a library row that a plan can name. Until then the gap is stated on the page and on `/methodology`, and
+it is not treated as covered.
 
-### 2.2 Stat-engine grid mode (flagship)
+### 2.2 Figures procedure — the sensitivity grid (flagship)
 
 1. **Fingerprint match** — against the claim-anchored evidence store; hit → resolve from accumulated versioned series; miss → retrieve from verifier authorities per the domain's authority map. Retrieval resumes from stored evidence; it does not restart.
 2. **Series retrieval** — official series only (Stats NZ SDMX/JSON, policedata.nz, MoJ, Treasury…), stored as `evidence_item` rows with `vintage_date` + `archive_snapshot_url`. The release's own cited numbers are never the evidence — we reconstruct the field.
@@ -72,7 +121,7 @@ page and on `/methodology`, and it is not treated as covered.
    absent rather than defaulting.
 5. Presentation: chart-first, alternatives table, grid axes shown on the verdict page.
 
-### 2.3 Citation-check mode
+### 2.3 Document procedure — claim against its own source
 
 For claims paired with their own evidence (institution lane; also any claim citing a source):
 
@@ -84,7 +133,7 @@ For claims paired with their own evidence (institution lane; also any claim citi
 3. **Authority discipline**: the cited document is the *object of the check*, never evidence. An NZ Initiative statistic that is statistical checks against Stats NZ via 2.2. Advocacy data is at best A6, never a verdict basis (ADR-0018).
 4. Verdict: Supported/Refuted against the source's actual content; a mismatch is the finding, stated claim-vs-source, never as characterisation of the claimant.
 
-### 2.4 Quote-fidelity mode
+### 2.4 Recording procedure — claim against the stored caption
 
 For caption-sourced broadcast claims (ADR-0007):
 
@@ -94,23 +143,23 @@ For caption-sourced broadcast claims (ADR-0007):
 4. **media_anchor generation** for claims arriving without one: built only from stored cue timestamps. A claim that cannot be anchored publishes as an open question, not a verdict with a dead-end quote.
 5. Tier-2 fallback rate for caption parsing logged per lane; quote-fidelity verdicts carry the `caption_quality_flag`.
 
-### 2.5 Provenance mode (curated set only)
+### 2.5 Context procedure (curated set only)
 
 Instrument: stored discourse window (ADR-0008) + retrieval of the original context (date, source, place), compared to claimed context (the dominant EU-2024 class — decontextualisation, 59.3%). Verdict vocabulary: "false context" as first-class finding — genuine content, wrong when/where/who, true context shown.
 
-**Posture**: least mature mode. Runs on the curated fixture set only (`is_curated_fixture=true`); no lane health, no scheduler, no alerting; produces per-stratum numbers and a demonstration path; the methodology page says exactly that. No live false-context detection is claimed.
+**Posture**: least mature procedure. Runs on the curated fixture set only (`is_curated_fixture=true`); no lane health, no scheduler, no alerting; produces per-stratum numbers and a demonstration path; the methodology page says exactly that. No live false-context detection is claimed.
 
-### 2.5a Open-web loop (the capped catch-all)
+### 2.5a Research procedure (the capped catch-all)
 
-FIRE-style per ADR-0006: question generation beats claim-string search (decompose the *argument* where one exists, conditioned on the context pack); multi-hop conditional retrieval; hybrid store search (pgvector + FTS) then search APIs; **confidence-capped dynamic depth**. Least reliable mode (AVeriTeC ceiling applies) — capped, labelled, most visibly open to contest; the AVeriTeC regression target from week 1.
+FIRE-style per ADR-0006: question generation beats claim-string search (decompose the *argument* where one exists, conditioned on the context pack); multi-hop conditional retrieval; hybrid store search (pgvector + FTS) then search APIs; **confidence-capped dynamic depth**. Least reliable procedure (AVeriTeC ceiling applies) — capped, labelled, most visibly open to contest; the AVeriTeC regression target from week 1.
 
 ### 2.6 Shared spine
 
 | Element | Behaviour |
 |---|---|
 | Context pack | claim + window + segment/publication summaries + metadata (ADR-0008 default pack); on-demand expansion logged with structured reason. Claimant identity never enters. |
-| Question decomposition | per-mode seeds; open-web decomposes the argument |
-| Confidence-capped depth | cap config per mode; cap binding stored on the pack (a capped run is visible, not silent) |
+| Question decomposition | per-procedure seeds; the research procedure decomposes the argument |
+| Confidence-capped depth | cap config per procedure; cap binding stored on the pack (a capped run is visible, not silent) |
 | Extraction-ladder fallback logging | every evidence fetch runs the ladder; Tier-2 events land in `fallback_log` per lane |
 | Evidence-pack assembly | items with vintage + archive snapshot, grid result, justifications, NLI outcome; append-only, pinned by the verdict version |
 | Abstention | below-threshold claims publish as open questions (ADR-0001/0004) — a measured capability, not a failure |
@@ -160,7 +209,7 @@ Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 
 
 | Field | Contract |
 |---|---|
-| claim record | text, type (routes the mode), fingerprint, embedding, FKs |
+| claim record | text, type, embedding, FKs (no mode, no fingerprint — ADR-0023) |
 | discourse context | window (verbatim) + optional typed fields — all nullable, never defaulted; the engine treats absent as absent |
 | media fields | `media_anchor`, `transcript_tier`, `caption_quality_flag`, cue span |
 | dedupe inputs | fingerprint matches into the evidence store (resume fast path) |
@@ -198,13 +247,13 @@ The deterministic surface is large and cheap; the LLM surface is gated by golden
 
 | ID | Risk | Consequence if untested | Test | Signal | Layer |
 |---|---|---|---|---|---|
-| VER-R1 | Grid arithmetic errors — wrong denominator, stale vintage, wrong baseline | Confidently wrong arithmetic in the flagship mode | **Stat-grid arithmetic is pure logic — exhaustive L1 coverage.** Fixture series with pinned vintages per domain; golden expected grid per fixture (every axis × every outcome); vintage-selection failure cases; independent SQL recomputation cross-check | L1 exhaustive fixture grids; vintage ≠ retrieved_at assertion; SQL recomputation cross-check | L1 |
+| VER-R1 | Grid arithmetic errors — wrong denominator, stale vintage, wrong baseline | Confidently wrong arithmetic in the flagship procedure | **Stat-grid arithmetic is pure logic — exhaustive L1 coverage.** Fixture series with pinned vintages per domain; golden expected grid per fixture (every axis × every outcome); vintage-selection failure cases; independent SQL recomputation cross-check | L1 exhaustive fixture grids; vintage ≠ retrieved_at assertion; SQL recomputation cross-check | L1 |
 | VER-R2 | NLI audit false-passes | The accuracy gate is theatre; hallucinations publish | Must-pass/must-fail packs (unattributed synthesis, unstated arithmetic, authority-by-citation, hallucinated sentence); audit agreement measured at L3; failure-rate alert | Must-pass/must-fail packs at L1; audit-vs-human agreement at L3; implausibly-zero failure rate | L1 + L3 |
-| VER-R3 | Retrieval failure/quality (the AVeriTeC bottleneck) | The least-reliable mode silently sets the accuracy ceiling | AVeriTeC as the generic-loop gate from week 1; open-web stratum gated; retrieval telemetry trended; retrieval-failure fixtures assert capped-degraded, never silent weak verdicts | L3 open-web stratum; EV2R trend; depth-cap-binding rate; AVeriTeC position | L1 + L3 |
+| VER-R3 | Retrieval failure/quality (the AVeriTeC bottleneck) | The least-reliable procedure silently sets the accuracy ceiling | AVeriTeC as the generic-loop gate from week 1; open-web stratum gated; retrieval telemetry trended; retrieval-failure fixtures assert capped-degraded, never silent weak verdicts | L3 open-web stratum; EV2R trend; depth-cap-binding rate; AVeriTeC position | L1 + L3 |
 | VER-R4 | Citation comparison errors — extraction misses number/period/population, or over-binds decorative citations | False Supported/Refuted against sources that don't say what was extracted | Fixture corpus: exact match, number/period/population mismatch, decorative citation, paywalled — each asserts verdict class + binding strictness | L1 claim/source pair fixtures (match, mismatches, decorative, paywalled); L3 citation stratum | L1 + L3 |
 | VER-R5 | Quote fidelity mis-reads ASR artefacts as quote errors (or passes misquotes) | Verdicts assert wording differences that are caption artefacts | Caption-artefact fixtures (homophones, punctuation, number formats, te reo) with expected treatments; anchor construction tests; L3 quote stratum | L1 caption-artefact fixtures; L3 quote stratum | L1 + L3 |
-| VER-R6 | Provenance mode over-trusted | Slice overclaims the least mature mode on live material | Provenance mode runs only on fixture-gated records; methodology page asserts the demonstration-only posture | Fixture-gate assertions; methodology posture text asserted at L4 | L1 + L4a |
-| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable; numbers unreproducible | Golden set (~20 claims, all modes, pinned versions) per PR — visible diff; manifest completeness at L1 | L2 golden diff per PR; manifest completeness; residual-nondeterminism probe | L2 (+L1) |
+| VER-R6 | Context procedure over-trusted | Slice overclaims the least mature procedure on live material | The context procedure runs only on fixture-gated records; methodology page asserts the demonstration-only posture | Fixture-gate assertions; methodology posture text asserted at L4 | L1 + L4a |
+| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable; numbers unreproducible | Golden set (~20 claims, every procedure, pinned versions) per PR — visible diff; manifest completeness at L1 | L2 golden diff per PR; manifest completeness; residual-nondeterminism probe | L2 (+L1) |
 | VER-R8 | Cost blowout toward naive $10+/claim | Cost deliverable fails; weekly runs unaffordable, gate goes stale | Depth-cap bounds tests; pre-run cost projection blocks over-budget runs; cost/claim per stratum per run | Cost/claim vs $25 envelope; depth-cap-binding rate; anomaly alert | L1 + L3 |
 | VER-R9 | Evidence-fetch failures degrade verdicts silently | Verdicts publish on weaker grounding, no visible flag; contestation exposes it | Fetch-failure fixtures assert flagged degradation (no silent fallback); pack schema forbids unflagged missing items | Pack schema: resolved or flagged-degraded; degraded-grounds metric; L4 rendering | L1 + L4a |
 | VER-R10 | Materiality-selection drift — wrong grid rows foregrounded | Cherry-picking missed, or omissions asserted where unsupported | Golden fixtures carry hand-labelled material-row expectations; L3 cherry-picking oversample (≥12 labels) is the measured check | L2 golden fixtures with hand-labelled material rows; L3 cherry-picking oversample | L2 + L3 |
@@ -213,12 +262,12 @@ The deterministic surface is large and cheap; the LLM surface is gated by golden
 | VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims | L1 + L2 |
 | VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority resolution per seeded domain; advocacy-source rejection asserted | Authority-resolution tests per domain; A6 rejection asserted | L1 |
 | VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability | L1 + L3 |
-| VER-R15 | Routing misclassification | Claims land in the least reliable mode by accident; failures attributed to wrong machinery | Router fixtures over type × text patterns; routing decision stored for L3 cross-tabbing | Router fixtures; L3 lane×mode cross-tab | L1 + L3 |
-| Behavioural | — | — | ≥1 pinned claim per mode in the golden set |  | L2 |
+| VER-R15 | Plan misclassification | A required procedure is dropped, or a claim lands on the research procedure by accident; failures attributed to wrong machinery | Plan fixtures over claim features; `planDefects` refuses a dropped requirement; the plan is stored and published so a misplan is attributablecision stored for L3 cross-tabbing | Router fixtures; L3 lane×mode cross-tab | L1 + L3 |
+| Behavioural | — | — | ≥1 pinned claim per procedure in the golden set, plus a novel-method stratum (a claim whose correct procedure is not in the library) |  | L2/L3 |
 | Deliverable | — | — | Per-stratum accuracy + calibration + cost/claim table; gate per HARNESS §2.6 |  | L3 |
 | Site | — | — | "As deployed", alternatives table, hear-it anchors, degraded-evidence flags, generated methodology table |  | L4 |
 
-**L1 fixture set**: fixture series with pinned vintages; golden expected grids; class-boundary claims; cited-document corpus; caption-artefact fixtures; authority-map resolutions; fetch-failure modes; NLI must-pass/must-fail packs; routing fixtures; depth-cap bounds. All LLM calls mocked.
+**L1 fixture set**: fixture series with pinned vintages; golden expected grids; class-boundary claims; cited-document corpus; caption-artefact fixtures; authority-map resolutions; fetch-failure modes; NLI must-pass/must-fail packs; plan fixtures (required-procedure floor, decline-with-reason, novel procedure); depth-cap bounds. All LLM calls mocked.
 
 ## 5. Open questions
 
@@ -227,8 +276,8 @@ The deterministic surface is large and cheap; the LLM surface is gated by golden
 | 1 | ~~Search-provider order~~ **Resolved**: Brave primary, Serper fallback/bulk (ADR-0011 governs; confirmed 10 Sep 2026). Per-query nuance (authority-restricted → Brave, bulk → Serper) is `search_config` | — |
 | 2 | Materiality-selection rubric sign-off — what artefact, who signs off, does the signed rubric join `grid_axes_version` (forcing an L3 re-run on change)? | The anti-invented-standard defence depends on this being pre-declared and auditable |
 | 3 | Quote-fidelity tolerance policy — what delta flips the verdict vs triggers the caption-quality note? Needs a listen-test policy, not a guessed threshold | Conditions VER-R5 fixture expectations |
-| 4 | Provenance-mode graduation criteria — what measured result justifies live false-context handling, and who decides? | Pairs with HARNESS Q7 |
+| 4 | Context-procedure graduation criteria — what measured result justifies live false-context handling, and who decides? | Pairs with HARNESS Q7 |
 | 5 | NLI-auditor calibration bar — what false-pass rate disqualifies the auditor model? | Deferred until two L3 runs produce audit-agreement data |
-| 6 | Depth-cap values per mode — the FIRE pattern fixes the mechanism, not our numbers; calibrate against first L3 cost data | The $25/run envelope bounds the search space |
-| 7 | Stat-mode verdict for misquoted-but-real numbers (right indicator, wrong figure) — the no-row-match rule says Refuted; confirm the boundary holds for rounding variants ("about 30%" vs 27.3%) or whether a tolerance band is needed | Interacts with VER-R11 fixtures |
-| 8 | **Causal claims have no mode** (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Needs either a sixth mode (pre-trend tests, unaffected comparison group, difference-in-differences) or an explicit out-of-scope refusal — the one option ruled out is grading a causal claim with a check that cannot reach causation | Publishes a bound on every mode's trail section meanwhile; the gap is named on the page and on `/methodology`, not assumed covered |
+| 6 | Depth-cap values per procedure — the FIRE pattern fixes the mechanism, not our numbers; calibrate against first L3 cost data | The $25/run envelope bounds the search space |
+| 7 | Figures-procedure verdict for misquoted-but-real numbers (right indicator, wrong figure) — the no-row-match rule says Refuted; confirm the boundary holds for rounding variants ("about 30%" vs 27.3%) or whether a tolerance band is needed | Interacts with VER-R11 fixtures |
+| 8 | **Causal claims have no procedure** (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Since ADR-0023 this is a *procedure* to add rather than a sixth mode: the plan can name a procedure the library has never seen, so `difference-in-differences` (pre-trend tests against an unaffected comparison group) can ship as a library row without changing the routing, and the plan records it as a step with its own bound | Publishes a bound per check on every trail section meanwhile; the gap is named on the page and on `/methodology`, not assumed covered |

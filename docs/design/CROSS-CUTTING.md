@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph PIPE["packages/pipeline"]
         LADDER["Extraction ladder<br/>Tier 1 → 2 → 3 (ADR-0006)"]
-        TRIAGE["Claim detection + typing<br/>+ fingerprint (LLM triage)"]
+        TRIAGE["Claim detection + typing<br/>(LLM triage)"]
         MODES["Verification modes<br/>stat-grid · citation · quote-fidelity ·<br/>provenance · open-web (ADR-0005)"]
     end
 
@@ -35,7 +35,7 @@ flowchart TB
         CONFIG["§2 Config surface<br/>(models · prompts · vintages · pipeline version)"]
         SECRETS["§4 Secrets (env/.env)<br/>LLM + search API keys"]
         GRAF["§5 Grafana Cloud (ADR-0012)<br/>OTel · gen_ai spans · Loki · Discord"]
-        ERRH["§6 Health checks · retries ·<br/>fingerprint idempotency"]
+        ERRH["§6 Health checks · retries ·<br/>re-run idempotency"]
         MIGR["§7 Drizzle migrations<br/>(scratch-Postgres CI)"]
         BLIND["§8 Blind-rule isolation<br/>(labels unreadable by pipeline)"]
         ARCHIVE["§10 Internet Archive cache<br/>+ series vintages"]
@@ -152,7 +152,7 @@ One platform (Grafana Cloud), instrumented once with OpenTelemetry (ADR-0012). A
 | Traces + `gen_ai.*` spans | OTel SDK → collector → Tempo | nested verification-loop traces (question decomposition → retrieval rounds → grid computation → verdict → NLI audit) as one trace | one trace per verdict attempt |
 | Metrics | Prometheus-style via OTel | per-source rates queryable as "this week vs same week last month" | long retention, low cardinality |
 | Logs | structured JSON → Loki | provenance fields (pipeline version, model version, extraction tier, claim/source IDs) as first-class labels | 50 GB/month free tier |
-| Errors | exceptions as structured log events, grouped by fingerprint | stack trace + tags (lane/source/stage/pipeline-version); **no claim text in payloads** | log-based grouping accepted (ADR-0012) |
+| Errors | exceptions as structured log events, grouped by claim key | stack trace + tags (lane/source/stage/pipeline-version); **no claim text in payloads** | log-based grouping accepted (ADR-0012) |
 | Alerts | Grafana alert rules (versioned config, reviewable like code) | warnings batch to Discord; page-level conditions notify directly | alert fatigue is a design constraint |
 
 No proprietary SDKs — any component movable to self-hosted Grafana OSS (any Docker host) as a config change if free-tier limits bite.
@@ -223,7 +223,7 @@ Per ADR-0006 the pipeline is idempotent at every stage boundary, raw inputs reta
 | Mechanism | Scope | Behaviour |
 |---|---|---|
 | Document content hash | ingestion | Identical re-fetch → no new row; provenance updated. Ingest re-runs produce no duplicates. |
-| Claim fingerprint + embedding | triage/store | The dedupe-by-claim contract: repeats gain a source-occurrence, never a new queue entry. The cross-component idempotency key — re-running any stage re-resolves to the same claim record. |
+| Claim key + embedding | triage/store | The dedupe-by-claim contract: repeats gain a source-occurrence, never a new queue entry. The cross-component idempotency key — re-running any stage re-resolves to the same claim record. (This was the fingerprint until ADR-0023 removed it; the embedding is what actually matched near-duplicates.) |
 | Append-only verdicts | verification/store | Reprocessed verdicts append a version with provenance; never overwrite. |
 | Job idempotency keys | scheduler | Graphile Worker job keys — the same job re-enqueued with the same key updates rather than duplicates; `SKIP LOCKED` claiming — no double-verification. |
 | Fetch retry ladder | all lanes | retry → headless fallback → degraded → maintainer alert → public coverage page. |
@@ -233,7 +233,7 @@ Per ADR-0006 the pipeline is idempotent at every stage boundary, raw inputs reta
 
 **Tests:**
 
-- ingest re-run duplicates claims → L1 double-run test (identical counts/IDs); L2 golden re-run asserts stable fingerprints
+- ingest re-run duplicates claims → L1 double-run test (identical counts/IDs); L2 golden re-run asserts stable claim keys
 - retry ladder loops/double-fetches → L1 fixture HTTP failure modes (429, 5xx, bot-wall 200) assert bounded retries
 - concurrent double-writes → L1 concurrency test; unique constraints as backstop
 - dead lane unnoticed → L1 asserts each monitor registered; silence alerts verified pre-launch.
