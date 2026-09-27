@@ -60,37 +60,20 @@ export type ClaimType =
   | "false-context"
   | "other";
 
-export type VerificationMode =
-  | "stat-grid"
-  | "citation-check"
-  | "quote-fidelity"
-  | "provenance"
-  | "open-web";
+// `VerificationMode`, `FingerprintTuple` and `CanonicalFingerprintKey` were
+// declared here and removed by ADR-0023. Triage now decides a claim's TYPE; the
+// PLAN (`plan.ts`) decides which procedures that type needs, and a claim may need
+// several. Kept as this note rather than silently deleted, because the mode was
+// load-bearing across the pipeline, the store and the site, and a reader arriving
+// from an older branch needs to know where it went.
 
 export interface TypedClaim {
   claimId: string;
   sourceSentenceId: string;
   claimType: ClaimType;
-  mode: VerificationMode;
   text: string;
-  /** Present on TRI-R3 degrade: the failed fingerprint attempt, retained. */
-  fingerprintAttempt?: FingerprintTuple;
   isCuratedFixture?: boolean;
   provenance: TriageProvenance;
-}
-
-export interface FingerprintTuple {
-  core: string;
-  claimant: string | null;
-  domain: string | null;
-  temporal: string | null;
-  quantity: string | null;
-  source: string | null;
-}
-
-export interface CanonicalFingerprintKey {
-  key: string;
-  normalisationVersion: string;
 }
 
 export interface DiscourseContext {
@@ -140,18 +123,10 @@ export function typeClaimFromLlm(
   throw new Error("NOT IMPLEMENTED: typeClaimFromLlm (triage red phase)");
 }
 
-export function fingerprintFromLlm(_llm: TriageLlm, _input: { sentence: string }): unknown {
-  throw new Error("NOT IMPLEMENTED: fingerprintFromLlm (triage red phase)");
-}
-
 export function contextFromLlm(_llm: TriageLlm, _input: { window: string }): unknown {
   throw new Error("NOT IMPLEMENTED: contextFromLlm (triage red phase)");
 }
 
 export function triageDocument(_doc: TriageDocumentInput, _llm: TriageLlm): unknown {
   throw new Error("NOT IMPLEMENTED: triageDocument (triage red phase)");
-}
-
-export function canonicalFingerprintKey(_tuple: Partial<FingerprintTuple>): unknown {
-  throw new Error("NOT IMPLEMENTED: canonicalFingerprintKey (triage red phase)");
 }

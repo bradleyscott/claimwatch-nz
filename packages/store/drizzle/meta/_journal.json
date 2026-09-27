@@ -64,6 +64,13 @@
       "when": 1789317190971,
       "tag": "0008_bent_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790498674119,
+      "tag": "0009_lethal_kingpin",
+      "breakpoints": true
     }
   ]
 }

@@ -142,6 +142,81 @@ export const fallbackLog = pgTable(
   ],
 );
 
+// Procedure library (ADR-0023): the auditable instruments a verification plan
+// may invoke. Seeded with the five former modes; grows from past plans.
+//
+// Modelled deliberately on `authority` below — fixed schema, emergent rows,
+// append-only, retired by STATUS CHANGE rather than deletion — because the same
+// argument applies to both: a precomputed set bets on a prediction that cannot be
+// checked in advance (ADR-0005), and an unauditable instrument is worse than a
+// wrong one because it cannot be found, versioned or compared.
+//
+// The FIXED part is the shape. `consumes`/`produces` are declared so two
+// procedures can be compared and a reader can see what one needed;
+// `cannot_establish` is the published bound. The EMERGENT part is which rows
+// exist. A procedure may compute anything it likes but may NOT define its own
+// thresholds: tolerances and admissibility tiers are published criteria that live
+// in code (ADR-0004, ADR-0020) and are referenced, not owned.
+export const procedure = pgTable(
+  "procedure",
+  {
+    procedureId: uuid("procedure_id").primaryKey().defaultRandom(),
+    procedureRef: text("procedure_ref").notNull(),
+    version: text("version").notNull(),
+    // `deterministic` computes from evidence we hold; `research` retrieves.
+    // The distinction matters at plan time: a research step can be repeated and
+    // refined, a deterministic one either has its inputs or abstains.
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    consumes: jsonb("consumes").notNull(),
+    produces: jsonb("produces").notNull(),
+    cannotEstablish: text("cannot_establish").notNull(),
+    rationale: text("rationale").notNull(),
+    discoveredBy: text("discovered_by").notNull(),
+    searchRefs: jsonb("search_refs").notNull().default([]),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("procedure_ref_version_uq").on(t.procedureRef, t.version),
+    index("procedure_status_idx").on(t.status),
+    check("procedure_kind_valid", sql`${t.kind} IN ('deterministic','research')`),
+    check("procedure_status_valid", sql`${t.status} IN ('active','retired')`),
+  ],
+);
+
+// The PLAN a verification ran (ADR-0023): an ordered list of steps, each naming
+// the procedure and version it invoked, why it was chosen, whether a required
+// procedure was declined and why, and — once it ran — its outcome.
+//
+// This replaces `claim.verification_mode`, which could hold exactly one of five
+// values and so could not record that a claim was checked two ways.
+//
+// It is its OWN table rather than a column on `evidence_pack` deliberately:
+// `evidence_pack` is append-only (STO-R1/CRO-R12) and a migration that backfills
+// a new column into historical rows mutates them. A separate row inserts cleanly
+// and gives the plan its own identity, which it needs anyway — the plan is the
+// published record of what was established and what was not attempted.
+// `libraryVersion` records which procedure library suggested it, so a run can be
+// reproduced against the same library state (ADR-0023 §6).
+export const verificationPlan = pgTable(
+  "verification_plan",
+  {
+    planId: uuid("plan_id").primaryKey().defaultRandom(),
+    packId: uuid("pack_id")
+      .notNull()
+      .references(() => evidencePack.packId),
+    // The whole plan as one validated document, rather than columns per field.
+    // Reassembling a plan from columns is how `Fingerprint` and
+    // `FingerprintTuple` came to disagree — one shape, one column, one parse
+    // (`VerificationPlan` in `../procedure.ts`, applied at both the write and
+    // the read boundary).
+    plan: jsonb("plan").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("verification_plan_pack_idx").on(t.packId)],
+);
+
 // Authority registry (user direction, Sept 2026): discovered authorities with
 // recorded provenance; append-only like evidence vintages.
 export const authority = pgTable("authority", {

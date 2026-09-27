@@ -95,11 +95,11 @@ const pageData = {
   claimPromptVersions: { "triage-typing": "triage-typing@1" },
   claimModelVersion: "claude-sonnet-5",
   // Deliberately absent in this fixture: it dates from before the columns
-  // existed (`claim.verification_mode` / `claim.triage_record`, Sept 2026), and
-  // null is the state all 25 pre-migration verdicts are in — so this fixture
-  // keeps rendering exactly what it rendered before. The mode-aware section
+  // existed (`claim.triage_record`, Sept 2026; `verification_plan`, ADR-0023),
+  // and null is the state all pre-migration verdicts are in — so this fixture
+  // keeps rendering exactly what it rendered before. The plan-aware section
   // needs its own fixture with both values set.
-  verificationMode: null,
+  plan: null,
   triageRecord: null,
 } as const satisfies VerdictPageData;
 
@@ -111,7 +111,28 @@ const pageData = {
  */
 const pageDataWithMode = {
   ...pageData,
-  verificationMode: "stat-grid",
+  plan: {
+    libraryVersion: "proc-lib-2026-09",
+    features: {
+      category: "crime-statistics",
+      assertsNumber: true,
+      quotesPerson: false,
+      citesDocument: false,
+      attachesToProposal: true,
+    },
+    steps: [
+      {
+        procedureRef: "stat-grid",
+        procedureVersion: "stat-grid@1",
+        reason: "the claim states a number",
+        source: "required" as const,
+        status: "ran" as const,
+        declineReason: null,
+        outcome: "conflicting_cherry_picking",
+      },
+    ],
+    notAttempted: [],
+  },
   triageRecord: {
     sentencesRead: 11,
     checked: 1,
@@ -257,7 +278,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // ...and carries all five sections, in order, in jargon-free titles.
     const headings = [
       "What else was in the document",
-      "The check this claim got",
+      "The checks this claim got",
       "How it was checked: official figures",
       "Sources we used",
       "Decided and published",
@@ -283,7 +304,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("The Prime Minister was asked about crime") /* passage lead */;
     // What the claim was read as, and which check that produced.
     expect(html).toContain("a number stated over a period");
-    expect(html).toContain("check stat-grid");
+    expect(html).toContain("checks stat-grid");
     // What this check cannot establish — the bound, which no mode may omit.
     expect(html).toContain("What this check cannot establish");
     expect(html).toContain("Show that one thing caused another.");
@@ -321,9 +342,9 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // This is the state every verdict written before Sept 2026 is in. The page
     // says what it does not hold; it does not describe a check it cannot name.
     expect(html).toContain("data-trail-absent");
-    expect(html).toContain("We have no record of which kind of check");
+    expect(html).toContain("We have no record of which checks");
     expect(html).toContain("cannot say how much of the document");
-    expect(html).toContain("check not recorded");
+    expect(html).toContain("checks not recorded");
     expect(html).toContain("sentences not recorded");
     // And it never invents the bound for a check it could not identify.
     expect(html).not.toContain("What this check cannot establish");

@@ -12,16 +12,13 @@ const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures")
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
 
 import {
-  canonicalFingerprintKey,
   checkabilityFromLlm,
   contextFromLlm,
-  fingerprintFromLlm,
   splitSentences,
   triageDocument,
   typeClaimFromLlm,
 } from "./triage.ts";
 import type {
-  CanonicalFingerprintKey,
   CheckabilityDecision,
   DiscourseContext,
   Sentence,
@@ -118,17 +115,17 @@ describe("claim typing and mode routing (TRI-R3)", () => {
     const llm = MockTriageLlm.forTyping(item.text, item.claimType);
     const claim = (await typeClaimFromLlm(llm, { sentence: item.text })) as TypedClaim;
     expect(claim.claimType).toBe(item.claimType);
-    expect(claim.mode).toBe(item.routesTo);
+    // `claim.mode` was asserted here. ADR-0023 removed it from triage: the type
+    // is triage's answer, and which procedures that type needs is the plan's
+    // (`plan.test.ts`). Asserting a mode here would re-pin the taxonomy.
+    expect(claim).not.toHaveProperty("mode");
   });
 
-  it("degrades a statistical signal with an unusable fingerprint to 'other', retaining the attempt (TRI-R3)", async () => {
-    const degrade = set.items.find((i) => i.expectedType === "other");
-    const llm = MockTriageLlm.forTypingWithBrokenFingerprint(degrade?.text ?? "");
-    const claim = (await typeClaimFromLlm(llm, { sentence: degrade?.text ?? "" })) as TypedClaim;
-    expect(claim.claimType).toBe("other");
-    expect(claim.mode).toBe("open-web");
-    expect(claim.fingerprintAttempt).toBeTruthy();
-  });
+  // The fingerprint-degrade case (TRI-R3) used to be tested here: an unusable
+  // parse degraded the claim's TYPE to `other`, silently rerouting it to a
+  // different check. ADR-0023 deleted the stage — the parse now happens inside
+  // the figures procedure and an unreadable magnitude ABSTAINS rather than
+  // rerouting (`claim-parameters.test.ts`).
 
   it("routes the false-context fixture type with is_curated_fixture gate", async () => {
     const item = set.items.find((i) => i.isCuratedFixture);
@@ -138,71 +135,16 @@ describe("claim typing and mode routing (TRI-R3)", () => {
       isCuratedFixture: true,
     })) as TypedClaim;
     expect(claim.claimType).toBe("false-context");
-    expect(claim.mode).toBe("provenance");
   });
 });
 
-// ---------- fingerprint normalisation (TRI-R2/R4) ----------
-
-describe("fingerprint normalisation (TRI-R2)", () => {
-  const fixture = JSON.parse(readFixture("triage-fingerprint.json")) as {
-    mergePair: {
-      a: Record<string, string | null>;
-      b: Record<string, string | null>;
-      expectSameKey: boolean;
-    };
-    noMergePair: {
-      a: Record<string, string | null>;
-      b: Record<string, string | (null & { reviewFlag?: string })>;
-      expectSameKey: boolean;
-    };
-    adjacentWindowPair: {
-      a: Record<string, unknown>;
-      b: Record<string, unknown>;
-      expectSameKey: boolean;
-      expectOccurrences: number;
-    };
-    normalisationVariants: Array<{ id: string; a: string; b: string; normaliseEqual: boolean }>;
-    normalisationConfigVersion: string;
-  };
-
-  it("same normalised tuple → same canonical key (merge)", () => {
-    const ka = canonicalFingerprintKey(fixture.mergePair.a) as CanonicalFingerprintKey;
-    const kb = canonicalFingerprintKey(fixture.mergePair.b) as CanonicalFingerprintKey;
-    expect(ka.key).toBe(kb.key);
-  });
-
-  it("different claimant/window → different key, no merge", () => {
-    const ka = canonicalFingerprintKey(fixture.noMergePair.a) as CanonicalFingerprintKey;
-    const kb = canonicalFingerprintKey(fixture.noMergePair.b) as CanonicalFingerprintKey;
-    expect(ka.key).not.toBe(kb.key);
-  });
-
-  it.each(fixture.normalisationVariants)(
-    "normalisation variant $id is versioned and deterministic",
-    (v) => {
-      const ka = canonicalFingerprintKey({ core: v.a }) as CanonicalFingerprintKey;
-      const kb = canonicalFingerprintKey({ core: v.b }) as CanonicalFingerprintKey;
-      if (v.normaliseEqual) {
-        expect(ka.key).toBe(kb.key);
-      } else {
-        expect(ka.key).not.toBe(kb.key);
-      }
-    },
-  );
-
-  it("records the normalisation config version with every key (re-runs must be reproducible)", () => {
-    const key = canonicalFingerprintKey({
-      core: "Crime is up 30% since 2017.",
-    }) as CanonicalFingerprintKey;
-    expect(key).toMatchObject({
-      key: expect.any(String),
-      normalisationVersion: fixture.normalisationConfigVersion,
-    });
-  });
-});
-
-// ---------- discourse context (TRI-R5/R6, ADR-0008) ----------
+// ---------- fingerprint normalisation (TRI-R2/R4) — REMOVED ----------
+//
+// The fingerprint was a six-part identity key, normalised so two claims about
+// the same number produced the same canonical string. ADR-0023 removed it
+// entirely: the key had no reader, and the two fields anything consumed were the
+// window and the magnitude, which are now typed (`claim-parameters.ts`) rather
+// than normalised text. The fixture `triage-fingerprint.json` is gone with it.
 
 describe("discourse-context extraction (ADR-0008)", () => {
   const fixture = JSON.parse(readFixture("triage-context.json")) as {
@@ -539,151 +481,13 @@ describe("the orchestrator runs the stages the spec says it runs", () => {
   });
 });
 
-// ---------- the fingerprint stage (TRIAGE §2.1, TRI-R3) ----------
+// ---------- the fingerprint stage (TRI-R3) — REMOVED ----------
 //
-// `fingerprintFromLlm` had no caller: it was imported by this file and never
-// invoked, so `claim.fingerprint` is null on every row in the store and TRI-R3's
-// degrade path had never run. These tests exercise the stage through the
-// orchestrator, which is where it was missing.
-
-describe("the fingerprint stage runs for statistical claims (TRI-R3)", () => {
-  /** A document whose one sentence is a statistical claim, plus a scripted parse. */
-  const statDoc = {
-    documentId: "doc-stat",
-    sentences: [
-      {
-        id: "s1",
-        text: "Crime is up 30% since 2017.",
-        window: "Law and order: the Minister said crime is up 30% since 2017, and promised action.",
-      },
-    ],
-  };
-
-  function llmWithFingerprint(
-    fingerprint:
-      | {
-          core: string;
-          claimant: string | null;
-          domain: string | null;
-          temporal: string | null;
-          quantity: string | null;
-          source: string | null;
-        }
-      | "fail",
-  ): TriageLlm {
-    return MockTriageLlm.scripted((role, _input) => {
-      switch (role) {
-        case "triage-checkability":
-          return {
-            ok: true,
-            value: {
-              results: [
-                { sentenceId: "s1", checkable: true, claimType: "statistical", mode: "stat-grid" },
-              ],
-            },
-          };
-        case "triage-context":
-          return {
-            ok: true,
-            value: {
-              speaker: "Minister",
-              topic: "crime",
-              proposal: null,
-              attachedProposal: "tougher sentencing",
-              qualifiers: [],
-              argumentDirection: "problem",
-            },
-          };
-        case "triage-fingerprint":
-          return fingerprint === "fail"
-            ? { ok: false, raw: "no parse", failureClass: "schema-validation" }
-            : {
-                ok: true,
-                value: { claimType: "statistical", mode: "stat-grid", sentence: "", fingerprint },
-              };
-        default:
-          return { ok: false, raw: `unexpected role ${role}`, failureClass: "schema-validation" };
-      }
-    });
-  }
-
-  const tuple = {
-    core: "crime up 30% since 2017",
-    claimant: "Minister",
-    domain: "crime-statistics",
-    temporal: "2017-2026",
-    quantity: "30%",
-    source: "police",
-  };
-
-  it("attaches the parse and its canonical key to a statistical claim", async () => {
-    const result = await triageDocument(statDoc, llmWithFingerprint(tuple));
-    const [claim] = result.claims;
-    expect(claim?.claimType).toBe("statistical");
-    expect(claim?.mode).toBe("stat-grid");
-    expect(claim?.fingerprint).toEqual(tuple);
-    // The key is the normalised one, not the raw tuple: it is what dedup and
-    // near-fingerprint review compare on (TRI-R2/R4).
-    expect(claim?.fingerprintKey).toBe(canonicalFingerprintKey(tuple).key);
-    expect(result.failures).toHaveLength(0);
-  });
-
-  it("degrades to `other` when the parse cannot be extracted, and records why", async () => {
-    // TRI-R3: never silently generic. A statistical claim whose number cannot be
-    // parsed cannot be checked against a series, so it routes to the open-web
-    // loop — and the degrade is visible in the funnel rather than appearing as a
-    // claim type that quietly changed.
-    const result = await triageDocument(statDoc, llmWithFingerprint("fail"));
-    const [claim] = result.claims;
-    expect(claim?.claimType).toBe("other");
-    expect(claim?.mode).toBe("open-web");
-    expect(claim?.fingerprint).toBeNull();
-    expect(claim?.fingerprintKey).toBeNull();
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]?.sentenceId).toBe("s1");
-    // The claim still becomes a claim: a failed parse is not a dropped sentence.
-    expect(result.triageRecord.checked).toBe(1);
-  });
-
-  it("does not ask for a parse of a non-statistical claim", async () => {
-    // Quotation claims have no number to parse; asking would be a wasted call
-    // and would put a fingerprint on a claim no series can be matched to.
-    const roles: string[] = [];
-    const llm = MockTriageLlm.scripted((role) => {
-      roles.push(role);
-      if (role === "triage-checkability") {
-        return {
-          ok: true,
-          value: {
-            results: [
-              {
-                sentenceId: "s1",
-                checkable: true,
-                claimType: "broadcast-quote",
-                mode: "quote-fidelity",
-              },
-            ],
-          },
-        };
-      }
-      if (role === "triage-context") {
-        return {
-          ok: true,
-          value: {
-            speaker: null,
-            topic: null,
-            proposal: null,
-            attachedProposal: null,
-            qualifiers: [],
-            argumentDirection: null,
-          },
-        };
-      }
-      return { ok: false, raw: `unexpected ${role}`, failureClass: "schema-validation" };
-    });
-    const result = await triageDocument(statDoc, llm);
-    expect(roles).not.toContain("triage-fingerprint");
-    expect(result.claims[0]?.fingerprint).toBeNull();
-    expect(result.claims[0]?.claimType).toBe("broadcast-quote");
-  });
-});
+// These tests exercised `fingerprintFromLlm` through the orchestrator: the parse
+// attached to the claim, its canonical key, and the degrade-to-`other` path when
+// the parse was unusable. ADR-0023 removed the stage and the object it built, so
+// there is nothing left to assert here. The behaviour that replaced it — a typed
+// parse at the point of use, and an ABSTENTION when a stated magnitude cannot be
+// read, rather than a silent reroute — is covered by
+// `claim-parameters.test.ts` and by the stat-grid's unreadable-magnitude case in
+// `verification.test.ts`.

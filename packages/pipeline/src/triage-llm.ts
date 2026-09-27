@@ -14,7 +14,6 @@ export type { LlmCallResult, LlmUsage } from "./llm-port.ts";
 export type TriageRole =
   | "triage-checkability"
   | "triage-typing"
-  | "triage-fingerprint"
   | "triage-context";
 
 export type TriageLlm = LlmPort<TriageRole>;

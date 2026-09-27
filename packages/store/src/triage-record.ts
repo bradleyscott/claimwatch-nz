@@ -12,20 +12,11 @@
 
 import { z } from "zod";
 
-/**
- * The five kinds of check the verifier can run (VERIFICATION.md §2.1). The site
- * reads these as opaque strings — it may not import pipeline source — but the
- * column, the fixture type and the page's mode table all key off this list, so
- * it is defined once here and re-exported by the modules that need it.
- */
-export const VERIFICATION_MODES = [
-  "stat-grid",
-  "citation-check",
-  "quote-fidelity",
-  "provenance",
-  "open-web",
-] as const;
-export type VerificationMode = (typeof VERIFICATION_MODES)[number];
+// The five verification modes used to be declared here as VERIFICATION_MODES,
+// and the claim row stored exactly one of them. ADR-0023 replaced both: a claim
+// now carries a PLAN (`./procedure.ts`), and the five are the library's seeded
+// population rather than a closed set. Removed rather than aliased, because an
+// alias would keep the old concept load-bearing under a new name.
 
 /**
  * Why a sentence from the source document could not be graded (TRIAGE §2.2).

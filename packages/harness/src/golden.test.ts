@@ -120,7 +120,7 @@ describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
     expect(manifest.modelVersions).toBeTruthy();
     expect(manifest.promptVersions).toBeTruthy();
     expect(manifest.gridAxesVersion).toBe("grid-axes-2026-09");
-    expect(manifest.fingerprintNormalisationVersion).toBe("fp-norm-2025-01");
+    expect(manifest.procedureLibraryVersion).toBe("proc-lib-2026-09");
     expect(manifest.searchConfig).toBe("brave-primary");
     expect(manifest.storeSchemaVersion).toBe(STORE_SCHEMA_VERSION);
     // Sampling is part of the tuple, not a detail of the call site: the same

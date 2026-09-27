@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
 import { isEligibleSpeakership } from "./speakership.ts";
 import { createTestStore, scratchDatabaseUrl } from "./store.ts";
-import type { ClaimFixture, TestStore } from "./store-api.ts";
+import type { ClaimFixture, EvidencePackFixture, TestStore } from "./store-api.ts";
 import { TriageRecord } from "./triage-record.ts";
 
 function requireEnv(name: string): string {
@@ -113,12 +113,19 @@ async function publishVerdictWithId(overrides: Partial<ClaimFixture> = {}) {
   return { claim, verdictId: verdict.verdictId };
 }
 
-/** A published verdict, so the claim has a page to read at all. */
-async function publishVerdict(claimId: string): Promise<void> {
+/**
+ * A published verdict, so the claim has a page to read at all.
+ *
+ * `plan` travels with the PACK, not the claim (ADR-0023 §5): the plan is a
+ * record of one verification, and a claim that is verified again gets a new pack
+ * and a new plan.
+ */
+async function publishVerdict(claimId: string, plan?: EvidencePackFixture["plan"]): Promise<void> {
   const pack = await store.appendEvidencePack(claimId, {
     itemRefs: [],
     justifications: [],
     nliOutcome: "pass",
+    ...(plan ? { plan } : {}),
   });
   const verdict = await store.writeVerdict(claimId, pack.packId, {
     provenance: provenance(),
@@ -198,11 +205,12 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(item?.retrievedAt).toBeInstanceOf(Date);
   });
 
-  it("carries the verification mode and the triage record, and leaves both absent when unrecorded", async () => {
-    // Recorded: the two things the mode-aware "how this verdict was made"
-    // section is selected by and justified from.
+  it("carries the verification plan and the triage record, and leaves both absent when unrecorded", async () => {
+    // Recorded: the two things the "how this verdict was made" section is
+    // selected by and justified from. The plan replaced the single
+    // `verification_mode` (ADR-0023), and it is a LIST of steps — a claim can now
+    // have been checked more than one way.
     const recorded = await seedClaim({
-      verificationMode: "stat-grid",
       triageRecord: {
         sentencesRead: 12,
         checked: 3,
@@ -212,10 +220,31 @@ describe("site reader (STORE §3, SIT-R14)", () => {
         held: [{ sentenceText: "Housing will be fixed.", reason: "no deadline has passed" }],
       },
     });
-    await publishVerdict(recorded.claimId);
+    await publishVerdict(recorded.claimId, {
+      libraryVersion: "proc-lib-2026-09",
+      features: {
+        category: "crime-statistics",
+        assertsNumber: true,
+        quotesPerson: false,
+        citesDocument: false,
+        attachesToProposal: true,
+      },
+      steps: [
+        {
+          procedureRef: "stat-grid",
+          procedureVersion: "stat-grid@1",
+          reason: "the claim states a number",
+          source: "required",
+          status: "ran",
+          declineReason: null,
+          outcome: "conflicting_cherry_picking",
+        },
+      ],
+      notAttempted: [],
+    });
 
     const page = await reader.getVerdictPage(recorded.claimId);
-    expect(page?.verificationMode).toBe("stat-grid");
+    expect(page?.plan?.steps.map((step) => step.procedureRef)).toEqual(["stat-grid"]);
     expect(page?.triageRecord?.sentencesRead).toBe(12);
     expect(page?.triageRecord?.checked).toBe(3);
     // Verbatim, not paraphrased: the disclosure is only checkable against the
@@ -230,7 +259,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     const bare = await seedClaim();
     await publishVerdict(bare.claimId);
     const barePage = await reader.getVerdictPage(bare.claimId);
-    expect(barePage?.verificationMode).toBeNull();
+    expect(barePage?.plan).toBeNull();
     expect(barePage?.triageRecord).toBeNull();
   });
 
@@ -244,7 +273,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(partial.setAside).toEqual([]);
     expect(partial.held).toEqual([]);
 
-    const claim = await seedClaim({ verificationMode: "citation-check", triageRecord: partial });
+    const claim = await seedClaim({ triageRecord: partial });
     await publishVerdict(claim.claimId);
     const page = await reader.getVerdictPage(claim.claimId);
     expect(page?.triageRecord?.checked).toBe(1);

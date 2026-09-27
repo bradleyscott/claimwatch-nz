@@ -7,8 +7,15 @@
 /** Pre-declared sensitivity-grid axes (ADR-0005). */
 export const GRID_AXES_VERSION = "grid-axes-2026-09";
 
-/** Fingerprint normalisation rules (TRIAGE open Q3) — versioned, deterministic. */
-export const FINGERPRINT_NORMALISATION_VERSION = "fp-norm-2025-01";
+/**
+ * The procedure library's version (ADR-0023 §6). Bumped when the library's
+ * contents change materially — a procedure added, retired, or given a new
+ * `version` — because a scoring run scores against a particular library state and
+ * two runs that differed here are not comparable. It replaces
+ * `FINGERPRINT_NORMALISATION_VERSION`: the fingerprint was removed entirely, and
+ * this is the thing a run now actually depends on.
+ */
+export const PROCEDURE_LIBRARY_VERSION = "proc-lib-2026-09";
 
 /**
  * Prompt/LLM role vocabulary — every step we hold a prompt for, and the only
@@ -30,9 +37,14 @@ export const PROMPT_ROLES = [
   "speakership-classify",
   "triage-checkability",
   "triage-typing",
-  "triage-fingerprint",
   "triage-context",
   "grid-materiality",
+  // The plan's first step, in the figures procedure: parse the claim's window and
+  // magnitude at the point of use (ADR-0023). It replaces the fingerprint stage,
+  // which extracted a six-part identity object at triage time that the grid then
+  // read its window and quantity out of by regex.
+  "claim-parameters",
+  "plan-for-claim",
   "citation-compare",
   "quote-fidelity",
   "nli-audit",

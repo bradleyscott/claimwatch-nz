@@ -13,14 +13,15 @@ setDefaultResultOrder("ipv4first");
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ZodTypeAny } from "zod";
+import { claimParametersFromLlm } from "../packages/pipeline/src/claim-parameters.ts";
 import {
   createLiveAdapter,
   type ProviderCall,
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
-import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
 import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
+import { derivePlanFeatures, planForClaim } from "../packages/pipeline/src/plan.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
 import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
 import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidence.ts";
@@ -298,7 +299,8 @@ async function main(): Promise<void> {
   // noUncheckedIndexedAccess: the empty-claims case returned above, but TS needs
   // the narrowing spelled out.
   if (claim == null) return;
-  console.log(`  → ${claim.claimType} → mode ${claim.mode}`);
+  // No mode (ADR-0023): the plan below decides which procedures this type needs.
+  console.log(`  → ${claim.claimType}`);
 
   // 2. Verify — registry-aware routing (user direction, Sept 2026): open-web
   // is the default; stat-grid only when the registry holds a vetted authority
@@ -325,24 +327,52 @@ async function main(): Promise<void> {
     resolveAuthority: (domain: string) => store.resolveAuthority(domain),
   };
 
-  // One canonical key for BOTH routing and discovery — the triage fingerprint
-  // often carries no domain, so the key derives from the fingerprint core.
-  const routingFingerprint = claim.fingerprintAttempt ?? {
-    core: claim.text,
-    claimant: null,
-    domain: null,
-    temporal: null,
-    quantity: null,
-    source: null,
-  };
-  const domainKey = canonicalDomain(
-    routingFingerprint.domain ?? routingFingerprint.core ?? target.claim,
+  // One canonical key for BOTH planning and discovery, derived from the claim
+  // TEXT. It used to come from the fingerprint's `domain ?? core`, but the
+  // fingerprint is gone (ADR-0023) and `canonicalDomain` already falls back to
+  // the claim text — so the indirection bought nothing and cost a stored object.
+  const domainKey = canonicalDomain(target.claim);
+  // The PLAN decides what this claim needs (ADR-0023). Whether the figures
+  // procedure can actually run still depends on the registry: no vetted authority
+  // means no series, which the plan records as a declined step with a reason
+  // rather than routing the claim somewhere else.
+  const library = await store.listProcedures();
+  const authority = await store.resolveAuthority(domainKey);
+  const plan = planForClaim({
+    features: derivePlanFeatures({
+      category: domainKey,
+      claimText: target.claim,
+      claimType: claim.claimType,
+    }),
+    claimText: target.claim,
+    available: library.map((p) => ({
+      procedureRef: p.procedureRef,
+      version: p.version,
+      status: p.status ?? "active",
+      cannotEstablish: p.cannotEstablish,
+    })),
+    pastPlans: [],
+    declines:
+      authority == null
+        ? [
+            {
+              procedureRef: "stat-grid",
+              reason: `no vetted authority for "${domainKey}" in the registry, so no official series to check against`,
+            },
+          ]
+        : [],
+    notAttempted: ["whether any policy caused the change — no procedure here can reach causation"],
+  });
+  const wantsStatGrid = plan.steps.some(
+    (step) => step.procedureRef === "stat-grid" && step.status !== "declined",
   );
-  const routedMode = await routeMode({ claimType: claim.claimType, domain: domainKey }, registry);
+  console.log(
+    `  plan: ${plan.steps.map((step) => `${step.procedureRef}(${step.status})`).join(", ")}`,
+  );
+  const routedMode = wantsStatGrid ? "stat-grid" : "open-web";
   console.log(`  registry routing: ${claim.claimType} → ${routedMode}`);
 
   if (routedMode === "stat-grid") {
-    const authority = await store.resolveAuthority(domainKey);
     console.log(
       `  authority: ${authority?.authorityRef} (T${authority?.tier}, discovered ${authority?.discoveredBy})`,
     );
@@ -363,14 +393,8 @@ async function main(): Promise<void> {
         .filter((p) => p.value > 0),
     };
     const grid = await computeStatGrid(verificationLlm as never, {
-      fingerprint: claim.fingerprintAttempt ?? {
-        core: claim.text,
-        claimant: null,
-        domain: null,
-        temporal: null,
-        quantity: null,
-        source: null,
-      },
+      parameters: await claimParametersFromLlm(decomposeLlm as never, { sentence: target.claim }),
+      claimText: target.claim,
       series,
       discourseContext: {},
     });
@@ -384,14 +408,6 @@ async function main(): Promise<void> {
     // question → grade evidence (snippets + domains + fetched page text) →
     // chase gaps → capped rounds. Replaces the one-shot loop: the researcher
     // LLM has an explicit sufficiency bar and refines on gaps.
-    const fingerprint = claim.fingerprintAttempt ?? {
-      core: claim.text,
-      claimant: null,
-      domain: null,
-      temporal: null,
-      quantity: null,
-      source: null,
-    };
     const search = createSerperSearch(requireEnv("SERPER_API_KEY"));
 
     // 1. Decompose (LLM, schema-constrained; falls back to claim-as-question).
@@ -586,11 +602,8 @@ async function main(): Promise<void> {
       utteranceText: target.claim,
       text: target.claim,
       claimType: claim.claimType,
-      // The check triage routed this claim to, recorded rather than re-derived:
-      // a statistical claim reaches stat-grid only on an authority-registry hit
-      // and the open-web loop otherwise, and the site cannot see the registry
-      // (claim.verification_mode, SITE-MVP §2.3).
-      verificationMode: claim.mode,
+      // No `verification_mode` (ADR-0023): the plan above travels with the
+      // evidence pack.
       // Triage's own output for the document this claim came from — how many
       // sentences were read and which were set aside or held. This is the
       // page's "what we did not check" section, written from the result rather

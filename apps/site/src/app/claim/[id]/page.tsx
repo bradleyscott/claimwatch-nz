@@ -95,7 +95,7 @@ export default async function ClaimPage({
     // Both nullable, and passed through as null rather than omitted (Sept 2026):
     // the trail needs to tell "we hold no mode for this claim" from "this claim is
     // old", and every verdict written before the columns existed is the former.
-    verificationMode: data.verificationMode,
+    plan: data.plan,
     triageRecord: data.triageRecord,
     publisher: data.publisher,
     sourceUrl: data.sourceUrl,

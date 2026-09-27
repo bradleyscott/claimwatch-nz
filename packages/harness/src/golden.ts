@@ -5,7 +5,7 @@
 
 import { createHash } from "node:crypto";
 import {
-  FINGERPRINT_NORMALISATION_VERSION,
+  PROCEDURE_LIBRARY_VERSION,
   GRID_AXES_VERSION,
   PROMPT_ROLES,
   SAMPLING,
@@ -109,8 +109,8 @@ export function buildRunManifest(
     promptVersions,
     promptContentHashes,
     gridAxesVersion: String(pinned.gridAxesVersion ?? ""),
-    fingerprintNormalisationVersion: String(
-      pinned.fingerprintNormalisationVersion ?? FINGERPRINT_NORMALISATION_VERSION,
+    procedureLibraryVersion: String(
+      pinned.procedureLibraryVersion ?? PROCEDURE_LIBRARY_VERSION,
     ),
     searchConfig: String(pinned.searchConfig ?? ""),
     storeSchemaVersion: STORE_SCHEMA_VERSION,
@@ -129,7 +129,7 @@ const REQUIRED_MANIFEST_FIELDS: Array<{ field: keyof RunManifest; label: string 
   { field: "modelVersions", label: "modelVersions" },
   { field: "promptVersions", label: "promptVersions" },
   { field: "gridAxesVersion", label: "gridAxesVersion" },
-  { field: "fingerprintNormalisationVersion", label: "fingerprintNormalisationVersion" },
+  { field: "procedureLibraryVersion", label: "procedureLibraryVersion" },
   { field: "searchConfig", label: "searchConfig" },
   { field: "storeSchemaVersion", label: "storeSchemaVersion" },
   { field: "sampling", label: "sampling" },

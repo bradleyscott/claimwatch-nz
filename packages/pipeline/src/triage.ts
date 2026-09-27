@@ -1,69 +1,48 @@
 // Triage: document records → claim records (TRIAGE.md §2). LLM stages run
 // through the injectable TriageLlm port (ADR-0011); L1 mocks the LLM, so the
-// deterministic surface — splitting, routing, fingerprint normalisation,
+// deterministic surface — splitting, claim typing, discourse context,
 // drop-log assembly, idempotency — is what these bodies implement. Every
 // output carries provenance; every rejection is logged, never silent.
 
 import { createHash } from "node:crypto";
-import { FINGERPRINT_NORMALISATION_VERSION } from "@cw/llm";
 // The published shape of triage's own output lives in @cw/store, which the
 // pipeline may import and the site may too (AGENTS.md boundaries) — so the
 // record written here and the record rendered there are one definition.
 import type { RejectionClass, StoredDiscourseContext, TriageRecord } from "@cw/store";
 import { z } from "zod";
 import type {
-  CanonicalFingerprintKey,
   CheckabilityDecision,
   ClaimType,
   DiscourseContext,
   DropRecord,
-  FingerprintTuple,
   Sentence,
   TriageDocumentInput,
   TriageFailureRecord,
   TriageProvenance,
   TriageResult,
   TypedClaim,
-  VerificationMode,
 } from "./triage-api.ts";
 import type { TriageLlm } from "./triage-llm.ts";
 
 export type {
-  CanonicalFingerprintKey,
   CheckabilityDecision,
   ClaimType,
   DiscourseContext,
   DropRecord,
-  FingerprintTuple,
   Sentence,
   TriageDocumentInput,
   TriageFailureRecord,
   TriageProvenance,
   TriageResult,
   TypedClaim,
-  VerificationMode,
 } from "./triage-api.ts";
 
 // ---------- versioned normalisation config (TRIAG open Q3) ----------
 
-export { FINGERPRINT_NORMALISATION_VERSION };
-
-function normaliseCore(text: string): string {
-  return (
-    text
-      // whitespace collapse
-      .replace(/\s+/g, " ")
-      .trim()
-      // percent spelling ↔ % (fixture norm-number)
-      .replace(/\s+percent\b/gi, "%")
-      // macron folding (fixture norm-macron): versioned, recorded in provenance
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      // number words used in fixtures
-      .replace(/\bthirty\b/gi, "30")
-      .toLowerCase()
-  );
-}
+// `FINGERPRINT_NORMALISATION_VERSION` and `normaliseCore` were removed with the
+// fingerprint (ADR-0023). The normalisation existed to make two claims about the
+// same number produce the same canonical key; with the key gone, its only
+// remaining consumer was the key itself.
 
 const SENTENCE_END = /([^.!?]+[.!?]+)(\s|$)/g;
 
@@ -82,19 +61,25 @@ export function splitSentences(text: string, opts?: { cueSpanPreserving?: boolea
   }
   const sentences: Sentence[] = [];
   const regex = /[^.!?]+[.!?]+(\s|$)/g;
-  let match: RegExpExecArray | null;
+  // Assign-then-test rather than an assignment inside the condition, which the
+  // linter objects to. The inner variable is named `sentence` and not `text`
+  // because the loop must keep matching against the DOCUMENT: shadowing `text`
+  // here would silently advance the regex over the trimmed sentence instead.
+  let match = regex.exec(text);
   let cursor = 0;
-  while ((match = regex.exec(text)) !== null) {
+  while (match !== null) {
     const raw = match[0];
-    const trimmedEnd = raw.trimEnd().length;
-    const text = raw.trimEnd();
-    const start = text.startsWith(" ") ? cursor + (raw.length - raw.trimStart().length) : cursor;
+    const sentence = raw.trimEnd();
+    const start = sentence.startsWith(" ")
+      ? cursor + (raw.length - raw.trimStart().length)
+      : cursor;
     sentences.push({
-      id: sentenceId(text, start),
-      text,
-      span: { start, end: start + text.length },
+      id: sentenceId(sentence, start),
+      text: sentence,
+      span: { start, end: start + sentence.length },
     });
     cursor += raw.length;
+    match = regex.exec(text);
   }
   if (cursor < text.length) {
     const rest = text.slice(cursor).trim();
@@ -141,19 +126,7 @@ const TypingOutput = z.object({
     "false-context",
     "other",
   ]),
-  mode: z.enum(["stat-grid", "citation-check", "quote-fidelity", "provenance", "open-web"]),
   sentence: z.string(),
-  fingerprint: z
-    .object({
-      core: z.string(),
-      claimant: z.string().nullable().optional(),
-      domain: z.string().nullable().optional(),
-      temporal: z.string().nullable().optional(),
-      quantity: z.string().nullable().optional(),
-      source: z.string().nullable().optional(),
-      __unusable: z.boolean().optional(),
-    })
-    .optional(),
 });
 
 const ContextOutput = z.object({
@@ -225,19 +198,16 @@ export function emptyDiscourseContext(window = ""): StoredDiscourseContext {
   };
 }
 
-const MODE_BY_TYPE: Record<ClaimType, VerificationMode> = {
-  statistical: "stat-grid",
-  "citation-backed": "citation-check",
-  "broadcast-quote": "quote-fidelity",
-  "institution-citation": "citation-check",
-  "false-context": "provenance",
-  other: "open-web",
-};
+// MODE_BY_TYPE lived here: a claim type mapped to one of five modes. ADR-0023
+// removed it — a claim now gets a PLAN (`plan.ts`), built from its features and
+// the procedure library, and a compound claim can carry several checks. The
+// mapping was also not the real decision even before the change: whether a
+// statistical claim reached the figures procedure depended on an
+// authority-registry hit, not on the type.
 
 const PROMPT_VERSIONS = {
   "triage-checkability": "triage-checkability@1",
   "triage-typing": "triage-typing@1",
-  "triage-fingerprint": "triage-fingerprint@1",
   // @2: the extraction asks for `argumentDirection`. @3: it asks for `venue`
   // (the occasion/where), the field `speechContext` is meant to hold. A prompt
   // edit is a model-equivalent behaviour change, so the version moves with it.
@@ -347,73 +317,28 @@ export async function typeClaimFromLlm(
     tokensOut: call.usage.tokensOut,
   };
 
-  // TRI-R3 conservative boundary: a statistical claim needs a usable numeric
-  // fingerprint (parseable quantity). Anything else degrades to 'other' with
-  // the attempt retained — never silently generic.
-  if (value.claimType === "statistical") {
-    const fp = value.fingerprint;
-    // Only a RETURNED-but-unusable fingerprint degrades (TRI-R3): the typing
-    // stage routinely types a statistical claim before the fingerprint stage
-    // runs, so an absent fingerprint is normal, not a degrade signal.
-    const returnedButUnusable =
-      fp !== undefined &&
-      (fp.__unusable === true || fp.quantity == null || !/\d/.test(fp.quantity));
-    if (returnedButUnusable) {
-      return {
-        claimId: claimIdFor(input.sentence, undefined, "other"),
-        sourceSentenceId: input.sentence,
-        claimType: "other",
-        mode: "open-web",
-        text: input.sentence,
-        ...(fp !== undefined ? { fingerprintAttempt: stripMarker(fp) } : {}),
-        provenance,
-      };
-    }
-  }
-
+  // ADR-0023: `mode` and the fingerprint degrade both used to be decided here.
+  // removed them: triage answers whether a sentence is a checkable claim and what
+  // kind it is, and the PLAN (`plan.ts`) decides which procedures that kind needs.
+  // Leaving a mode here would be a second, competing answer to the same question —
+  // and the one it gave was the taxonomy the plan replaced.
   return {
     claimId: claimIdFor(input.sentence, undefined, value.claimType),
     sourceSentenceId: input.sentence,
     claimType: value.claimType,
-    mode: value.mode,
     text: input.sentence,
-    ...(value.fingerprint !== undefined && value.claimType === "statistical"
-      ? { fingerprintAttempt: stripMarker(value.fingerprint) }
-      : {}),
     ...(input.isCuratedFixture ? { isCuratedFixture: true } : {}),
     provenance,
   };
 }
 
-function stripMarker(
-  fp: NonNullable<z.infer<typeof TypingOutput>["fingerprint"]>,
-): FingerprintTuple {
-  return {
-    core: fp.core,
-    claimant: fp.claimant ?? null,
-    domain: fp.domain ?? null,
-    temporal: fp.temporal ?? null,
-    quantity: fp.quantity ?? null,
-    source: fp.source ?? null,
-  };
-}
-
-export async function fingerprintFromLlm(
-  llm: TriageLlm,
-  input: { sentence: string },
-): Promise<FingerprintTuple> {
-  const call = await llm.generateObject(
-    "triage-fingerprint",
-    { sentence: input.sentence },
-    { parse: (raw: unknown) => TypingOutput.parse(raw) },
-  );
-  if (!call.ok || !call.value.fingerprint) {
-    throw new Error(
-      `fingerprint extraction failed: ${call.ok ? "no fingerprint in output" : call.failureClass}`,
-    );
-  }
-  return stripMarker(call.value.fingerprint);
-}
+// `stripMarker`, `fingerprintFromLlm` and `canonicalFingerprintKey` were removed
+// whole (ADR-0023). The fingerprint was a six-part identity object built here,
+// before any evidence was fetched, and consumed downstream by the figures
+// procedure — which read its window out of free text with
+// `/(?:since|from)\s+(\d{4})/i` and its magnitude out of "the first number in the
+// string". See `claim-parameters.ts`: the parse now happens at the point of use,
+// as a typed step inside the procedure that needs it.
 
 export async function contextFromLlm(
   llm: TriageLlm,
@@ -446,21 +371,6 @@ export async function contextFromLlm(
   };
 }
 
-// ---------- canonical fingerprint key (TRI-R2) ----------
-
-export function canonicalFingerprintKey(tuple: Partial<FingerprintTuple>): CanonicalFingerprintKey {
-  const normalised = {
-    core: normaliseCore(tuple.core ?? ""),
-    claimant: tuple.claimant ?? null,
-    domain: tuple.domain ?? null,
-    temporal: tuple.temporal == null ? null : normaliseCore(tuple.temporal),
-    quantity: tuple.quantity == null ? null : normaliseCore(tuple.quantity),
-    source: tuple.source ?? null,
-  };
-  const key = createHash("sha256").update(JSON.stringify(normalised)).digest("hex").slice(0, 40);
-  return { key, normalisationVersion: FINGERPRINT_NORMALISATION_VERSION };
-}
-
 // ---------- document-level triage (idempotent, TRI-R13) ----------
 
 const DocumentLlmOutput = z.object({
@@ -482,7 +392,6 @@ const DocumentLlmOutput = z.object({
 export const TRIAGE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   "triage-checkability": DocumentLlmOutput,
   "triage-typing": TypingOutput,
-  "triage-fingerprint": TypingOutput,
   "triage-context": ContextOutput,
 };
 
@@ -548,16 +457,6 @@ export type TriageDocumentResult = Omit<TriageResult, "claims"> & {
     TypedClaim & {
       sourceSentenceId: string;
       discourseContext: StoredDiscourseContext;
-      /**
-       * The claim's six-part parse, extracted for statistical claims by the
-       * fingerprint stage (TRIAGE §2.1). Null for every other type, and null
-       * when a statistical claim was degraded to `other` because its parse
-       * could not be extracted (TRI-R3) — the two cases are told apart by
-       * `claimType`, never by guessing.
-       */
-      fingerprint: FingerprintTuple | null;
-      /** Canonical normalised key over the tuple (TRI-R2), or null. */
-      fingerprintKey: string | null;
     }
   >;
   dropLog: Array<DropRecord & { sentenceId: string }>;
@@ -632,8 +531,6 @@ export async function triageDocument(
     TypedClaim & {
       sourceSentenceId: string;
       discourseContext: StoredDiscourseContext;
-      fingerprint: FingerprintTuple | null;
-      fingerprintKey: string | null;
     }
   > = [];
   const dropLog: Array<DropRecord & { sentenceId: string }> = [];
@@ -670,46 +567,20 @@ export async function triageDocument(
         window.trim().length > 0
           ? toStoredDiscourseContext(await contextFromLlm(llm, { window }), window)
           : emptyDiscourseContext();
-      // The fingerprint stage (TRIAGE §2.1) runs for statistical claims only,
-      // because that is the only type whose check needs a parse: the figures
-      // grid is driven by the indicator, population, window and unit the parse
-      // names, so a statistical claim with no parse cannot be checked against a
-      // series at all. It had no caller until Sept 2026, which is why every
-      // `claim.fingerprint` in the store is null and TRI-R4's near-fingerprint
-      // merge had nothing to merge on.
-      //
-      // A failure DEGRADES rather than aborting the document (TRI-R3): the claim
-      // becomes `other` and routes to the open-web loop, which is the honest
-      // reading of "we could not tell what number this is". The failure is also
-      // recorded in `failures`, so a degrade is visible in the funnel instead of
-      // being a claim type that silently changed.
-      let fingerprint: FingerprintTuple | null = null;
-      let fingerprintKey: string | null = null;
-      let effectiveType: ClaimType = claimType as ClaimType;
-      if (claimType === "statistical") {
-        try {
-          fingerprint = await fingerprintFromLlm(llm, { sentence: sentence.text });
-          fingerprintKey = canonicalFingerprintKey(fingerprint).key;
-        } catch (e) {
-          failures.push({
-            failureClass: "schema-validation",
-            rawOutput: e instanceof Error ? e.message : "fingerprint extraction failed",
-            sentenceId: sentence.id,
-          });
-          fingerprint = null;
-          fingerprintKey = null;
-          effectiveType = "other";
-        }
-      }
+      // The fingerprint stage ran HERE, and only for statistical claims: a
+      // six-part identity object extracted before any evidence was fetched, which
+      // the figures procedure then read its window and magnitude out of by regex,
+      // and which degraded the claim's TYPE to `other` when the parse failed —
+      // silently rerouting a claim to a different check. ADR-0023 removed it. The
+      // parse now happens inside the figures procedure, at the point of use, and
+      // its result is stored with the check that consumed it
+      // (`claim-parameters.ts`); a parse failure abstains instead of rerouting.
       claims.push({
         claimId: claimIdFor(sentence.text, sentence.window, result.claimType),
         sourceSentenceId: sentence.id,
-        claimType: effectiveType,
-        mode: (MODE_BY_TYPE[effectiveType] ?? result.mode) as VerificationMode,
+        claimType: claimType as ClaimType,
         text: sentence.text,
         discourseContext,
-        fingerprint,
-        fingerprintKey,
         provenance,
       });
     } else {

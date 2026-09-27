@@ -109,14 +109,9 @@ describe("evidence pack assembly + publication gate", () => {
         utteranceText: "Crime is up 30% since 2017.",
         text: "Crime is up 30% since 2017.",
         claimType: "statistical",
-        fingerprint: {
-          indicator: "crime",
-          population: "all",
-          geography: "NZ",
-          timeWindow: "2017-now",
-          baseline: "2017",
-          unit: "percent-change",
-        },
+        // No claim-level parse any more (ADR-0023): the window and magnitude are
+        // parsed inside the figures procedure and stored with the plan that
+        // consumed them, not as an identity for the claim.
         discourseContext: {
           window: "w",
           attachedProposal: "tougher sentencing",

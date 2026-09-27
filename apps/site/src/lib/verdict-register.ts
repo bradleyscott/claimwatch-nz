@@ -41,6 +41,11 @@ export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string
       "the instructions a step ran, and their version, as our system recorded them. A new number means the instructions changed. The old version is kept, so any verdict can be re-checked against the instructions that made it.",
   },
   {
+    term: "checks",
+    meaning:
+      "the procedures this verification ran, by their internal names. A claim can be checked more than one way — a quotation and a number in the same sentence need two answers — so this lists every procedure the plan used, in the order it used them.",
+  },
+  {
     term: "source type codes",
     meaning:
       "a code for the kind of source: official statistics, academic research, a major newsroom. The plain-language key is on the evidence card above; the codes are what the check wrote down.",
@@ -76,6 +81,11 @@ export const AUDIT_LABELS: readonly string[] = [
   "held",
   "kind",
   "check",
+  // ADR-0023: a claim can have been checked several ways, so the audit line
+  // names the set of procedures rather than one check. Both labels are reviewed;
+  // `checks` cannot be confused with `check` because a label may not be a prefix
+  // of another and `checks ` does not start with `check `.
+  "checks",
   "model",
   "instructions",
   "sources",

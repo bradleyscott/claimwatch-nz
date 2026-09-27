@@ -3,15 +3,11 @@
 // (materiality selection, citation comparison, NLI audit, quote fidelity) run
 // through the injectable VerificationLlm port and are mocked at L1.
 
-import type {
-  ClaimType,
-  DiscourseContext,
-  FingerprintTuple,
-  VerificationMode,
-} from "./triage-api.ts";
+import type { ClaimParameters } from "./claim-parameters.ts";
+import type { ClaimType, DiscourseContext } from "./triage-api.ts";
 import type { VerificationLlm } from "./verification-llm.ts";
 
-export type { ClaimType, DiscourseContext, FingerprintTuple, VerificationMode };
+export type { ClaimParameters, ClaimType, DiscourseContext };
 
 export type VerdictClass =
   | "supported"
@@ -66,7 +62,14 @@ export interface StatGridOutcome {
 }
 
 export interface StatGridInput {
-  fingerprint: Partial<FingerprintTuple>;
+  /**
+   * The claim's parsed window and magnitude (ADR-0023). This replaced
+   * `fingerprint`, whose window and quantity the grid read out of free text with
+   * two regexes — see `claim-parameters.ts` for what that cost.
+   */
+  parameters: ClaimParameters;
+  /** The claim's own words, verbatim: what the materiality step reasons over. */
+  claimText: string;
   series: SeriesData;
   discourseContext?: Partial<DiscourseContext> | undefined;
 }

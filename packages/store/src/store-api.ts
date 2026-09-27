@@ -3,13 +3,14 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
+import type { ProcedureRecord, VerificationPlan } from "./procedure.ts";
 import type {
   AttributionCandidate,
   Genre,
   SpeakershipClass,
   SpeakershipMethod,
 } from "./speakership.ts";
-import type { TriageRecordInput, VerificationMode } from "./triage-record.ts";
+import type { TriageRecordInput } from "./triage-record.ts";
 
 export interface PublicationFixture {
   sourceId: string;
@@ -41,21 +42,6 @@ export interface ClaimFixture {
    * caller with no triage behind it wants.
    */
   claimKey?: string | null;
-  fingerprint?: Fingerprint | null;
-  /**
-   * The canonical normalised key over the claim's parse (`claim.fingerprint_key`,
-   * derived by `canonicalFingerprintKey` in the pipeline). Indexed for
-   * fingerprint matching and near-fingerprint review (TRI-R4). Unwritten until
-   * Sept 2026 because nothing called the fingerprint stage at all.
-   */
-  fingerprintKey?: string | null;
-  /**
-   * Which check triage routed this claim to (claim.verification_mode). Decided
-   * from the claim's wording before any evidence is fetched — see the column
-   * comment for why the site cannot derive it from `claimType` alone. Absent
-   * means "not recorded", which the verdict page renders as an absent check.
-   */
-  verificationMode?: VerificationMode | null;
   /**
    * Whose words this sentence is (ADR-0019 §1), decided by the `attribute`
    * stage before triage reads it. Optional and nullable: absent means NO
@@ -96,14 +82,13 @@ export interface ClaimFixture {
   attributionCandidates?: AttributionCandidate[];
 }
 
-export interface Fingerprint {
-  indicator: string;
-  population: string;
-  geography: string;
-  timeWindow: string;
-  baseline: string;
-  unit: string;
-}
+// `Fingerprint` used to be declared here — {indicator, population, geography,
+// timeWindow, baseline, unit} — while the pipeline produced a different six-part
+// tuple and the stat-grid consumed THAT one. Two shapes, one name, no mapping
+// between them, and the flagship verdict's window and magnitude were read out of
+// the pipeline's version by regex. ADR-0023 removed it entirely: the window and
+// the magnitude are now parsed at the point of use, inside the procedure that
+// needs them, and stored with the check that consumed them.
 
 /**
  * The STORED discourse-context shape (ADR-0008), as `claim.discourse_context`
@@ -151,7 +136,20 @@ export interface EvidencePackFixture {
   gridResult?: unknown;
   justifications: string[];
   nliOutcome: "pass" | "fail";
+  /**
+   * The plan this verification ran (ADR-0023). Written alongside the pack as its
+   * own append-only row (`verification_plan`), not as a column on the pack,
+   * because `evidence_pack` is append-only and backfilling a column into
+   * historical rows mutates them.
+   */
+  plan?: VerificationPlan | null;
   revised?: boolean;
+}
+
+/** A procedure library row as the store holds it (ADR-0023 §2). */
+export interface ProcedureFixture extends Omit<ProcedureRecord, "searchRefs" | "status"> {
+  searchRefs?: string[];
+  status?: "active" | "retired";
 }
 
 export interface ProvenanceFixture {
@@ -261,6 +259,10 @@ export interface FallbackLog {
 export interface AuthorityRegistry {
   recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord>;
   resolveAuthority(domain: string): Promise<AuthorityRecord | null>;
+  /** The active procedure library (ADR-0023 §3): what the planner may suggest from. */
+  listProcedures(): Promise<ProcedureFixture[]>;
+  /** Add a library row. On conflict the existing row is left alone, never edited. */
+  recordProcedure(fixture: ProcedureFixture): Promise<{ procedureRef: string }>;
 }
 
 /** Append-only enforcement probes (STO-R1). Test-only. */

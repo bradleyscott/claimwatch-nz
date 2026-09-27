@@ -24,6 +24,7 @@ import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
+import { VerificationPlan } from "./procedure.ts";
 import * as s from "./schema/index.ts";
 import {
   ELIGIBLE_SPEAKERSHIP_CLASSES,
@@ -31,7 +32,7 @@ import {
   SPEAKERSHIP_CLASSES,
   SPEAKERSHIP_METHODS,
 } from "./speakership.ts";
-import { TriageRecord, VERIFICATION_MODES } from "./triage-record.ts";
+import { TriageRecord } from "./triage-record.ts";
 
 /**
  * Connection options for every site read. The site holds no write path to
@@ -129,17 +130,20 @@ export const VerdictPageData = z.object({
   speakershipMethod: z.enum(SPEAKERSHIP_METHODS).nullable().default(null),
   genre: z.enum(GENRES).nullable().default(null),
   /**
-   * Which check the claim got (claim.verification_mode, VERIFICATION §2.1).
-   * Typed to the five modes rather than left as `string`, so the page's mode
-   * table is checked against the same vocabulary the column's CHECK enforces
-   * and a drift between the two fails here rather than rendering an unknown
-   * mode as if it were one of the five.
+   * The plan this verification ran (ADR-0023). An ordered list of steps, each
+   * naming the procedure and version it invoked, why it was chosen, and whether
+   * it ran or was declined and why.
    *
-   * Null on every claim recorded before the column existed — there is no
-   * backfill, so this is the state most rows are in, and the page must omit the
-   * mode section rather than guess which check ran.
+   * This replaces the single `verificationMode`, which could hold exactly one of
+   * five values and so could not record that a claim was checked two ways. Null
+   * on claims whose verification predates plans, or whose plan was never
+   * written: the page then renders NO check section rather than guessing which
+   * check ran, which is the same rule the mode had.
+   *
+   * Validated rather than trusted: a malformed step fails here, at the read
+   * boundary, instead of rendering as an unknown procedure on a public page.
    */
-  verificationMode: z.enum(VERIFICATION_MODES).nullable().default(null),
+  plan: VerificationPlan.nullable().default(null),
   /**
    * Triage's record of how the source document was read (claim.triage_record):
    * how many sentences were classified, how many became claims, which were set
@@ -335,7 +339,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           speakershipClass: s.claim.speakershipClass,
           speakershipMethod: s.claim.speakershipMethod,
           genre: s.claim.genre,
-          verificationMode: s.claim.verificationMode,
+          plan: s.verificationPlan.plan,
           triageRecord: s.claim.triageRecord,
           spokenAt: s.claim.spokenAt,
           claimRecordedAt: s.claim.createdAt,
@@ -374,6 +378,13 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         .leftJoin(
           s.verdictProvenance,
           eq(s.verdictProvenance.provenanceId, s.verdictVersion.provenanceId),
+        )
+        // The plan the verdict ran (ADR-0023 §5). LEFT, because a verdict written
+        // before plans exist has none and must render honestly rather than drop
+        // the page.
+        .leftJoin(
+          s.verificationPlan,
+          eq(s.verificationPlan.packId, s.verdictVersion.evidencePackId),
         )
         .where(
           and(
@@ -471,7 +482,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         speakershipClass: row.speakershipClass ?? null,
         speakershipMethod: row.speakershipMethod ?? null,
         genre: row.genre ?? null,
-        verificationMode: row.verificationMode ?? null,
+        plan: row.plan ?? null,
         triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,
         sourceUrl: row.sourceUrl ?? null,

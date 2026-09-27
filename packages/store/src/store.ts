@@ -10,6 +10,12 @@ import { migrate as migrateDb } from "drizzle-orm/node-postgres/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import { z } from "zod";
+import {
+  assertPlanValid,
+  VerificationPlan as PlanSchema,
+  ProcedureRecord,
+  SEEDED_PROCEDURES,
+} from "./procedure.ts";
 import * as s from "./schema/index.ts";
 import { AttributionCandidate } from "./speakership.ts";
 import type {
@@ -18,6 +24,7 @@ import type {
   ClaimFixture,
   EvidenceItemFixture,
   EvidencePackFixture,
+  ProcedureFixture,
   PublicationFixture,
   Store,
   StoreFixtures,
@@ -142,12 +149,9 @@ export class PgStore implements Store {
         utteranceText: fixture.utteranceText,
         text: fixture.text,
         claimType: fixture.claimType,
-        verificationMode: fixture.verificationMode ?? null,
         speakershipClass: fixture.speakershipClass ?? null,
         speakershipMethod: fixture.speakershipMethod ?? null,
         genre: fixture.genre ?? null,
-        fingerprint: fixture.fingerprint ?? null,
-        fingerprintKey: fixture.fingerprintKey ?? null,
         discourseContext: fixture.discourseContext,
         triageRecord: fixture.triageRecord ?? null,
         mediaAnchor: fixture.mediaAnchor ?? null,
@@ -239,7 +243,47 @@ export class PgStore implements Store {
       })
       .returning({ packId: s.evidencePack.packId });
     if (r == null) throw new Error("evidence_pack insert returned no row");
+    // The plan is its own row (ADR-0023 §5), inserted here so a pack and the
+    // plan that produced it can never exist in different states. Validated at the
+    // boundary: a plan with a declined required step and no reason is a defect,
+    // and the schema refuses to store one.
+    if (fixture.plan != null) {
+      // Parsed and checked through the shared rule, not a local copy: the plan
+      // shape has exactly one definition (`./procedure.ts`) and so does the
+      // question of whether a plan is acceptable.
+      const plan = PlanSchema.parse(fixture.plan);
+      assertPlanValid(plan);
+      await this.db.insert(s.verificationPlan).values({ packId: r.packId, plan });
+    }
     return { packId: r.packId };
+  }
+
+  /**
+   * Add or update a procedure library row (ADR-0023 §2). On conflict the row is
+   * left ALONE rather than overwritten: a procedure's declared bound and
+   * rationale are part of what was published when a verdict used it, so changing
+   * one means a new `version`, not an edit. This is the same rule the verdict
+   * tables live under, applied to the library.
+   */
+  async recordProcedure(fixture: ProcedureFixture): Promise<{ procedureRef: string }> {
+    const parsed = ProcedureRecord.parse(fixture);
+    await this.db
+      .insert(s.procedure)
+      .values({
+        procedureRef: parsed.procedureRef,
+        version: parsed.version,
+        kind: parsed.kind,
+        title: parsed.title,
+        consumes: parsed.consumes,
+        produces: parsed.produces,
+        cannotEstablish: parsed.cannotEstablish,
+        rationale: parsed.rationale,
+        discoveredBy: parsed.discoveredBy,
+        searchRefs: parsed.searchRefs,
+        status: parsed.status,
+      })
+      .onConflictDoNothing();
+    return { procedureRef: parsed.procedureRef };
   }
   async writeVerdict(claimId: string, packId: string, write: VerdictWrite): Promise<VerdictRecord> {
     const provenance = write.provenance;
@@ -419,6 +463,36 @@ export class PgStore implements Store {
     };
   }
 
+  /**
+   * The active procedure library (ADR-0023 §3). The planner SUGGESTS from this
+   * and is never bound by it — a planner that could only choose from here would
+   * have the fixed taxonomy back under a different name.
+   *
+   * Retired rows are excluded, like retired authorities: a procedure that was
+   * withdrawn must stop being suggested, while its row stays for the verdicts
+   * that used it.
+   */
+  async listProcedures(): Promise<ProcedureFixture[]> {
+    const rows = await this.db
+      .select()
+      .from(s.procedure)
+      .where(eq(s.procedure.status, "active"))
+      .orderBy(s.procedure.procedureRef);
+    return rows.map((r) => ({
+      procedureRef: r.procedureRef,
+      version: r.version,
+      kind: r.kind as ProcedureFixture["kind"],
+      title: r.title,
+      consumes: (r.consumes ?? []) as string[],
+      produces: (r.produces ?? []) as string[],
+      cannotEstablish: r.cannotEstablish,
+      rationale: r.rationale,
+      discoveredBy: r.discoveredBy,
+      searchRefs: (r.searchRefs ?? []) as string[],
+      status: r.status as "active" | "retired",
+    }));
+  }
+
   async resolveAuthority(domain: string): Promise<AuthorityRecord | null> {
     // Active only — retired rows never resolve. Best candidate: highest tier,
     // then latest discovery (a newer T1 with a fresher vintage beats an older
@@ -578,14 +652,9 @@ function makeFixtures(): StoreFixtures {
       utteranceText: "Crime is up 30% since 2017.",
       text: "Crime is up 30% since 2017.",
       claimType: "statistical",
-      fingerprint: {
-        indicator: "crime",
-        population: "all",
-        geography: "NZ",
-        timeWindow: "2017-now",
-        baseline: "2017",
-        unit: "percent-change",
-      },
+      // This fixture carried the six-part fingerprint. Removed with the object
+      // (ADR-0023); the figures procedure parses the window and magnitude it
+      // needs at the point of use.
       discourseContext: {
         window: "…in the context of law and order debate…",
         attachedProposal: "tougher sentencing",
@@ -707,5 +776,34 @@ export async function migrate(pool: Pool): Promise<string[]> {
   const pkgJsonPath = createRequire(import.meta.url).resolve("../package.json");
   const migrationsFolder = join(dirname(pkgJsonPath), "drizzle");
   await migrateDb(db, { migrationsFolder });
-  return ["drizzle-chain"];
+  // The procedure library's seeded rows (ADR-0023 §1) are written here rather
+  // than as hand-written SQL in the chain: the generated migration stays purely
+  // generated and reviewable, the ref list and the rows that carry its rationale
+  // live in one file and cannot drift apart, and an upsert skips any row that
+  // already exists so re-running the chain is a no-op — the same idempotency the
+  // authority seeds get from their `WHERE NOT EXISTS` guard.
+  //
+  // Seed rows are marked `discoveredBy: "seed"` so a reader of the table can tell
+  // a designed entry from one the pipeline found (the `0001_seeds.sql`
+  // convention).
+  for (const seed of SEEDED_PROCEDURES) {
+    const parsed = ProcedureRecord.parse(seed);
+    await db
+      .insert(s.procedure)
+      .values({
+        procedureRef: parsed.procedureRef,
+        version: parsed.version,
+        kind: parsed.kind,
+        title: parsed.title,
+        consumes: parsed.consumes,
+        produces: parsed.produces,
+        cannotEstablish: parsed.cannotEstablish,
+        rationale: parsed.rationale,
+        discoveredBy: parsed.discoveredBy,
+        searchRefs: parsed.searchRefs,
+        status: parsed.status,
+      })
+      .onConflictDoNothing();
+  }
+  return ["drizzle-chain", "procedure-seeds"];
 }

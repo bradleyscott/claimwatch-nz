@@ -4,6 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import type { ClaimParameters } from "../claim-parameters.ts";
 import type {
   EvidenceSeries,
   GridRow,
@@ -36,15 +37,52 @@ function findPoint(
   return series.points.find((p) => p.period === period)?.value ?? null;
 }
 
-function parseQuantity(q: string | null | undefined): number | null {
-  if (!q) return null;
-  const m = q.match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : null;
+/**
+ * The window start the readings are built around.
+ *
+ * This used to be `temporal?.match(/(?:since|from)\s+(\d{4})/i)` over a
+ * free-text field a model wrote. Nothing asked the model for that phrasing, so a
+ * claim parsed as `"2017-2026"` — the phrasing the design's own worked example
+ * used — silently produced `start = null`, no cited-window row, and a verdict of
+ * "no row for the claim's cited window". Every fixture happened to use
+ * `"since 2017"`, so the assumption was never tested. The window is now a typed
+ * field (ADR-0023) and this reads it.
+ *
+ * A `point` window has no start: a claim about one year is not a claim about a
+ * change, and the caller treats that the same way it treats an unparseable one —
+ * no cited-window row, which abstains rather than guessing.
+ */
+function windowStart(parameters: ClaimParameters): string | null {
+  return parameters.window.kind === "point" ? null : parameters.window.start;
 }
 
-function windowStart(temporal: string | null | undefined): string | null {
-  const m = temporal?.match(/(?:since|from)\s+(\d{4})/i);
-  return m?.[1] ?? null;
+/**
+ * The claim's magnitude, or null.
+ *
+ * `null` means one of two very different things, and the distinction is the
+ * reason {@link ClaimParameters.quantity} carries a `kind`: the claim states no
+ * magnitude ("crime is rising"), or it states one we could not read. Only the
+ * first may take the direction-robustness path, because that path can return
+ * "supported" on direction alone — so a magnitude claim whose magnitude failed to
+ * parse must abstain, not be graded as if it had none. `parseQuantity` here used
+ * to take the first number out of any string and could not tell them apart.
+ */
+function claimQuantity(parameters: ClaimParameters): number | null {
+  const q = parameters.quantity;
+  if (q.kind === "direction-only" || q.kind === "none") return null;
+  return q.value;
+}
+
+/** Whether the claim states a magnitude we failed to read. */
+function magnitudeUnreadable(parameters: ClaimParameters): boolean {
+  const q = parameters.quantity;
+  return (
+    (q.kind === "percent-change" ||
+      q.kind === "percent-level" ||
+      q.kind === "absolute" ||
+      q.kind === "ratio") &&
+    q.value == null
+  );
 }
 
 function rowName(row: GridRow): string {
@@ -105,14 +143,14 @@ export async function computeStatGrid(
         rows: [],
         materialRows: [],
         robust: false,
-        claimQuantityPercent: parseQuantity(input.fingerprint.quantity),
+        claimQuantityPercent: claimQuantity(input.parameters),
       },
       matchedRow: null,
       reason: "no canonical series for this domain — abstention is a measured capability",
     });
   }
 
-  const start = windowStart(input.fingerprint.temporal);
+  const start = windowStart(input.parameters);
   const end = series.points.at(-1)?.period ?? null;
   const rows: GridRow[] = [];
   const yoyRows: GridRow[] = [];
@@ -170,7 +208,25 @@ export async function computeStatGrid(
   }
 
   const allRows = [...rows, ...yoyRows];
-  const claimQty = parseQuantity(input.fingerprint.quantity);
+  // A magnitude claim whose magnitude we could not read must abstain, never fall
+  // through to the direction path below — that path can return "supported" on
+  // direction alone, which would publish a verdict for a number never compared
+  // against anything (ADR-0023; `magnitudeUnreadable` explains the distinction).
+  if (magnitudeUnreadable(input.parameters)) {
+    return withAsDeployed(input, series, {
+      verdictClass: "not_enough_evidence",
+      grid: {
+        rows: allRows,
+        materialRows: [],
+        robust: false,
+        claimQuantityPercent: null,
+      },
+      matchedRow: null,
+      reason:
+        "the claim states a magnitude we could not read as a number — abstaining rather than grading on direction",
+    });
+  }
+  const claimQty = claimQuantity(input.parameters);
   const cited =
     start != null && end != null
       ? rows.find((r) => r.axis === "window" && r.variant === `${start}→${end}`)
@@ -180,7 +236,7 @@ export async function computeStatGrid(
   // Materiality is the LLM's ONLY grid role (§2.2 step 3): it selects rows.
   const materiality = await llm.generateObject(
     "grid-materiality",
-    { claim: input.fingerprint.core, rows: allRows.map(rowName) },
+    { claim: input.claimText, rows: allRows.map(rowName) },
     { parse: (raw: unknown) => MaterialityOutput.parse(raw) },
   );
   const materialNames = materiality.ok ? materiality.value.materialRows : [];

@@ -24,7 +24,6 @@ import {
   resolveAuthority,
 } from "./verification.ts";
 import type {
-  VerdictClass,
   CitationOutcome,
   DepthCapResult,
   EvidenceSeries,
@@ -32,6 +31,7 @@ import type {
   QuoteFidelityOutcome,
   SeriesData,
   StatGridOutcome,
+  VerdictClass,
 } from "./verification-api.ts";
 import { MockVerificationLlm } from "./verification-llm.ts";
 
@@ -40,7 +40,10 @@ const gridFixture = JSON.parse(readFixture("verification-grid.json")) as {
   claims: Array<{
     id: string;
     claim: string;
-    fingerprint: Record<string, string | null>;
+    parameters: {
+      window: { kind: string; start: string | null; end: string | null; raw: string };
+      quantity: { kind: string; value: number | null; raw: string };
+    };
     discourseContext?: {
       attachedProposal?: string;
       argumentDirection?: "problem" | "success" | null;
@@ -66,7 +69,8 @@ describe("stat-grid arithmetic is pure logic (VER-R1)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-crime-30");
     const llm = materialityLlm(["window-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: crimeSeries,
       discourseContext: claim?.discourseContext,
     })) as StatGridOutcome & { vintageDate: string };
@@ -80,7 +84,8 @@ describe("stat-grid arithmetic is pure logic (VER-R1)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-crime-30");
     const llm = materialityLlm(["window-2017-2026", "window-2019-2026", "per-capita-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: crimeSeries,
       discourseContext: claim?.discourseContext,
     })) as StatGridOutcome & { vintageDate: string };
@@ -98,7 +103,8 @@ describe("stat-grid arithmetic is pure logic (VER-R1)", () => {
     const robust = gridFixture.claims.find((c) => c.id === "grid-crime-robust");
     const llm = materialityLlm(["year-over-year-2019-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: robust?.fingerprint ?? {},
+      parameters: robust?.parameters as never,
+      claimText: robust?.claim ?? "",
       series: crimeSeries,
     })) as StatGridOutcome & { vintageDate: string };
     expect(out.verdictClass).toBe("supported");
@@ -110,7 +116,8 @@ describe("stat-grid arithmetic is pure logic (VER-R1)", () => {
     const noPopulation: SeriesData = { ...crimeSeries, populationSeries: undefined };
     const llm = materialityLlm(["per-capita-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: noPopulation,
     })) as StatGridOutcome & { vintageDate: string };
     const pcRow = out.grid.rows.find((r) => r.axis === "per-capita");
@@ -121,7 +128,8 @@ describe("stat-grid arithmetic is pure logic (VER-R1)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-crime-30");
     const llm = materialityLlm(["window-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: crimeSeries,
     })) as StatGridOutcome & { vintageDate?: string };
     expect((out as { vintageDate?: string }).vintageDate).toBe(crimeSeries.vintageDate);
@@ -137,7 +145,8 @@ describe("verdict-class boundaries are arithmetic (VER-R11)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-crime-30");
     const llm = materialityLlm(["window-2017-2026", "per-capita-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: crimeSeries,
       discourseContext: claim?.discourseContext,
     })) as StatGridOutcome & { vintageDate: string };
@@ -148,7 +157,8 @@ describe("verdict-class boundaries are arithmetic (VER-R11)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-no-row-match");
     const llm = materialityLlm(["window-2017-2026"]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: crimeSeries,
     })) as StatGridOutcome & { vintageDate: string };
     expect(out.verdictClass).toBe("refuted");
@@ -158,7 +168,8 @@ describe("verdict-class boundaries are arithmetic (VER-R11)", () => {
     const claim = gridFixture.claims.find((c) => c.id === "grid-no-series");
     const llm = materialityLlm([]);
     const out = (await computeStatGrid(llm, {
-      fingerprint: claim?.fingerprint ?? {},
+      parameters: claim?.parameters as never,
+      claimText: claim?.claim ?? "",
       series: { ...crimeSeries, points: [] },
     })) as StatGridOutcome & { vintageDate: string };
     expect(out.verdictClass).toBe("not_enough_evidence");
@@ -168,14 +179,16 @@ describe("verdict-class boundaries are arithmetic (VER-R11)", () => {
     const withProposal = gridFixture.claims.find((c) => c.id === "grid-crime-30");
     const llm = materialityLlm(["window-2017-2026"]);
     const outWith = (await computeStatGrid(llm, {
-      fingerprint: withProposal?.fingerprint ?? {},
+      parameters: withProposal?.parameters as never,
+      claimText: withProposal?.claim ?? "",
       series: crimeSeries,
       discourseContext: withProposal?.discourseContext,
     })) as StatGridOutcome & { vintageDate: string };
     expect(outWith.asDeployed).toContain("tougher sentencing");
     const robust = gridFixture.claims.find((c) => c.id === "grid-crime-robust");
     const outWithout = (await computeStatGrid(llm, {
-      fingerprint: robust?.fingerprint ?? {},
+      parameters: robust?.parameters as never,
+      claimText: robust?.claim ?? "",
       series: crimeSeries,
     })) as StatGridOutcome & { vintageDate: string };
     expect(outWithout.asDeployed).toBeUndefined();

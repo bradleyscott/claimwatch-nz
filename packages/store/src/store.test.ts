@@ -197,14 +197,13 @@ describe("claim records", () => {
     const claim = await store.recordClaim(store.fixtures.statClaim());
     expect(claim.utteranceText.length).toBeGreaterThan(0);
     expect(claim.text.length).toBeGreaterThan(0);
-    expect(claim.fingerprint).toMatchObject({
-      indicator: expect.any(String),
-      population: expect.any(String),
-      geography: expect.any(String),
-      timeWindow: expect.any(String),
-      baseline: expect.any(String),
-      unit: expect.any(String),
-    });
+    // The claim carried a six-part `fingerprint` here, typed as
+    // {indicator, population, geography, timeWindow, baseline, unit} while the
+    // pipeline produced a different six-part tuple with no mapping between them.
+    // ADR-0023 removed the object; the window and magnitude are parsed at the
+    // point of use (`claim-parameters.ts`) and stored with the check that used
+    // them, so there is nothing claim-level left to assert.
+    expect(claim).not.toHaveProperty("fingerprint");
   });
 
   it("accepts an attribution candidate that states only the name and its basis (ADR-0005)", async () => {

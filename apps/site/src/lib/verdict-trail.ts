@@ -18,7 +18,7 @@ import {
   assertRegisterSafe,
   TECHNICAL_RECORD_KEY,
 } from "./verdict-register.ts";
-import { CLAIM_TYPE_READING, modeDescription, resolveMode } from "./verification-mode.ts";
+import { CLAIM_TYPE_READING, type ResolvedStep, resolvePlan } from "./verification-mode.ts";
 
 // ---------------------------------------------------------------------------
 // "How this verdict was made" — the mode-aware trail (SITE-MVP §2.3, Sept 2026)
@@ -104,11 +104,14 @@ export interface TrailSection {
   /** The decision this section reached, where it reached one. */
   decision: string | null;
   /**
-   * What this check cannot establish (the mode's bound). Set on section 3 only,
-   * and always present when section 3 describes a mode: a finding reported
-   * without its limit invites the reader to over-read it.
+   * What each check that ran cannot establish, with the check it belongs to. Set
+   * on section 3 only. Always present when section 3 describes a check: a finding
+   * reported without its limit invites the reader to over-read it.
+   *
+   * A LIST, not one string, since ADR-0023: a claim can be checked several ways
+   * and a limit printed once would attach to the wrong finding.
    */
-  bound: string | null;
+  bounds: Array<{ label: string; text: string }>;
   /** True when the section reports that something did NOT happen. */
   absent: boolean;
   /** The audit line: recorded counts, versions, timestamps. Always rendered. */
@@ -240,10 +243,10 @@ function line(parts: Array<string | null>): string {
  */
 export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
   const sections: Array<Omit<TrailSection, "number">> = [];
-  const resolved = resolveMode({
-    verificationMode: input.verificationMode ?? null,
-    claimType: input.claimType,
-  });
+  // The plan, not a single mode (ADR-0023). A claim may have been checked more
+  // than one way, so section 3 renders one block per step that ran, and section 2
+  // says which procedures were considered.
+  const resolved = resolvePlan(input.plan ?? null);
   // The claim's own record and the verdict's provenance are two sides of the same
   // run: merged for bucketing, so a role written onto the claim (triage) and one
   // written onto the verdict (the check) both reach their section.
@@ -285,7 +288,7 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
       section.title,
       ...section.facts,
       section.decision ?? "",
-      section.bound ?? "",
+      ...section.bounds.map((bound) => `${bound.label} ${bound.text}`),
       ...section.rows.flatMap((row) => [row.label, row.value]),
       ...section.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
       ...section.asides.map((aside) => aside.why),
@@ -346,7 +349,7 @@ function readSection(
       asides: [],
       sources: [],
       decision: null,
-      bound: null,
+      bounds: [],
       absent: true,
       // The claim's own record — when it was said, where in the recording, and
       // who published it — rides on this section's audit line rather than having
@@ -399,7 +402,7 @@ function readSection(
     asides,
     sources: [],
     decision: null,
-    bound: null,
+    bounds: [],
     absent: false,
     technical: line([
       `exact time ${input.claimMadeAt?.toISOString() ?? "not recorded"}`,
@@ -427,7 +430,7 @@ function kindLabel(input: VerdictPageInput): string {
 /** Section 2 — the reading, and the check it produced. */
 function chosenSection(
   input: VerdictPageInput,
-  resolved: { mode: string; source: "recorded" | "derived" } | null,
+  resolved: ReturnType<typeof resolvePlan>,
 ): Omit<TrailSection, "number"> {
   const span = spanOf([input.claimRecordedAt]);
   const reading = input.claimType ? CLAIM_TYPE_READING[input.claimType] : undefined;
@@ -437,13 +440,13 @@ function chosenSection(
       title: "The check this claim got",
       when: whenLabel(span),
       facts: [
-        "We have no record of which check this claim was sent to. The check ran and produced the verdict above, but the decision was not written down, so this page will not guess.",
+        "We have no record of which checks this claim was sent to. A check ran and produced the verdict above, but the plan was not written down, so this page will not guess.",
       ],
       rows: [],
       asides: [],
       sources: [],
       decision: null,
-      bound: null,
+      bounds: [],
       absent: true,
       technical: line([
         `recorded ${span?.from.toISOString() ?? "not recorded"}`,
@@ -454,95 +457,131 @@ function chosenSection(
   }
   return {
     kind: "chosen",
-    title: "The check this claim got",
+    title: "The checks this claim got",
     when: whenLabel(span),
     facts: [
       reading
         ? `Read as ${reading}`
         : "Read as a statement a check could test, on the claim's own wording.",
-      "That choice was made from the claim alone, before any evidence was gathered — it is the one decision that could not be made honestly once the answer was known.",
+      "That reading was made from the claim alone, before any evidence was gathered — it is the one decision that could not be made honestly once the answer was known.",
+      // One line per procedure the plan named, including the declined ones.
+      // "Considered and not run, because…" is a statement the reader is owed, and
+      // a plan that stays silent about it reads as coverage (ADR-0023 §4).
+      ...resolved.steps.map((step) =>
+        step.status === "declined"
+          ? `Considered and not run: ${stepLabel(step)} — ${step.declineReason ?? "no reason recorded"}.`
+          : `Checked with: ${stepLabel(step)}.`,
+      ),
     ],
     rows: [],
     asides: [],
     sources: [],
     decision: null,
-    bound: null,
+    bounds: [],
     absent: false,
     technical: line([
       `recorded ${span?.from.toISOString() ?? "not recorded"}`,
       kindLabel(input),
-      `check ${resolved.mode}`,
-      resolved.source === "derived" ? "check derived from claim type" : null,
+      `checks ${resolved.steps.map((step) => step.procedureRef).join(", ")}`,
     ]),
     mark: "none",
   };
 }
 
-/** Section 3 — the mode body: how this check works, what it did, its limit. */
+/**
+ * The reader-facing name of a plan step: the procedure's published label when the
+ * site has copy for it, else the ref itself. A step naming a procedure this site
+ * does not know renders as its ref rather than vanishing, so a newly added
+ * procedure is visibly missing its description instead of invisible.
+ */
+function stepLabel(step: ResolvedStep): string {
+  return (step.description?.label ?? step.procedureRef).toLowerCase();
+}
+
+/**
+ * Section 3 — the check bodies: how each check works, what it did, and its limit.
+ *
+ * ONE BLOCK PER STEP (ADR-0023 §5). A claim may have been checked several ways —
+ * the change that motivated plans was a claim that quotes a person AND asserts a
+ * number, which needs two answers and had one slot — so this section renders every
+ * step that ran, each with its own stated limit. A limit printed once for a
+ * multi-step verification would attach to the wrong finding.
+ */
 function checkSection(
   input: VerdictPageInput,
   promptVersions: Record<string, string>,
-  resolved: { mode: string; source: "recorded" | "derived" } | null,
+  resolved: ReturnType<typeof resolvePlan>,
 ): Omit<TrailSection, "number"> {
   const span = spanOf([input.checkedAt, ...input.evidence.map((item) => item.retrievedAt)]);
-  const description = resolved ? modeDescription(resolved.mode) : null;
+  const described = resolved?.ran.filter((step) => step.description != null) ?? [];
 
-  if (!description || !resolved) {
+  if (described.length === 0) {
     return {
       kind: "check",
       title: "How this claim was checked",
       when: whenLabel(span),
       facts: [
-        "We have no record of which kind of check produced the verdict, so this page cannot explain how the comparison worked.",
+        "We have no record of which checks produced the verdict, so this page cannot explain how the comparison worked.",
       ],
       rows: [],
       asides: [],
       sources: [],
       decision: null,
-      bound: null,
+      bounds: [],
       absent: true,
       technical: line([
         `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-        "check not recorded",
+        "checks not recorded",
       ]),
       mark: "answer",
     };
   }
 
-  const facts: string[] = [description.whatItDoes, description.chosenWhen];
-  const decision = decisionFor(input);
+  const facts: string[] = [];
+  for (const step of described) {
+    facts.push(`**${step.description?.label}** — ${step.description?.whatItDoes}`);
+    facts.push(step.description?.chosenWhen ?? "");
+  }
 
   // The anchor absence (VER-R5): a quotation check cannot compare words it
   // cannot locate, and says so rather than reporting a comparison it did not run.
-  if (resolved.mode === "quote-fidelity" && !input.mediaAnchor) {
+  if (described.some((step) => step.procedureRef === "quote-fidelity") && !input.mediaAnchor) {
     facts.push(
       "No recording or transcript is linked to this claim, so the words could not be found and this check could not run. That is not the same as the quotation being misreported.",
     );
   }
 
-  // One line, and only where it is true of this mode: a figures check reads
-  // several vintages of the same series, and the vintage is half of what a
-  // number means. It would be noise on a quotation check.
-  if (resolved.mode === "stat-grid" && input.evidence.length > 1) {
+  // One line, and only where it is true: a figures check reads several vintages
+  // of the same series, and the vintage is half of what a number means. It would
+  // be noise on a quotation check.
+  if (described.some((step) => step.procedureRef === "stat-grid") && input.evidence.length > 1) {
     facts.push("A claim can hold up against old figures and fail against new ones.");
   }
 
-  const rows: TrailRow[] = [];
-
   return {
     kind: "check",
-    title: `How it was checked: ${description.label.toLowerCase()}`,
+    title:
+      described.length === 1
+        ? `How it was checked: ${described[0]?.description?.label.toLowerCase()}`
+        : `How it was checked: ${described
+            .map((step) => step.description?.label.toLowerCase())
+            .join(" and ")}`,
     when: whenLabel(span),
-    facts,
-    rows,
+    facts: facts.filter(Boolean),
+    rows: [],
     asides: [],
     sources: [],
-    decision,
-    bound: description.cannot,
+    decision: decisionFor(input),
+    // One bound per check that ran. Non-negotiable: a finding reported without
+    // its limit invites the reader to over-read it.
+    bounds: described.map((step) => ({
+      label: step.description?.label ?? step.procedureRef,
+      text: step.description?.cannot ?? "",
+    })),
     absent: false,
     technical: line([
       `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-      `check ${resolved.mode}`,
+      `checks ${described.map((step) => step.procedureRef).join(", ")}`,
       // The source count and codes live on the sources section, one section on;
       // repeating them here would print the same record twice.
       input.searchRefs.length > 0 ? `web searches ${input.searchRefs.length}` : null,
@@ -587,7 +626,7 @@ function sourcesSection(input: VerdictPageInput): Omit<TrailSection, "number"> {
       ]),
     })),
     decision: null,
-    bound: null,
+    bounds: [],
     absent: false,
     technical: line([
       `sources ${input.evidence.length}`,
@@ -639,7 +678,7 @@ function gateSection(
     asides: [],
     sources: [],
     decision: null,
-    bound: null,
+    bounds: [],
     absent: false,
     technical: line([
       `ClaimWatch version ${input.pipelineVersion}`,

@@ -44,7 +44,26 @@ import {
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
 import { assessMateriality } from "../packages/pipeline/src/materiality.ts";
-import { routeMode } from "../packages/pipeline/src/mode-routing.ts";
+import { derivePlanFeatures, planForClaim } from "../packages/pipeline/src/plan.ts";
+
+/**
+ * The document a claim cites, read from the claim's own words.
+ *
+ * A deliberately thin first cut: an explicit "according to X" / "X's report"
+ * phrasing, else nothing. Returning null is a real outcome — a claim that names
+ * no document gets no citation check and escalates to research, which is the
+ * ADR-0020 rule — and it is strictly better than the fingerprint's `source`
+ * field, which was a model's free-text guess made before any evidence existed.
+ */
+function citationNameFromClaim(claimText: string): string | null {
+  const m =
+    claimText.match(/\baccording to (?:the )?([^,.;]{3,60})/i) ??
+    claimText.match(
+      /\b([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,4})'s (?:report|review|paper|data)\b/,
+    );
+  return m?.[1]?.trim() ?? null;
+}
+
 import { enforceEvidenceFloor } from "../packages/pipeline/src/search/admissibility.ts";
 import { resolveCitationTarget } from "../packages/pipeline/src/search/citation-target.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
@@ -442,32 +461,77 @@ async function main(): Promise<void> {
     console.log(`\n  verifying: "${claim.text.slice(0, 110)}"`);
     console.log(`  typed as ${claim.claimType}`);
 
-    // 4. Route. The mode is ROUTED, never taken from the type→mode map: for a
-    // statistical claim that map says stat-grid unconditionally, while routing
-    // needs an authority-registry hit (mode-routing.ts). Storing the type-map
-    // default would put a check on the page that did not run (Sept 2026).
-    console.log("\n[4/6] routing…");
-    const fingerprint = claim.fingerprintAttempt ?? {
-      core: claim.text,
-      claimant: null,
-      domain: null,
-      temporal: null,
-      quantity: null,
-      source: null,
-    };
-    const domainKey = canonicalDomain(fingerprint.domain ?? fingerprint.core ?? claim.text);
-    const registry = { resolveAuthority: (domain: string) => store.resolveAuthority(domain) };
-    let mode = await routeMode({ claimType: claim.claimType, domain: domainKey }, registry);
-    console.log(`  ${claim.claimType} + domain "${domainKey}" → ${mode}`);
-    if (mode !== claim.mode) {
-      console.log(
-        `  NOTE: type→mode map said "${claim.mode}"; storing the routed mode "${mode}" (the map's ` +
-          `statistical→stat-grid default is not authority-aware).`,
-      );
+    // 4. Plan. The claim gets a PLAN, not a mode (ADR-0023). Whether the figures
+    // procedure can run still depends on the authority registry — no vetted
+    // authority means no series — and that is recorded as a declined step with a
+    // reason rather than routing the claim to a different, weaker check.
+    console.log("\n[4/6] planning…");
+    const domainKey = canonicalDomain(claim.text);
+    const library = (await store.listProcedures()).map((p) => ({
+      procedureRef: p.procedureRef,
+      version: p.version,
+      status: p.status ?? ("active" as const),
+      cannotEstablish: p.cannotEstablish,
+    }));
+    const authority = await store.resolveAuthority(domainKey);
+
+    // The lane declares what it CANNOT run, at planning time (ADR-0023 §4). This
+    // is not bookkeeping: a plan that omits the escalation stores a claim about a
+    // check that never ran. Two earlier versions of this block did exactly that —
+    // the first dropped the plan entirely, the second planned `quote-fidelity` and
+    // then escalated it at verification, so the stored plan said "ran" for a check
+    // this lane has no instrument for.
+    //
+    // Declaring the limits up front also means the research floor fires for the
+    // right reason: with nothing runnable, `planForClaim` adds the research pass,
+    // and the stored plan is the plan the lane actually followed.
+    const laneDeclines = [
+      {
+        procedureRef: "stat-grid",
+        reason:
+          authority == null
+            ? `no vetted authority for "${domainKey}" in the registry, so no official series to check against`
+            : `authority "${authority.authorityRef}" is registered, but this lane has no series-fetch path (INGESTION §2.3)`,
+      },
+      {
+        procedureRef: "quote-fidelity",
+        reason:
+          "this lane ingests article text, so there is no caption track to anchor the quote to (ADR-0007)",
+      },
+      {
+        procedureRef: "provenance",
+        reason:
+          "the context procedure runs only on the curated false-context fixtures (VER-R6); no live detection is claimed",
+      },
+    ];
+
+    const plan = planForClaim({
+      features: derivePlanFeatures({
+        category: domainKey,
+        claimText: claim.text,
+        claimType: claim.claimType,
+      }),
+      claimText: claim.text,
+      available: library,
+      pastPlans: [],
+      declines: laneDeclines,
+      notAttempted: [
+        "whether any policy caused the change — no procedure here can reach causation",
+      ],
+    });
+    console.log(
+      `  plan: ${plan.steps
+        .map((step) => `${step.procedureRef}(${step.status}${step.declineReason ? "" : ""})`)
+        .join(", ")}`,
+    );
+    for (const step of plan.steps) {
+      if (step.status === "declined")
+        console.log(`    declined ${step.procedureRef}: ${step.declineReason}`);
     }
 
-    // 5. Verify by mode. Modes this lane cannot honestly run are refused BY NAME
-    // rather than approximated — an unrun check must never become a verdict.
+    // 5. Verify. Every procedure this lane cannot run was declined at step 4 with
+    // its reason, so what remains here is genuinely runnable: the document check
+    // where a cited document resolved, else the research pass the plan added.
     console.log("\n[5/6] verification…");
     let verdictClass: string | null = null;
     let justification: string | null = null;
@@ -507,41 +571,38 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (mode === "provenance") {
-      console.log(
-        "  REFUSED: provenance mode runs only on the curated false-context fixtures " +
-          "(VER-R6, ING-R10) — no live detection is claimed. No verdict written.",
-      );
-      return;
-    }
-    // ADR-0020 rule 1: a mode that cannot run for this lane ESCALATES rather
-    // than abstaining. Each of these is a mode whose instrument this lane does
-    // not have — and open-web research is the honest substitute, not a refusal.
-    if (mode === "quote-fidelity") {
-      console.log(
-        "  quote-fidelity cannot run here: this lane ingests article text, so there is " +
-          "no caption track to anchor the quote to (ADR-0007) → escalated to open-web",
-      );
-      mode = "open-web";
-    }
-    if (mode === "stat-grid") {
-      const authority = await store.resolveAuthority(domainKey);
-      console.log(
-        `  stat-grid cannot run here: authority "${authority?.authorityRef ?? "unknown"}" is ` +
-          "registered, but this lane has no series-fetch path (INGESTION §2.3) → escalated to open-web",
-      );
-      mode = "open-web";
-    }
+    // `mode` is gone (ADR-0023); the branch is driven by what the PLAN actually
+    // contains. A procedure the plan declined is not run, and a procedure the
+    // plan includes that this lane cannot honestly run is escalated by name
+    // rather than approximated — an unrun check must never become a verdict.
+    const runs = (ref: string) =>
+      plan.steps.some((step) => step.procedureRef === ref && step.status !== "declined");
+
+    // What the plan left runnable. The lane's limits were declared at step 4, so
+    // this is a read of the plan rather than a second opinion about it.
+    const effectiveMode: "open-web" | "citation-check" = runs("citation-check")
+      ? "citation-check"
+      : "open-web";
+    // Which procedure this lane actually ran, as a library ref. `mode` says what
+    // the plan WANTED; `effectiveMode` is what this lane could honestly run. This
+    // lane has no series-fetch path and no caption track, so only the research
+    // procedure and the document procedure are reachable — short by construction,
+    // not by omission.
+    const primaryProcedureRef =
+      effectiveMode === "citation-check" ? "citation-check" : "open-web-research";
 
     // Verification-tier keys, checked at the point of use: an open-web claim
     // needs the research tier (OpenRouter) as well as search, while
     // citation-check needs search only. Named rather than thrown, so the run
     // reports what is missing after the free half has already been recorded.
-    const needed = ["SERPER_API_KEY", ...(mode === "open-web" ? ["OPENROUTER_API_KEY"] : [])];
+    const needed = [
+      "SERPER_API_KEY",
+      ...(effectiveMode === "open-web" ? ["OPENROUTER_API_KEY"] : []),
+    ];
     const missingVerify = needed.filter((name) => !process.env[name]);
     if (missingVerify.length > 0) {
       console.log(`\n── verification blocked ──`);
-      console.log(`  mode "${mode}" needs: ${missingVerify.join(", ")}`);
+      console.log(`  path "${effectiveMode}" needs: ${missingVerify.join(", ")}`);
       console.log(
         "  ADR-0011 puts the research tier on OpenRouter and search on Serper; the verdict tier" +
           " and the publication gate are on Anthropic, which is present.",
@@ -564,8 +625,12 @@ async function main(): Promise<void> {
       tier: number | null;
     } | null = null;
     let citationRefusal: string | null = null;
-    if (mode === "citation-check") {
-      const citedName = fingerprint.source ?? null;
+    if (effectiveMode === "citation-check") {
+      // The cited document is read from the CLAIM TEXT, not from a triage-time
+      // paraphrase of it. `fingerprint.source` used to supply this, and the
+      // citation-target module exists because that path once "checked" a policing
+      // claim against the subject's Wikipedia biography.
+      const citedName = citationNameFromClaim(claim.text);
       console.log(`  cited source: ${citedName ?? "(none named)"}`);
       const found = citedName != null ? await search.search(`${citedName} New Zealand`) : [];
       const tiers = new Map<string, number | null>();
@@ -585,7 +650,7 @@ async function main(): Promise<void> {
       }
     }
 
-    if (mode === "citation-check" && citationTarget != null) {
+    if (effectiveMode === "citation-check" && citationTarget != null) {
       console.log(`  citation-check against ${citationTarget.link}`);
       const page = await fetchEvidenceText(citationTarget.link, undefined, {
         snippet: citationTarget.snippet,
@@ -623,7 +688,7 @@ async function main(): Promise<void> {
       // questions, read the pages, then adjudicate against full text. A
       // citation-check that could not resolve its document escalates here
       // (ADR-0020 rule 1) rather than abstaining after one query.
-      if (mode === "citation-check") {
+      if (effectiveMode === "citation-check") {
         console.log(
           `  citation-check cannot run: ${citationRefusal ?? "no cited document"} → escalated to open-web`,
         );
@@ -817,13 +882,13 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Non-blocking discovery (mode-routing.ts): an authority-registry miss is
-    // exactly why a statistical claim took the open-web path, so search and vet
-    // the domain now and later claims in the same category route to the
-    // stat-grid. Failures are logged and never block the verdict — and a claim
-    // type that can never route to the grid is skipped inside discovery rather
-    // than buying a search that cannot be used.
-    if (mode === "open-web" && domainKey) {
+    // Non-blocking discovery: an authority-registry miss is exactly why the
+    // figures procedure was declined for this claim, so search and vet the domain
+    // now and later claims in the same category can run it. Failures are logged
+    // and never block the verdict — and a claim type that could never use the
+    // figures procedure is skipped inside discovery rather than buying a search
+    // that cannot be used.
+    if (effectiveMode === "open-web" && domainKey) {
       try {
         const outcome = await discoverAuthority(
           { domain: domainKey, claimType: claim.claimType, claimText: claim.text },
@@ -894,8 +959,8 @@ async function main(): Promise<void> {
       utteranceText: claim.text,
       text: claim.text,
       claimType: claim.claimType,
-      // The routed mode, not the type→mode default — see step 4.
-      verificationMode: mode,
+      // No `verification_mode` (ADR-0023) — see the plan at step 4, stored with
+      // the evidence pack.
       // Triage's own output: what was read, what was set aside, what was held.
       // Comes from triageDocument so the counts cannot drift from the run.
       triageRecord: triage.triageRecord,
@@ -945,7 +1010,32 @@ async function main(): Promise<void> {
       }
     }
 
+    // The plan travels with the pack (ADR-0023 §5). Built at step 4 and stored
+    // HERE rather than at planning time, because the stored artefact is the record
+    // of what the plan DID: a step is `ran` with its outcome, or `declined` with
+    // its reason. Storing the plan as-planned would publish a claim about checks
+    // that had not run yet.
+    //
+    // This was missing on the first run of this lane: the plan was computed, used
+    // for branching and printed, and then dropped — so the page rendered "no plan
+    // recorded" for a claim whose plan the run had in hand. A stage the
+    // orchestrator forgets to STORE is as absent as one it never runs.
+    const storedPlan = {
+      libraryVersion: plan.libraryVersion,
+      features: plan.features,
+      steps: plan.steps.map((step) =>
+        step.status === "declined"
+          ? step
+          : {
+              ...step,
+              status: "ran" as const,
+              outcome: step.procedureRef === primaryProcedureRef ? verdictClass : null,
+            },
+      ),
+      notAttempted: plan.notAttempted,
+    };
     const pack = await store.appendEvidencePack(claimRecord.claimId, {
+      plan: storedPlan,
       itemRefs,
       gridResult: null,
       justifications: [justification],

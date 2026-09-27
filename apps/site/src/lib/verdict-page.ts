@@ -8,6 +8,7 @@
 // page input types, the label set and the section builder, and re-exports the
 // moved names so importers are unchanged.
 
+import type { VerificationPlan } from "@cw/store";
 import { buildVerdictTrail, type VerdictTrail } from "./verdict-trail.ts";
 
 export {
@@ -148,7 +149,11 @@ export interface VerdictPageInput {
    * an absent check rather than guessing, and never falls back to a guess for a
    * statistical claim, which can take either of two modes.
    */
-  verificationMode?: string | null;
+  /**
+   * The plan this verification ran (ADR-0023): an ordered list of steps, each
+   * naming the procedure it invoked. Replaces the single `verificationMode`.
+   */
+  plan?: VerificationPlan | null;
   /**
    * Triage's output for the document this claim came from (claim.triage_record):
    * how many sentences were read, which were set aside and why, which were held.

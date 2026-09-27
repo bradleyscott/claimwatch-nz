@@ -115,8 +115,16 @@ export const DEFAULT_ROUTING: Record<PortRole, RoutingEntry> = {
   // Triage: high-volume structured extraction over mundane text.
   "triage-checkability": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-typing": { provider: "anthropic", model: "claude-sonnet-5" },
-  "triage-fingerprint": { provider: "anthropic", model: "claude-sonnet-5" },
   "triage-context": { provider: "anthropic", model: "claude-sonnet-5" },
+  // The figures procedure's first step (ADR-0023): parse the claim's window and
+  // magnitude at the point of use. It replaces `triage-fingerprint`, and sits on
+  // the verdict tier rather than the triage tier because its output decides what
+  // the claim is compared against — a mis-parse is an abstention, and an
+  // abstention is a published outcome.
+  "claim-parameters": { provider: "anthropic", model: "claude-sonnet-5" },
+  // Choosing which procedures a claim needs. Verdict tier for the same reason:
+  // an omitted procedure is invisible in the output.
+  "plan-for-claim": { provider: "anthropic", model: "claude-sonnet-5" },
 
   // Verdict tier: the published verdict and the publication gate. Deliberately
   // NOT the cheap tier — a cheap adjudicator is cheap in the way that matters

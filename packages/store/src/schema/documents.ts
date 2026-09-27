@@ -92,20 +92,6 @@ export const claim = pgTable(
     // behind it has no key to give — Postgres allows many NULLs in a unique
     // index, so those rows stay insertable without weakening the constraint.
     claimKey: text("claim_key"),
-    // Which check this claim got, decided by triage's mode routing BEFORE any
-    // evidence is fetched — the one decision that cannot be made honestly after
-    // the answer is known, and the field the verdict page's mode-aware trail
-    // selects its explanation with (SITE-MVP §2.3, Sept 2026).
-    //
-    // Stored rather than derived: the four non-statistical modes follow
-    // deterministically from `claim_type`, but a statistical claim routes to
-    // stat-grid ONLY on an authority-registry hit and to the open-web loop
-    // otherwise (mode-routing.ts, Sept 2026) — and the registry is not visible
-    // to the site. Null for every row ingested before this column existed, which
-    // the page renders as an absent check rather than guessing one.
-    verificationMode: text("verification_mode"),
-    fingerprint: jsonb("fingerprint"),
-    fingerprintKey: text("fingerprint_key"),
     embedding: text("embedding"), // pgvector vector; populated by triage phase
     discourseContext: jsonb("discourse_context").notNull(), // nullable fields inside, never defaulted
     mediaAnchor: jsonb("media_anchor"),
@@ -155,17 +141,12 @@ export const claim = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index("claim_fingerprint_idx").on(t.fingerprintKey),
     index("claim_publication_idx").on(t.publicationId),
     index("claim_type_idx").on(t.claimType),
     // Re-ingest idempotency (TRI-R13/STO-R13): one row per content identity, so a
     // re-triage that reaches the same conclusion about the same sentence cannot
     // accumulate a duplicate claim with its own verdict and its own trail.
     uniqueIndex("claim_key_uq").on(t.claimKey),
-    check(
-      "verification_mode_valid",
-      sql`${t.verificationMode} IS NULL OR ${t.verificationMode} IN ('stat-grid','citation-check','quote-fidelity','provenance','open-web')`,
-    ),
     // ADR-0019 §1's four classes. The CHECK is the schema-side half of the
     // eligibility rule: `speakership.ts` decides which are publishable, and a
     // value outside the vocabulary cannot be written at all (the site gate and

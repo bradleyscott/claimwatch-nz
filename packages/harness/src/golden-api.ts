@@ -37,7 +37,13 @@ export interface RunManifest {
   promptVersions: Record<string, string>;
   promptContentHashes: Record<string, string>;
   gridAxesVersion: string;
-  fingerprintNormalisationVersion: string;
+  /**
+   * Which procedure library the run scored against (ADR-0023 §6). It replaces
+   * `fingerprintNormalisationVersion`: the fingerprint was removed entirely, and
+   * a scoring run now depends on the library's state rather than on how claim
+   * parses were normalised.
+   */
+  procedureLibraryVersion: string;
   searchConfig: string;
   storeSchemaVersion: string;
   /**

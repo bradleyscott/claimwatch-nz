@@ -9,12 +9,15 @@ import { setDefaultResultOrder } from "node:dns";
 
 setDefaultResultOrder("ipv4first");
 
+import { PROCEDURE_LIBRARY_VERSION } from "../packages/llm/src/config.ts";
+import { claimParametersFromLlm } from "../packages/pipeline/src/claim-parameters.ts";
 import {
   createLiveAdapter,
   type ProviderCall,
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
+import { derivePlanFeatures, planForClaim } from "../packages/pipeline/src/plan.ts";
 import {
   TRIAGE_CONTEXT_PROMPT,
   TRIAGE_SCHEMAS,
@@ -86,7 +89,9 @@ async function main(): Promise<void> {
   const triage = await triageDocument(doc, triageLlm as never);
   console.log(`  claims: ${triage.claims.length}, dropped: ${triage.dropLog.length}`);
   for (const claim of triage.claims) {
-    console.log(`  → claim ${claim.claimType} → mode ${claim.mode}`);
+    // No mode any more (ADR-0023): triage answers the TYPE, and the plan below
+    // decides which procedures that type needs.
+    console.log(`  → claim ${claim.claimType}`);
   }
   if (triage.claims.length === 0) {
     console.log("  no claim survived triage — check drop log:");
@@ -100,9 +105,11 @@ async function main(): Promise<void> {
   // the narrowing spelled out.
   if (claim == null) return;
 
-  // 2. Verify: stat-grid over the fixture series (the fingerprint + context
-  // from triage route the mode; the grid arithmetic is pure logic — the LLM
-  // only selects material rows, which is also live).
+  // 2. Verify: the figures procedure over the fixture series. The claim's window
+  // and magnitude are PARSED here, at the point of use, by a live model call
+  // (ADR-0023) — they used to arrive pre-extracted as a fingerprint, which is why
+  // nothing noticed that the grid read them out of free text with a regex. The
+  // grid arithmetic is pure logic; the materiality selection is also live.
   console.log("\n[2/4] verification (stat grid, materiality via live LLM)…");
   // The class-agreement gate (VERIFICATION §2.7a, VER-R16): the class this slice
   // publishes is decided twice, and a disagreement publishes nothing. The
@@ -110,16 +117,15 @@ async function main(): Promise<void> {
   // ignores temperature and the OpenRouter model ignores seed — so the decision
   // is what gets pinned rather than the sampler: one claim returned
   // `not_enough_evidence` once and `supported` twice, gate passing each time.
+  const parameters = await claimParametersFromLlm(triageLlm as never, { sentence: claim.text });
+  console.log(
+    `  parsed: window=${parameters.window.kind} ${parameters.window.start ?? "-"}→${parameters.window.end ?? "now"}` +
+      ` · quantity=${parameters.quantity.kind} ${parameters.quantity.value ?? "-"}`,
+  );
   const agreement = await agreeOnVerdictClass(() =>
     computeGrid(verificationLlm as never, {
-      fingerprint: claim.fingerprintAttempt ?? {
-        core: claim.text,
-        claimant: null,
-        domain: "crime",
-        temporal: "since 2017",
-        quantity: "30%",
-        source: null,
-      },
+      parameters,
+      claimText: claim.text,
       series: fixtureSeries(),
       discourseContext: { attachedProposal: "tougher sentencing package" },
     }),
@@ -174,30 +180,51 @@ async function main(): Promise<void> {
       // (TRI-R13).
       claimKey: triage.claims[0]?.claimId ?? null,
       claimType: "statistical",
-      // Which check this claim got, decided by triage before any figure was
-      // fetched. Stored because a statistical claim reaches stat-grid only on a
-      // registry hit and the open-web loop otherwise (mode-routing.ts), and the
-      // site cannot see the registry (claim.verification_mode).
-      verificationMode: "stat-grid",
       // What triage made of the document the claim came from — the "what we did
       // not check" section on the page. Written from the triage result, never
       // hand-authored: a summary a human wrote is not a record of what ran.
       triageRecord: triage.triageRecord,
-      fingerprint: {
-        indicator: "crime",
-        population: "all",
-        geography: "NZ",
-        timeWindow: "2017-2026",
-        baseline: "2017",
-        unit: "percent-change",
-      },
+      // No claim-level parse and no `verification_mode` (ADR-0023): the plan
+      // travels with the evidence pack, below.
       discourseContext: {
         window: "post-Cabinet press conference",
         attachedProposal: "tougher sentencing",
         argumentDirection: "problem",
       },
     });
+    const plan = planForClaim({
+      features: derivePlanFeatures({
+        category: "crime-statistics",
+        claimText: claim.text,
+        claimType: claim.claimType,
+        attachesToProposal: true,
+      }),
+      claimText: claim.text,
+      available: (await store.listProcedures()).map((p) => ({
+        procedureRef: p.procedureRef,
+        version: p.version,
+        status: p.status ?? ("active" as const),
+        cannotEstablish: p.cannotEstablish,
+      })),
+      pastPlans: [],
+      notAttempted: [
+        "whether any policy caused the change — no procedure here can reach causation",
+      ],
+    }).steps.map((step) => ({ ...step, status: "ran" as const, outcome: grid.verdictClass }));
     const pack = await store.appendEvidencePack(claimRecord.claimId, {
+      plan: {
+        libraryVersion: PROCEDURE_LIBRARY_VERSION,
+        features: derivePlanFeatures({
+          category: "crime-statistics",
+          claimText: claim.text,
+          claimType: claim.claimType,
+          attachesToProposal: true,
+        }),
+        steps: plan,
+        notAttempted: [
+          "whether any policy caused the change — no procedure here can reach causation",
+        ],
+      },
       itemRefs: [],
       gridResult: grid.grid,
       justifications: [justification],

@@ -12,7 +12,7 @@ import {
   type VerdictClass,
   type VerdictPageInput,
 } from "./verdict-page.ts";
-import { MODE_DESCRIPTIONS } from "./verification-mode.ts";
+import { PROCEDURE_DESCRIPTIONS } from "./verification-mode.ts";
 
 const input = (
   over: Partial<VerdictPageInput> & { verdictClass: VerdictClass },
@@ -36,7 +36,7 @@ const input = (
   modelVersions: { "citation-compare": "model-x@v1" },
   searchRefs: [],
   sourceCodes: null,
-  verificationMode: "open-web",
+  plan: planOf("open-web-research"),
   triageRecord: null,
   claimMadeAt: null,
   claimRecordedAt: null,
@@ -63,7 +63,7 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
       // The mode the ROUTER chose, not the one the claim type implies. For a
       // statistical claim those differ whenever the authority registry has no
       // entry for the domain, which is the common case (mode-routing.ts).
-      verificationMode: "stat-grid",
+      plan: planOf("stat-grid"),
       // Triage's own output for the document this claim came from — the "what we
       // did not check" section. Two set aside, one held, out of eleven read.
       triageRecord: {
@@ -110,6 +110,40 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
       ...over,
     }),
   );
+
+
+/**
+ * A one-step plan, for tests that only care which check the page describes.
+ *
+ * Plans replaced the single `verificationMode` (ADR-0023), so a test that used to
+ * name a mode now names a procedure inside a plan. `planOf` keeps those tests
+ * about the page rather than about the plan's shape; `plan.test.ts` in the
+ * pipeline covers the shape, including multi-step plans.
+ */
+function planOf(procedureRef: string) {
+  return {
+    libraryVersion: "proc-lib-2026-09",
+    features: {
+      category: "test",
+      assertsNumber: false,
+      quotesPerson: false,
+      citesDocument: false,
+      attachesToProposal: false,
+    },
+    steps: [
+      {
+        procedureRef,
+        procedureVersion: `${procedureRef}@1`,
+        reason: "test",
+        source: "required" as const,
+        status: "ran" as const,
+        declineReason: null,
+        outcome: null,
+      },
+    ],
+    notAttempted: [],
+  };
+}
 
 describe("section order is a design invariant (SITE-MVP §2.3)", () => {
   it("emits the fixed order: claim → verdict → (deployed) → (media) → evidence → trail", () => {
@@ -258,7 +292,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
   it("explains THIS claim's check, and never a different kind of check", () => {
     // The whole point of the mode-aware block: a claim checked against official
     // figures must not be explained with a citation check's copy, or vice versa.
-    const statGrid = recorded({ verdictClass: "supported", verificationMode: "stat-grid" });
+    const statGrid = recorded({ verdictClass: "supported", plan: planOf("stat-grid") });
     const check = statGrid.trail.sections.find((s) => s.kind === "check");
     expect(check?.title).toBe("How it was checked: official figures");
     expect(check?.facts.join(" ")).toContain("official figures for it");
@@ -266,7 +300,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
 
     const quote = recorded({
       verdictClass: "supported",
-      verificationMode: "quote-fidelity",
+      plan: planOf("quote-fidelity"),
       mediaAnchor: {
         mediaUrl: "https://youtube.com?v=x",
         startS: 754,
@@ -288,15 +322,20 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       "citation-check",
       "quote-fidelity",
       "provenance",
-      "open-web",
+      "open-web-research",
     ]) {
-      const { trail } = recorded({ verdictClass: "supported", verificationMode: mode });
+      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
       const check = trail.sections.find((s) => s.kind === "check");
-      expect(check?.bound, mode).toBeTruthy();
-      expect((check?.bound ?? "").length, mode).toBeGreaterThan(40);
+      expect(check?.bounds.length, mode).toBeGreaterThan(0);
+      expect((check?.bounds[0]?.text ?? "").length, mode).toBeGreaterThan(40);
     }
-    const openWeb = recorded({ verdictClass: "supported", verificationMode: "open-web" });
-    expect(openWeb.trail.sections.find((s) => s.kind === "check")?.bound).toContain("cause");
+    const openWeb = recorded({ verdictClass: "supported", plan: planOf("open-web-research") });
+    expect(
+      openWeb.trail.sections
+        .find((s) => s.kind === "check")
+        ?.bounds.map((b) => b.text)
+        .join(" "),
+    ).toContain("cause");
   });
 
   it("reads the claim in the terms that produced the check", () => {
@@ -376,7 +415,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     // must not render a comparison it never ran.
     const { trail } = recorded({
       verdictClass: "not_enough_evidence",
-      verificationMode: "quote-fidelity",
+      plan: planOf("quote-fidelity"),
       mediaAnchor: null,
       evidence: [],
     });
@@ -389,43 +428,43 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
   it("renders an absence — not a guess — for a claim with no recorded check", () => {
     // Every verdict written before `claim.verification_mode` existed is in this
     // state, so this is the commonest case in the store today, not an edge case.
-    const { trail } = recorded({ verdictClass: "supported", verificationMode: null });
+    const { trail } = recorded({ verdictClass: "supported", plan: null });
     const chosen = trail.sections.find((s) => s.kind === "chosen");
     const check = trail.sections.find((s) => s.kind === "check");
     expect(chosen?.absent).toBe(true);
     expect(check?.absent).toBe(true);
-    expect(check?.bound).toBeNull();
+    expect(check?.bounds).toEqual([]);
     // It says what is missing rather than describing a check it cannot name.
-    expect(check?.facts.join(" ")).toContain("We have no record of which kind of check");
-    expect(check?.technical).toContain("check not recorded");
+    expect(check?.facts.join(" ")).toContain("We have no record of which checks");
+    expect(check?.technical).toContain("checks not recorded");
   });
 
-  it("never guesses a mode for a statistical claim, because it could go either way", () => {
-    // claimType → mode is one-to-many here: a statistical claim reaches the
-    // figures grid only on an authority-registry hit, and the open-web loop
-    // otherwise. Deriving "stat-grid" from the type would put a check on the page
-    // that never ran — the failure this module exists to prevent.
-    const { trail } = recorded({
-      verdictClass: "supported",
-      claimType: "statistical",
-      verificationMode: null,
-    });
-    expect(trail.sections.find((s) => s.kind === "check")?.absent).toBe(true);
-
-    // A four-way-one type still derives, and says that it derived.
-    const derived = recorded({
-      verdictClass: "supported",
-      claimType: "broadcast-quote",
-      verificationMode: null,
-    });
-    const check = derived.trail.sections.find((s) => s.kind === "check");
-    expect(check?.absent).toBe(false);
-    expect(check?.title).toContain("the recording");
-    // The page says it DERIVED the mode rather than reading one, so a reader
-    // (and an auditor) can tell a recorded routing decision from an inferred one.
-    expect(derived.trail.sections.find((s) => s.kind === "chosen")?.technical).toContain(
-      "check derived from claim type",
-    );
+  it("never derives a check from the claim type, because a type is not a check", () => {
+    // This test used to assert the opposite: `claimType → mode` was a partial
+    // mapping, and for `statistical` it deliberately refused to derive (a
+    // statistical claim reached the figures grid only on an authority-registry
+    // hit). ADR-0023 removed the derivation entirely. The claim's type is
+    // triage's answer about the sentence; the procedures it needs are the plan's,
+    // and a type has never determined a check. So EVERY type renders an absence
+    // when no plan was recorded, and there is nothing to infer.
+    for (const claimType of [
+      "statistical",
+      "broadcast-quote",
+      "citation-backed",
+      "false-context",
+      "other",
+    ]) {
+      const { trail } = recorded({ verdictClass: "supported", claimType, plan: null });
+      const check = trail.sections.find((s) => s.kind === "check");
+      expect(check?.absent, claimType).toBe(true);
+      expect(check?.bounds, claimType).toEqual([]);
+      // And the reasoning section says the plan was not written down, rather
+      // than claiming a check it cannot name.
+      expect(
+        trail.sections.find((s) => s.kind === "chosen")?.technical,
+        claimType,
+      ).toContain("check not recorded");
+    }
   });
 
   it("renders an absence for a document record the store does not hold", () => {
@@ -507,9 +546,9 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       "citation-check",
       "quote-fidelity",
       "provenance",
-      "open-web",
+      "open-web-research",
     ]) {
-      const { trail } = recorded({ verdictClass: "supported", verificationMode: mode });
+      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
       for (const section of trail.sections) {
         expect(() => assertAuditLabelsKnown(section.technical)).not.toThrow();
       }
@@ -517,9 +556,9 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     // The absence states are audit lines too, and the likeliest place for an
     // unreviewed label to be introduced by hand.
     for (const over of [
-      { verificationMode: null },
+      { plan: null },
       { triageRecord: null },
-      { verificationMode: null, claimType: "statistical" },
+      { plan: null, claimType: "statistical" },
     ]) {
       const { trail } = recorded({ verdictClass: "supported", ...over });
       for (const section of trail.sections) {
@@ -539,7 +578,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(() => assertAuditLabelsKnown("set aside 9")).not.toThrow();
     // The guard polices labels only — a stored value is the record and is printed
     // as it was written, internal vocabulary and all (HAR-R7).
-    expect(() => assertAuditLabelsKnown("check stat-grid")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("checks stat-grid")).not.toThrow();
     expect(() => assertAuditLabelsKnown("instructions nli-audit@1")).not.toThrow();
   });
 
@@ -583,7 +622,7 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
         section.title,
         ...section.facts,
         section.decision ?? "",
-        section.bound ?? "",
+        ...(section.bounds ?? []).map((b) => b.text),
         ...section.rows.flatMap((row) => [row.label, row.value]),
         ...section.sources.map((source) => `${source.title} ${source.dates}`),
         ...section.asides.map((aside) => aside.why),
@@ -608,19 +647,19 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       "citation-check",
       "quote-fidelity",
       "provenance",
-      "open-web",
+      "open-web-research",
     ]) {
-      const { trail } = recorded({ verdictClass: "supported", verificationMode: mode });
+      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
       const check = trail.sections.find((s) => s.kind === "check");
       // The heading is built from the site's own plain-language label, so an
       // internal id can never become a public heading by being interpolated.
-      const label = MODE_DESCRIPTIONS[mode]?.label.toLowerCase() ?? "";
+      const label = PROCEDURE_DESCRIPTIONS[mode]?.label.toLowerCase() ?? "";
       expect(check?.title, mode).toBe(`How it was checked: ${label}`);
       // The explanatory copy is ours; the recorded id stays on the audit line,
       // where provenance belongs.
-      const copy = [...(check?.facts ?? []), check?.bound ?? ""].join(" ");
+      const copy = [...(check?.facts ?? []), ...(check?.bounds ?? []).map((b) => b.text)].join(" ");
       expect(copy, mode).not.toContain(mode);
-      expect(check?.technical, mode).toContain(`check ${mode}`);
+      expect(check?.technical, mode).toContain(`checks ${mode}`);
     }
   });
 
@@ -630,14 +669,14 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     // is missing.
     const { trail } = recorded({
       verdictClass: "supported",
-      verificationMode: null,
+      plan: null,
       triageRecord: null,
     });
     const absent = trail.sections.filter((section) => section.absent);
     expect(absent.map((section) => section.kind)).toEqual(["read", "chosen", "check"]);
     for (const section of absent) {
       expect(section.facts.length).toBeGreaterThan(0);
-      expect(section.bound).toBeNull();
+      expect(section.bounds).toEqual([]);
       expect(section.decision).toBeNull();
       expect(section.rows).toEqual([]);
       expect(section.sources).toEqual([]);

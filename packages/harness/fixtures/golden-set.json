@@ -13,7 +13,7 @@
       "nli-audit": "flash-class@v1"
     },
     "gridAxesVersion": "grid-axes-2026-09",
-    "fingerprintNormalisationVersion": "fp-norm-2025-01",
+    "procedureLibraryVersion": "proc-lib-2026-09",
     "searchConfig": "brave-primary"
   },
   "claims": [

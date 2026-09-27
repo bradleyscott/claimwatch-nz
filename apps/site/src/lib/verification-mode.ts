@@ -1,27 +1,32 @@
-// The five checks, in plain words (SITE-MVP §2.3, Sept 2026). The verdict page's
-// trail explains WHICH check a claim got and WHAT that kind of check can and
-// cannot establish — and that explanation is per-mode, not per-claim boilerplate.
+// The procedures, in plain words (SITE-MVP §2.3; ADR-0023). The verdict page's
+// trail explains WHICH checks a claim got and WHAT each of them can and cannot
+// establish.
+//
+// This was a table over "the five modes" and a single claimed mode. ADR-0023
+// replaced the mode with a PLAN: an ordered list of steps, each naming a
+// procedure. The five modes survive as the library's seeded procedures, so the
+// descriptions below are keyed by procedure ref and the page now renders one
+// block per step — a claim checked two ways says so.
 //
 // Why this lives on the site rather than in the pipeline: `apps/site` may not
-// import pipeline source (AGENTS.md package boundaries), so this is a mapping
-// over the *published* mode names — the same pattern the trail already uses for
-// prompt roles. The mode VALUES come from `claim.verification_mode`, which
-// triage writes; nothing here re-decides routing.
+// import pipeline source (AGENTS.md package boundaries), so this is a mapping over
+// the *published* procedure names. The values come from `verification_plan.plan`,
+// which the pipeline writes; nothing here re-decides the plan.
 //
 // The `cannot` line is the load-bearing part of the design, and the reason the
 // section exists at all. Each check has a hard limit, and a page that reports a
 // finding without stating the limit invites the reader to treat the finding as
-// covering more than it does. The sharpest case: no mode tests causation, so a
-// causal claim's limit is stated on the page instead of being quietly graded by
+// covering more than it does. The sharpest case: no procedure tests causation, so
+// a causal claim's limit is stated on the page instead of being quietly graded by
 // timing evidence (SITE-MVP §2.3 named gap, Sept 2026).
 
-/** A mode's plain-language identity, and the bound it must declare. */
-export interface ModeDescription {
+/** A procedure's plain-language identity, and the bound it must declare. */
+export interface ProcedureDescription {
   /** What the check is called on the page. */
   label: string;
   /** One sentence: what this kind of check does. */
   whatItDoes: string;
-  /** When triage routes a claim here — the rule, not this claim's instance. */
+  /** When this procedure is chosen — the rule, not this claim's instance. */
   chosenWhen: string;
   /** What this check cannot establish. Always present; never a hedge. */
   cannot: string;
@@ -29,7 +34,7 @@ export interface ModeDescription {
   checkItYourself: string;
 }
 
-export const MODE_DESCRIPTIONS: Record<string, ModeDescription> = {
+export const PROCEDURE_DESCRIPTIONS: Record<string, ProcedureDescription> = {
   "stat-grid": {
     label: "Official figures",
     whatItDoes:
@@ -66,7 +71,7 @@ export const MODE_DESCRIPTIONS: Record<string, ModeDescription> = {
       "Say why someone attached it wrongly. The record can show which event something comes from; it cannot show anyone's intent.",
     checkItYourself: "the linked original and its earliest publication date.",
   },
-  "open-web": {
+  "open-web-research": {
     label: "Open-web research",
     whatItDoes:
       "Turns the claim into questions that published evidence could answer, searches for it, and reports what it found — including what it set aside.",
@@ -79,57 +84,70 @@ export const MODE_DESCRIPTIONS: Record<string, ModeDescription> = {
 };
 
 /**
- * What the claim was read as, in the claim's own terms — and, because triage's
- * type assignment IS the routing decision, this is also why the other four
- * checks do not apply. Deliberately phrased as what the claim is *not*: the
- * reader's question at this point is "why this check and not another one".
+ * What the claim was read as, in the claim's own terms. Deliberately phrased as
+ * what the claim is *not*: the reader's question at this point is "why this check
+ * and not another one". It is no longer the routing decision — the plan is — but
+ * it is still why the plan's required procedures were required.
  */
 export const CLAIM_TYPE_READING: Record<string, string> = {
-  statistical:
-    "a number stated over a period, with official figures covering it — so no search and no document were needed.",
-  "citation-backed": "a claim resting on a source it names — so the source could be read directly.",
-  "institution-citation":
-    "a claim about an institution's own record — so that record could be read directly.",
-  "broadcast-quote": "a claim about what someone said — so the recording could be checked directly.",
-  "false-context":
-    "a claim attached to an event, image or document — so the attachment could be checked against the record.",
-  other:
-    "a factual statement with no named source, no quotation and no official figures — so it was searched for.",
+  // Each line says ONLY what the claim was read as. It used to end in a
+  // consequence — "so no search and no document were needed" — which was true
+  // while the type picked the check. ADR-0023 removed that: the plan picks the
+  // checks, and the type only makes some of them required. The consequence was
+  // left behind and printed a false statement on a real page — a claim read as
+  // "a number stated over a period" told the reader no search was needed, on a
+  // page whose check was open-web research. What ran is said by the "Checked
+  // with" lines beside this one, from the plan.
+  statistical: "a number stated over a period, with official figures covering it.",
+  "citation-backed": "a claim resting on a source it names.",
+  "institution-citation": "a claim about an institution's own record.",
+  "broadcast-quote": "a claim about what someone said.",
+  "false-context": "a claim attached to an event, image or document.",
+  other: "a factual statement with no named source, no quotation and no official figures.",
 };
-
-/** The typing a claim got, when the store holds no mode of its own. */
-export const MODE_BY_CLAIM_TYPE: Record<string, string> = {
-  statistical: "stat-grid",
-  "citation-backed": "citation-check",
-  "institution-citation": "citation-check",
-  "broadcast-quote": "quote-fidelity",
-  "false-context": "provenance",
-  other: "open-web",
-};
-
-/**
- * The mode to explain, or null when the store holds none.
- *
- * `claim.verification_mode` is authoritative whenever it is present, because a
- * statistical claim reaches stat-grid only on an authority-registry hit and the
- * open-web loop otherwise (`mode-routing.ts`, Sept 2026), and the site cannot
- * see the registry. The claim-type fallback exists only for rows written before
- * the column did — and it returns null for `statistical` on purpose: guessing
- * between the two modes a statistical claim can take would publish a claim
- * about which check ran that nothing recorded. Null renders as an absent check.
- */
-export function resolveMode(input: {
-  verificationMode: string | null;
-  claimType: string | null;
-}): { mode: string; source: "recorded" | "derived" } | null {
-  if (input.verificationMode && MODE_DESCRIPTIONS[input.verificationMode]) {
-    return { mode: input.verificationMode, source: "recorded" };
-  }
-  if (!input.claimType || input.claimType === "statistical") return null;
-  const derived = MODE_BY_CLAIM_TYPE[input.claimType];
-  return derived ? { mode: derived, source: "derived" } : null;
+/** One step of the plan, resolved to reader-facing copy. */
+export interface ResolvedStep {
+  procedureRef: string;
+  status: "planned" | "ran" | "declined" | "failed";
+  /** The planner's reason this step is in the plan. */
+  reason: string;
+  /** Present when the step was declined: why we did not run it. */
+  declineReason: string | null;
+  /** Null when the plan names a procedure the site has no copy for. */
+  description: ProcedureDescription | null;
 }
 
-export function modeDescription(mode: string): ModeDescription | null {
-  return MODE_DESCRIPTIONS[mode] ?? null;
+/**
+ * Resolve a stored plan to reader-facing steps. Null when the store holds no
+ * plan, which is the state of every verdict written before plans existed — and
+ * the page then omits the check section entirely rather than guessing, which is
+ * the same rule the single mode had.
+ *
+ * An interruption is not tolerated silently: a step naming a procedure this table
+ * does not know keeps its ref and renders with no description, so a new procedure
+ * added to the library is visibly missing its copy rather than invisible.
+ */
+export function resolvePlan(
+  plan: {
+    steps: Array<{
+      procedureRef: string;
+      reason: string;
+      status: string;
+      declineReason?: string | null;
+    }>;
+  } | null,
+): { steps: ResolvedStep[]; ran: ResolvedStep[]; declined: ResolvedStep[] } | null {
+  if (plan == null || plan.steps.length === 0) return null;
+  const steps: ResolvedStep[] = plan.steps.map((step) => ({
+    procedureRef: step.procedureRef,
+    status: step.status as ResolvedStep["status"],
+    reason: step.reason,
+    declineReason: step.declineReason ?? null,
+    description: PROCEDURE_DESCRIPTIONS[step.procedureRef] ?? null,
+  }));
+  return {
+    steps,
+    ran: steps.filter((step) => step.status === "ran"),
+    declined: steps.filter((step) => step.status === "declined"),
+  };
 }

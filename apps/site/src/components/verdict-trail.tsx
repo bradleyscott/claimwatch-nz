@@ -89,10 +89,24 @@ function TrailSectionRow({ section }: { section: TrailSection }) {
           </div>
         ) : null}
 
-        {section.bound ? (
+        {section.bounds.length > 0 ? (
           <div className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-            <div className="microlabel mb-0">What this check cannot establish</div>
-            <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{section.bound}</p>
+            <div className="microlabel mb-0">
+              {section.bounds.length === 1
+                ? "What this check cannot establish"
+                : "What these checks cannot establish"}
+            </div>
+            {section.bounds.map((bound) =>
+              section.bounds.length === 1 ? (
+                <p key={bound.label} className="mt-1 text-[13px] leading-snug text-muted-foreground">
+                  {bound.text}
+                </p>
+              ) : (
+                <p key={bound.label} className="mt-1 text-[13px] leading-snug text-muted-foreground">
+                  <span className="font-semibold">{bound.label}:</span> {bound.text}
+                </p>
+              ),
+            )}
           </div>
         ) : null}
 

@@ -3,6 +3,7 @@
 
 export * from "./claimreview.ts";
 export * from "./domain.ts";
+export * from "./procedure.ts";
 export * from "./schema/index.ts";
 export * from "./site-reader.ts";
 export * from "./speakership.ts";
@@ -11,4 +12,4 @@ export * from "./store-api.ts";
 export * from "./triage-record.ts";
 
 /** Bumped whenever an exported claim/verdict/evidence shape changes (CRO-R13). */
-export const STORE_SCHEMA_VERSION = "0.8.0";
+export const STORE_SCHEMA_VERSION = "0.9.0";
