@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimWatch NZ — how a claim becomes a published verdict</title>
+<meta name="description" content="A plain-language walkthrough of how ClaimWatch NZ checks a claim: collecting the article, deciding whose words it is, choosing a kind of check, and publishing a verdict — with the technical detail available underneath.">
+<style>
+  :root{
+    --ink:#10192a; --mut:#5a6472; --faint:#9aa2ad; --paper:#fbfaf8; --card:#fff; --line:#e8e4dc;
+    --blue:#155cc4; --blue-soft:#eef4fd; --blue-line:#c9dcf7;
+    --v-sup:#15803d; --v-inc:#c47f1d; --v-nei:#64748b; --v-ref:#c0392b;
+    --amber:#8a5a12; --amber-soft:#fdf8ef; --amber-line:#eddfc2;
+    --mono:"SF Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --serif:Georgia,"Times New Roman",serif;
+    --shadow:0 1px 2px rgba(16,25,42,.04),0 8px 24px -18px rgba(16,25,42,.25);
+  }
+  *{box-sizing:border-box;margin:0}
+  html{scroll-behavior:smooth}
+  body{font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%;overflow-wrap:break-word}
+  a{color:var(--blue)}
+  code,pre,.mono{font-family:var(--mono);font-size:.88em}
+  code{background:#f2f4f7;padding:1px 5px;border-radius:4px;border:1px solid #e6e9ef;white-space:nowrap}
+  /* Long identifiers must not force horizontal overflow on a phone. */
+  td code,th code,.chip code,.dbody li code,.note code,summary code{white-space:normal;overflow-wrap:anywhere}
+  pre{background:#0e1726;color:#dfe7f2;padding:14px 16px;border-radius:10px;overflow-x:auto;line-height:1.5;font-size:12.5px}
+  pre .c{color:#7f8ea3}
+  pre .k{color:#8fb8d8}
+  pre .s{color:#e3c07b}
+
+  /* ── header ───────────────────────────────────────────── */
+  header.site{background:var(--ink);color:#fff}
+  .sitebar{max-width:1280px;margin:0 auto;padding:14px 22px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .logo{font-weight:800;font-size:18px;letter-spacing:-.01em}
+  .logo .fern{color:#8fb8d8}
+  .sitebar .sub{font-size:12.5px;color:#9aa5b1}
+  .hero{max-width:1280px;margin:0 auto;padding:26px 22px 30px}
+  .hero h1{font-size:29px;line-height:1.18;letter-spacing:-.02em;font-weight:800;max-width:840px}
+  .hero p{margin-top:10px;max-width:800px;color:#c3cad4;font-size:14.5px}
+  .badges{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;background:#1b2a3f;border:1px solid #2d4059;color:#9fb3cc}
+  .badge.warn{background:#3a2a12;border-color:#5c431c;color:#e0b978}
+
+  /* ── layout ───────────────────────────────────────────── */
+  .shell{max-width:1280px;margin:0 auto;padding:0 22px 90px;display:grid;grid-template-columns:238px minmax(0,1fr);gap:34px;align-items:start}
+
+  main{min-width:0;padding-top:14px}
+  .rail{position:sticky;top:14px;max-height:calc(100vh - 28px);overflow:auto;padding:14px 0;font-size:13px}
+  .rail .rhead{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0 0 10px 10px}
+  .rail ol{list-style:none;padding:0;display:flex;flex-direction:column}
+  .rail a{display:flex;gap:9px;align-items:baseline;padding:5px 10px;border-radius:8px;color:#3c4654;text-decoration:none;line-height:1.3}
+  .rail a:hover{background:#f1f3f6}
+  .rail a.on{background:var(--blue-soft);color:#0f3f86;font-weight:650}
+  .rail a .n{font-family:var(--mono);font-size:11px;color:var(--faint);min-width:14px}
+  .rail a.on .n{color:#4b7fc4}
+  .rail .gap{height:7px}
+
+  /* ── controls ─────────────────────────────────────────── */
+  .controls{position:sticky;top:0;z-index:20;background:rgba(251,250,248,.93);backdrop-filter:blur(7px);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 2px;margin-bottom:18px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .seg button{font:inherit;font-size:12.5px;font-weight:650;border:0;background:none;padding:7px 12px;cursor:pointer;color:var(--mut);border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--ink);color:#fff}
+  .ctl{font:inherit;font-size:12.5px;font-weight:650;border:1px solid var(--line);background:#fff;color:var(--mut);border-radius:9px;padding:7px 12px;cursor:pointer}
+  .ctl:hover{color:var(--ink);border-color:#cfd5dd}
+  .hint{margin-left:auto;font-size:12px;color:var(--faint)}
+
+  /* ── overview spine ───────────────────────────────────── */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:26px 28px;margin-bottom:20px}
+  h2.block{font-size:13px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:16px}
+  .spine{position:relative;padding-left:30px}
+  .spine::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:2px;background:linear-gradient(180deg,var(--blue-line),#e6e9ef)}
+  .sx{position:relative;padding:7px 0}
+  .sx::before{content:"";position:absolute;left:-26px;top:15px;width:9px;height:9px;border-radius:50%;background:#fff;border:2px solid var(--blue);z-index:1}
+  .sx.gate::before{border-color:var(--amber);border-radius:3px;transform:rotate(45deg);width:8px;height:8px}
+  .sx a{font-weight:650;text-decoration:none;color:var(--ink)}
+  .sx a:hover{color:var(--blue)}
+  .sx span{display:block;color:var(--mut);font-size:13px}
+  .sx .n{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-right:7px}
+  .legend{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--mut);display:flex;gap:18px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid var(--blue);margin-right:6px}
+  .legend i.g{border-color:var(--amber);border-radius:2px;transform:rotate(45deg)}
+
+  /* ── stage cards ──────────────────────────────────────── */
+  .stage{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-bottom:18px;scroll-margin-top:64px;overflow:hidden}
+  .stage-head{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;padding:22px 26px 18px;border-bottom:1px solid var(--line)}
+  .stage-head .num{width:34px;height:34px;border-radius:10px;background:var(--blue-soft);border:1px solid var(--blue-line);color:#0f3f86;
+    font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+  .stage-head h3{font-size:19.5px;letter-spacing:-.015em;line-height:1.25;font-weight:750}
+  .stage-head .lede{color:#2c3644;margin-top:4px;font-size:14.5px}
+  .stage-head .src{margin-top:8px;font-size:11.5px;color:var(--faint);font-family:var(--mono)}
+  /* Design references are useful to a reviewer and noise to a reader: keep them out of the
+     overview, and bring them back once someone has asked for detail. */
+  .src{display:none}
+  body[data-view="1"] .src,body[data-view="2"] .src{display:block}
+  .io{display:flex;gap:8px;flex-wrap:wrap;padding:13px 26px;background:#fcfcfb;border-bottom:1px solid var(--line)}
+  .chip{font-size:11.8px;padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;color:#435060}
+  .chip.in{border-color:#dfe6ee;background:#f7f9fc}
+  .chip.out{border-color:#d9ead9;background:#f6fbf6}
+  .chip.stop{border-color:#f0d5d0;background:#fdf6f5;color:#8c342a}
+  .body{padding:20px 26px 24px}
+
+  details{border:1px solid var(--line);border-radius:11px;margin-top:12px;background:#fff;overflow:hidden}
+  details[open]{background:#fff}
+  summary{cursor:pointer;list-style:none;padding:11px 15px;font-size:13.2px;font-weight:700;color:#243247;display:flex;align-items:center;gap:9px;
+    background:#fbfbfa;border-bottom:1px solid transparent}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸";color:var(--faint);font-size:11px;transition:transform .12s}
+  details[open]>summary::before{transform:rotate(90deg)}
+  details[open]>summary{border-bottom-color:var(--line)}
+  summary .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--faint);letter-spacing:.04em;text-transform:uppercase}
+  .dbody{padding:15px 17px 17px}
+  .dbody>*+*{margin-top:11px}
+
+  h4{font-size:13.6px;font-weight:750;color:#1b2839;margin-top:2px}
+  h5{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+  ol.steps{margin:0;padding-left:0;list-style:none;counter-reset:st}
+  ol.steps>li{counter-increment:st;position:relative;padding:7px 0 7px 30px;border-bottom:1px dashed #eef0f3}
+  ol.steps>li:last-child{border-bottom:0}
+  ol.steps>li::before{content:counter(st);position:absolute;left:0;top:7px;width:20px;height:20px;border-radius:6px;background:#f1f4f8;border:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;font-weight:700;color:var(--mut);display:flex;align-items:center;justify-content:center}
+  ul.tight{margin:0;padding-left:18px}
+  ul.tight li{padding:2.5px 0}
+  ul.plain{list-style:none;padding-left:0}
+  ul.plain li{padding:3px 0 3px 18px;position:relative}
+  ul.plain li::before{content:"—";position:absolute;left:0;color:var(--faint)}
+  .note{font-size:13.5px;color:#3c4654}
+  .callout{border-left:3px solid var(--blue);background:var(--blue-soft);padding:10px 14px;border-radius:0 9px 9px 0;font-size:13.4px;color:#1f3352}
+  .callout.warn{border-color:#e2b866;background:var(--amber-soft);color:#5d3f0b}
+  .callout.legal{border-color:#d99b93;background:#fdf6f5;color:#7c332a}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid #eef0f3;overflow-wrap:anywhere}
+  th{font-size:10.8px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:800;border-bottom:1px solid var(--line)}
+  tbody tr:last-child td{border-bottom:0}
+  td code{white-space:nowrap}
+  .num-col{font-family:var(--mono);text-align:right;white-space:nowrap}
+
+  details.ex{border-color:#dfe6ee;background:#fbfdff}
+  details.ex>summary{background:#f6f9fe;color:#1d3c66;font-size:12.8px}
+  details.ex>summary::before{content:"►";color:#7ea6d8}
+  details.ex .dbody{font-size:13.2px}
+  details.ex .dbody code{background:#eef4fd;border-color:var(--blue-line)}
+
+  .grid-tbl td:first-child{font-family:var(--mono);font-size:12.3px}
+  .mat{background:#fff8e8}
+  .mat td:first-child::after{content:" ← relevant here";color:#a37b1f;font-size:10.5px;font-family:"Inter",sans-serif}
+  .verdict-pill{display:inline-block;font-size:11.5px;font-weight:750;padding:2px 8px;border-radius:999px;border:1px solid}
+  .p-sup{color:var(--v-sup);border-color:#bfe0c6;background:#f2fbf4}
+  .p-ref{color:var(--v-ref);border-color:#f0cfc9;background:#fdf6f5}
+  .p-nei{color:var(--v-nei);border-color:#d9dee6;background:#f7f8fa}
+  .p-inc{color:var(--v-inc);border-color:#eddab2;background:#fdf8ef}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:760px){.twocol{grid-template-columns:1fr}}
+  .mini{font-size:12.3px;color:var(--mut)}
+
+  .kv{font-size:12.6px}
+  .kv div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;padding:5px 0;border-bottom:1px dashed #eef0f3}
+  .kv div:last-child{border-bottom:0}
+  .kv dt,.kv .k2{font-family:var(--mono);font-size:11.6px;color:#41506b}
+  @media (max-width:620px){.kv div{grid-template-columns:1fr;gap:2px}}
+
+  footer.foot{max-width:1280px;margin:0 auto;padding:26px 22px 60px;color:var(--faint);font-size:12.5px;border-top:1px solid var(--line)}
+  .rule{height:1px;background:var(--line);margin:34px 0 22px}
+
+  /* ── responsive ───────────────────────────────────────── */
+  @media (max-width:1000px){
+    .shell{grid-template-columns:1fr;gap:18px}
+    .rail{position:static;max-height:none;border-bottom:1px solid var(--line);padding-bottom:16px}
+    .rail ol{flex-direction:row;flex-wrap:wrap;gap:2px 6px}
+    .rail .rhead{margin-left:4px}
+    .rail a{padding:4px 8px;font-size:12.5px}
+    .hint{display:none}
+  }
+  @media (max-width:640px){
+    .sitebar,.hero{padding-left:16px;padding-right:16px}
+    .hero{padding-top:20px;padding-bottom:22px}
+    .hero h1{font-size:23px}
+    .shell{padding:0 14px 60px}
+    .panel{padding:20px 16px}
+    .stage-head{padding:18px 16px 14px;gap:12px}
+    .stage-head .num{width:30px;height:30px;font-size:14px}
+    .stage-head h3{font-size:17.5px}
+    .io{padding:11px 16px}
+    .body{padding:16px 16px 20px}
+    .dbody{padding:13px 13px 15px}
+    table{font-size:12.4px}
+    th,td{padding:7px 8px}
+    .kv div{grid-template-columns:1fr;gap:2px}
+  }
+
+  @media print{
+    .src{display:block}
+    .rail,.controls{display:none}
+    .shell{grid-template-columns:1fr;padding:0}
+    header.site,.panel,.stage{box-shadow:none;break-inside:avoid}
+    details{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="sitebar">
+    <span class="logo">ClaimWatch<span class="fern"> NZ</span></span>
+    <span class="sub">A plain-language walkthrough, with the technical detail underneath</span>
+  </div>
+  <div class="hero">
+    <h1>How a claim becomes a published verdict</h1>
+    <p>A plain-language walkthrough of what happens between an article being picked up and a verdict appearing on a
+      public page: where the material comes from, who decides what is worth checking, how each kind of check works,
+      and what has to be true before anything goes public. Every step has more detail underneath it if you want it,
+      and none of it is in the way.</p>
+    <p>A claim is not sorted into one of a fixed set of checks. It gets a <strong>plan</strong> — the list of checks that
+      claim needs — and the checks themselves are a list we keep and add to. That change is the newest thing in this
+      document, and it is the reason a claim can now be checked two ways at once.</p>
+    <div class="badges">
+      <span class="badge warn">Plain language first</span>
+      <span class="badge">Technical detail optional at every step</span>
+      <span class="badge">State: 14 September 2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+<nav class="rail" id="rail">
+  <p class="rhead">Steps</p>
+  <ol>
+    <li><a href="#s0"><span class="n">0</span><span>Picking up new material</span></a></li>
+    <li><a href="#s1"><span class="n">1</span><span>Collecting the article</span></a></li>
+    <li><a href="#s2"><span class="n">2</span><span>Reading the words off the page</span></a></li>
+    <li><a href="#s3"><span class="n">3</span><span>Working out who said it</span></a></li>
+    <li><a href="#s4"><span class="n">4</span><span>Avoiding duplicates</span></a></li>
+    <li><a href="#s5"><span class="n">5</span><span>Deciding what to check</span></a></li>
+    <li><a href="#s6"><span class="n">6</span><span>Working out what it needs</span></a></li>
+    <li><a href="#s7"><span class="n">7</span><span>Checking it</span></a></li>
+    <li><a href="#s8"><span class="n">8</span><span>Two last checks</span></a></li>
+    <li><a href="#s9"><span class="n">9</span><span>Recording the verdict</span></a></li>
+    <li><a href="#s10"><span class="n">10</span><span>Publishing the page</span></a></li>
+  </ol>
+  <div class="gap"></div>
+  <p class="rhead">Technical reference</p>
+  <ol>
+    <li><a href="#app-a"><span class="n">A</span><span>The four verdicts</span></a></li>
+    <li><a href="#app-b"><span class="n">B</span><span>AI steps &amp; instructions</span></a></li>
+    <li><a href="#app-c"><span class="n">C</span><span>Warning signs we watch</span></a></li>
+    <li><a href="#app-d"><span class="n">D</span><span>What we cannot do yet</span></a></li>
+    <li><a href="#app-e"><span class="n">E</span><span>Two vocabularies</span></a></li>
+    <li><a href="#app-f"><span class="n">F</span><span>Running it yourself</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<div class="controls">
+  <div class="seg" role="group" aria-label="Depth">
+    <button data-depth-set="0" class="on" type="button">Overview</button>
+    <button data-depth-set="1" type="button">In detail</button>
+    <button data-depth-set="2" type="button">Everything</button>
+  </div>
+  <button class="ctl" data-examples="hide" type="button">Hide examples</button>
+  <span class="hint">Overview = what happens, in plain words · In detail = how each step works · Everything = the exact rules and warning signs</span>
+</div>
+
+<!-- ══════════════ HOW TO READ ══════════════ -->
+<section class="panel" id="howto">
+  <h2 class="block">How to read this page</h2>
+  <div class="twocol">
+    <div>
+      <h4>Three levels of detail</h4>
+      <ol class="steps">
+        <li><strong>On the page.</strong> What happens at each step, in everyday words, with a worked example to follow.</li>
+        <li><strong>In detail.</strong> How that step actually works — the rules, the names, the tables.</li>
+        <li><strong>Everything.</strong> The exact instructions and thresholds, the records we keep, and what can go wrong.</li>
+      </ol>
+      <p class="note">Use the three buttons at the top of the page, or open any single section on its own by clicking its heading.</p>
+    </div>
+    <div>
+      <h4>Two things worth knowing up front</h4>
+      <ul class="plain">
+        <li><strong>This is an automated system.</strong> Where a judgement is made by an AI model rather than by arithmetic, the page says so — and says what we do to measure it.</li>
+        <li><strong>Where something is not built yet, or a limit is not closed, the page says that too.</strong> A named gap is part of the design here, not an omission.</li>
+      </ul>
+      <p class="note">Nothing here is simplified to the point of being wrong. The plain words and the exact rules describe the same process.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ OVERVIEW ══════════════ -->
+<section class="panel" id="overview">
+  <h2 class="block">The process, end to end</h2>
+  <div class="spine">
+    <div class="sx"><a href="#s0">Picking up new material</a><span>Every hour, without anyone pressing a button, the system looks for newly published items from each source we follow.</span></div>
+    <div class="sx"><a href="#s1">Collecting the article</a><span>We fetch the item once, keep a copy of the text, and write down where it came from and when we got it.</span></div>
+    <div class="sx"><a href="#s2">Reading the words off the page</a><span>We take the text out of the page; if the page is unusual we try harder, and we record what we had to do.</span></div>
+    <div class="sx"><a href="#s3">Working out who said it</a><span>Some sentences are a person's own words, others are the newsroom writing. Only someone's own words can be checked.</span></div>
+    <div class="sx"><a href="#s4">Not checking the same thing twice</a><span>The same article fetched twice does not become two articles, and the same claim said again does not become two verdicts.</span></div>
+    <div class="sx"><a href="#s5">Deciding what is worth checking</a><span>For each sentence we ask: could this be checked against evidence? If not, we write down why we set it aside.</span></div>
+    <div class="sx"><a href="#s6">Working out what it needs</a><span>A claim gets a plan: the list of checks it needs. Some need two — a quoted number needs the quotation checked and the figure checked. Nobody's name or party is involved.</span></div>
+    <div class="sx"><a href="#s7">Checking it</a><span>The checks we can run: official figures, the source it cites, the recording, the context it carries, open-web research. Each says what it can and cannot establish, and a claim can be checked more than one way.</span></div>
+    <div class="sx gate"><a href="#s8">Two last checks</a><span>The evidence must actually support our written reasoning, and the answer has to come out the same way twice.</span></div>
+    <div class="sx"><a href="#s9">Recording the verdict</a><span>We write the verdict down permanently. It is added to, never edited.</span></div>
+    <div class="sx"><a href="#s10">Publishing the page</a><span>A page anyone can read — with the verdict, the evidence and the audit trail — or nothing at all, if the claim is not ours to check.</span></div>
+  </div>
+  <div class="legend">
+    <span><i></i>a step in the process</span>
+    <span><i class="g"></i>a check that can stop publication</span>
+    <span>Every step can be run again — and running it again produces the same result, never a second copy.</span>
+  </div>
+</section>
+
+<!-- ══════════════ 0 ══════════════ -->
+<article class="stage" id="s0">
+  <div class="stage-head">
+    <div class="num">0</div>
+    <div>
+      <h3>Picking up new material on a schedule</h3>
+      <p class="lede">Nobody presses a button. The system checks each source on its own timetable — and treats a source that goes quiet as a problem in its own right.</p>
+      <p class="src">INGESTION §2.1 · STORE §2.3 · ADR-0006 · ADR-0012</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the list of sources we follow</span>
+    <span class="chip out">Produces: a to-do item whenever a source is due to be checked</span>
+    <span class="chip stop">Never: letting a silent source look like a healthy one</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>We follow a fixed list of sources: government press releases, RNZ politics, a few broadcaster videos, one institution, and a small hand-picked set of miscaptioned items used for practice.</li>
+      <li>Each source is checked on its own timetable — the news feeds every hour, the videos a few times a day (about 20 to 40 items a day in total).</li>
+      <li>Nobody has to remember to run it. If a check is missed because the system was offline, it runs when the system comes back.</li>
+      <li>A source that answers "success" but returns nothing at all is treated as a failure, not as a quiet day.</li>
+      <li>A source that stops producing anything for longer than its usual rhythm raises a warning, even though nothing reported an error.</li>
+      <li>The public coverage page is built from the same counts the operators see, so the two cannot disagree.</li>
+    </ol>
+    <div class="callout warn"><strong>The most dangerous failure is silence.</strong> A broken source does not complain — it simply stops. So we watch for the absence of news, not only for error messages.</div>
+    <details data-depth="1"><summary>How the schedule works<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <ul class="plain">
+          <li><strong>The schedule lives in the database, not in a timer on a server.</strong> Each source has its own entry. When a check is due, a row is created for it, and a worker picks that row up.</li>
+          <li><strong>Two workers can never take the same row.</strong> The database hands each row to one worker at a time, so the same check cannot run twice by accident.</li>
+          <li><strong>A missed check is not lost.</strong> If a worker was offline when a check was due, the check runs when the worker comes back.</li>
+          <li><strong>We keep the history.</strong> How long each run took, whether it worked, and how many times it retried are all recorded, and the alerts read from that history.</li>
+          <li><strong>Each source is watched in five ways.</strong> Did the fetch work. Did the number of items look normal. How often did we need the harder reader. How long since the last new item. Did the job run at all.</li>
+          <li><strong>Warnings follow a fixed ladder.</strong> Try again. Fall back to reading the page in a browser. Mark the source degraded. Tell a person. Then state the gap on the public coverage page.</li>
+          <li><strong>The public coverage page and the operators' dashboard read the same numbers,</strong> so the two cannot tell different stories.</li>
+        </ul>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Doing it by hand — setting up one source<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li>Decide the source and how often to check it. Write down its name, its feed address or how to reach it, the kind of publication it is, and the most requests a day we are willing to make.</li>
+          <li>Create one row per due check, named after the time it belongs to, so running the same check twice does nothing.</li>
+          <li>Let a worker take the row, note when it started and finished, and record whether it worked.</li>
+          <li>Record, for every run: when it last ran, when it last worked, how many items it saw, how many were new, how often the harder reader was needed, whether the source is stale, and whether it is alerting.</li>
+          <li>Set up an alert for when the heartbeats stop. A check that never runs sends nothing, so there is no error to alert on. The absence itself has to be the trigger.</li>
+        </ol>
+        <div class="callout warn"><strong>Two different failures look alike and must not be treated as one.</strong> A feed that answers with no items, and a feed that is dead. Both make coverage shrink quietly, and they call for different responses.</div>
+      </div>
+    </details>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">ING-R1</span><span>If a feed breaks or freezes, we catch it two ways. A feed that stops producing new items is flagged as stale, and a feed that answers with no items raises its own alarm.</span></div>
+          <div><span class="k2">ING-R12</span><span>If the health checks themselves stop working, a missing entry in the run history raises an alert. Monitoring that fails silently is worse than none at all.</span></div>
+          <div><span class="k2">STO-R18</span><span>If a worker dies part-way through a job, the job stays marked as running. Past a set time that raises an alert, and the missed schedule is filled in when the worker restarts.</span></div>
+          <div><span class="k2">CRO-R19</span><span>Alerts fire on silence, not only on errors. We test that case before launch, not after.</span></div>
+          <div><span class="k2">ING-R14</span><span>If a site redesign pushes a whole source onto the harder reader, the number of fallbacks per source leaves its normal range and the source is flagged.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 1 ══════════════ -->
+<article class="stage" id="s1">
+  <div class="stage-head">
+    <div class="num">1</div>
+    <div>
+      <h3>Collecting the article</h3>
+      <p class="lede">We fetch each new item once, keep a copy of it, and write down where it came from and when we got it.</p>
+      <p class="src">INGESTION §2.1–2.4, §3.1 · ADR-0006 · ADR-0007</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the web address of a new item</span>
+    <span class="chip out">Produces: the item's text, saved with its address, the time we fetched it, and a unique code for its contents</span>
+    <span class="chip stop">Never: paying to get past a paywall, or making our own recordings</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>We read the source's own list of recent items. Each one comes with a title, a web address and a publication time.</li>
+      <li>Anything we have already saved is skipped.</li>
+      <li>We fetch the page and keep the text exactly as it arrived, so we never have to fetch it a second time.</li>
+      <li>We record the address, the date and time we got it, and how we got it.</li>
+      <li>We check we really got an article — not a "prove you are human" page, and not a paywall stub cut off mid-sentence.</li>
+      <li>For videos we read the caption information the platform itself provides. If those captions were made automatically rather than checked by a person, we mark that, and treat the wording with extra caution.</li>
+      <li>If an article sits behind a paywall, we use only the part that is publicly shown — and the page says so.</li>
+    </ol>
+    <details data-depth="1"><summary>How the collection works<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <ul class="plain">
+          <li><strong>We read the feed first.</strong> Beehive (<code>beehive.govt.nz/rss.xml</code>, about 30 items) and the RNZ politics feed (about 16 items). Only once the feed reads cleanly do we fetch the item pages.</li>
+          <li><strong>A feed we cannot read is an error, not an empty feed.</strong> If the file is malformed, or its shape is not what we expect, the run fails loudly.</li>
+          <li><strong>We fetch each item once, here at the start.</strong> That saved copy is what we work from. When we come to check evidence we go back to the live source.</li>
+          <li><strong>A paywall is a boundary, not a puzzle.</strong> We never pay to get past one and never work around one. A paywalled item can be a claim we check, but it is never the evidence for its own claim. We use only the part that is publicly shown.</li>
+          <li><strong>For videos, the platform's own caption information decides how much we trust the wording.</strong> Captions marked as generated automatically are treated as unreviewed. A caption track with no such marker is treated as reviewed. If there is no track at all, the video is out of scope.</li>
+          <li><strong>We stay inside a request budget per source.</strong> Captions are a handful of requests a day, read-only, and the budget is checked in tests.</li>
+        </ul>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Doing it by hand — collecting one item<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li>Fetch the feed. Read out each item's own id, its address, its title, its publication date and its summary. If that fails, fail the run. Do not treat it as a source with no new items.</li>
+          <li>Skip any item whose id we already hold, or whose contents we already hold.</li>
+          <li>Fetch the item page and keep the bytes exactly as they arrived.</li>
+          <li>Check three things, in order. The request worked. The page is not a "prove you are human" screen. The page is not a paywall stub cut off mid-sentence.</li>
+          <li>Write down the address, the time we fetched it, how we fetched it, and a code that stands for the contents.</li>
+          <li>For videos, write down the kind of caption track, whether it was reviewed or automatic, and a code for the track. If the track changes later, we flag the claims that used it and find their place in the video again.</li>
+        </ol>
+        <div class="callout"><strong>Retries are bounded.</strong> We try again, then fall back to reading the page in a browser, then mark the source degraded, then tell a person. Tests use a fake server returning 429, 500 and a bot-wall page, and check that we never fetch the same thing twice.</div>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — Beehive, 8 Sept 2026<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre><span class="c"># feed</span>
+<span class="k">GET</span> https://www.beehive.govt.nz/rss.xml   <span class="c">→ 200, 30 items</span>
+  item: guid=<span class="s">"https://www.beehive.govt.nz/release/safer-communities"</span>
+        title=<span class="s">"Safer communities: tougher sentencing package"</span>
+        pubDate=<span class="s">"Tue, 08 Sep 2026 09:10:00 +1200"</span>
+
+<span class="c"># item fetch (once)</span>
+<span class="k">GET</span> https://www.beehive.govt.nz/release/safer-communities  <span class="c">→ 200, 14 KB</span>
+  content_hash = sha256(raw)   <span class="c">= 3f9a…c21e</span>
+  retrieved_at = 2026-09-08T21:11:04Z
+  retrieval_method = rss+readability</pre>
+        <p class="mini">The release bundles a policy proposition together with the numbers it claims. Those numbers are <strong>not</strong> evidence for the claim itself — we go back to the official figures and work the number out ourselves.</p>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">ING-R1</span><span>A dead or frozen feed is caught by the staleness check, and a feed answering with no items raises its own alarm.</span></div>
+          <div><span class="k2">ING-R3</span><span>Automatic captions being mistaken for reviewed ones is tested against four cases: automatic only, reviewed only, both kinds present, and none at all.</span></div>
+          <div><span class="k2">ING-R4</span><span>A broken "hear it" link is caught when we build the link from the stored timestamps, and again by loading the real link before release.</span></div>
+          <div><span class="k2">ING-R7</span><span>Asking a platform for too much is caught by a request-budget test against a fake server.</span></div>
+          <div><span class="k2">ING-R9</span><span>A paywalled item being treated as complete is caught by a fixture that must mark the claim as checked against its own wording and nothing else.</span></div>
+          <div><span class="k2">ING-R11</span><span>A caption track being edited after we stored it is caught by comparing the track's contents code. When it changes, the claims using it are flagged.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 2 ══════════════ -->
+<article class="stage" id="s2">
+  <div class="stage-head">
+    <div class="num">2</div>
+    <div>
+      <h3>Reading the words off the page</h3>
+      <p class="lede">We take the text out of the page. When a page is built unusually we try harder — and we record what we had to do, because that is an early warning that the source has changed.</p>
+      <p class="src">INGESTION §2.1, §3.1–3.2 · ADR-0006 · ADR-0007</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the saved copy of the page</span>
+    <span class="chip out">Produces: the plain text, plus a note of which method worked</span>
+    <span class="chip stop">Never: treating "we got nothing" as a success</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>First we use a straightforward reader — the same idea as "reader view" in a browser. It takes the headline and the paragraphs.</li>
+      <li>If that comes back empty, or the page is built unusually, we ask an AI model to pull out the text, and we record exactly why the first attempt failed.</li>
+      <li>If that fails too, we try loading the page the way a browser would. If it still fails, we mark the source as degraded and say so publicly.</li>
+      <li>We check the text for two specific kinds of damage: characters scrambled by bad encoding (which can mangle Māori macrons), and text that has been escaped twice so it shows up as odd symbols.</li>
+      <li>Getting nothing back from a page that clearly has content counts as a failure. That is the worst kind of error, because everything looks fine.</li>
+      <li>How often we need the harder fallback is itself a signal: when a site redesigns its pages, that number rises before anyone notices a problem.</li>
+    </ol>
+    <details data-depth="1"><summary>How we get the text out — the three attempts<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <table>
+          <thead><tr><th style="width:96px">Attempt</th><th>What we use</th><th>When we reach for it</th></tr></thead>
+          <tbody>
+            <tr><td><strong>First</strong></td><td>A reader built for that kind of file. Feeds, ordinary article pages and caption files each get their own. Captions keep their timestamps.</td><td>Always, every time.</td></tr>
+            <tr><td><strong>Second</strong></td><td>We ask an AI model to pull the text out in a fixed shape we can check, and we record exactly why the first attempt failed.</td><td>Only when the first attempt fails. We count how often this happens, per source.</td></tr>
+            <tr><td><strong>Third</strong></td><td>A headless browser loads the page the way a real one would. If that fails too, we mark the source degraded and say so on the page.</td><td>Only when the second attempt fails.</td></tr>
+          </tbody>
+        </table>
+        <p class="note">The failures are not thrown away. Every case we capture becomes a test, and a rising second-attempt rate is the first sign that a site has changed its pages.</p>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Doing it by hand — articles and captions<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <h4>An article page</h4>
+        <ol class="steps">
+          <li>Take the headline from the page's main heading.</li>
+          <li>Take the body from the article's paragraphs, in order. For a table, turn each row into one line with the values separated by a colon.</li>
+          <li>If the page clearly has content and we got nothing out of it, stop and fail. This is the mistake that once made extraction look successful while dropping the text.</li>
+          <li>Check for damage on the bytes we received, not on the page after our reader has tidied it. Look for two things: characters scrambled by mismatched encoding, which can damage Māori macrons, and text escaped twice, which shows up as stray symbols. Correct escaping is normal and must not be flagged.</li>
+        </ol>
+        <h4>A caption file</h4>
+        <ol class="steps">
+          <li>Read each cue: its start time, its end time, the speaker if given, and the text. Both the long and the short timestamp forms appear in the wild.</li>
+          <li>An empty file, or one with only a header, is marked degraded. It is never treated as a clean transcript.</li>
+          <li>Build the "hear it" link from the stored start and end times, with a little padding either side. Nothing else may be used to build it.</li>
+        </ol>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — extracted text and anchor<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre><span class="c">// Tier-1 output, Beehive release</span>
+title = <span class="s">"Safer communities: tougher sentencing package"</span>
+text  = <span class="s">"The Government is delivering a tougher sentencing package …
+         Crime is up 30% since 2017. Victims deserve better …
+         <span class="c">(14 paragraphs, 3 table rows → 41 sentences)"</span></span>
+extraction_method = tier-1:readability@1
+tier2_fallback = false
+
+<span class="c">// caption lane, Tier-2</span>
+media_anchor = { start_s: 412, end_s: 419,
+                 deep_link: "…watch?v=…&amp;t=412&amp;end=419" }
+transcript_tier = publisher-auto        <span class="c">// kind:"asr" observed on the track</span>
+caption_quality_flag = true</pre>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">ING-R2</span><span>One reader serving every kind of page badly is caught by tests for each format, including awkward pages, and by counting the fallbacks per source.</span></div>
+          <div><span class="k2">ING-R8</span><span>Damaged encoding is caught by tests that compare bytes exactly: macrons, text escaped twice, broken markup, and a page whose escaping is correct and must still be read.</span></div>
+          <div><span class="k2">ING-R13</span><span>Missing provenance is caught by checking every record against a fixed shape before it is stored, and by database rules that refuse a record without it.</span></div>
+          <div><span class="k2">ING-R14</span><span>A whole source flipping to the harder reader is caught by watching that count against its normal range.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 3 ══════════════ -->
+<article class="stage" id="s3">
+  <div class="stage-head">
+    <div class="num">3</div>
+    <div>
+      <h3>Working out who said it</h3>
+      <p class="lede">Some sentences are a person's own words. Others are the newsroom writing. Only someone's own words can be checked.</p>
+      <p class="src">ADR-0019 · INGESTION §2.9 · TRIAGE §1</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the article's sentences, and the kind of publication it is</span>
+    <span class="chip out">Produces: for each sentence, whose words it is and whether we may check it</span>
+    <span class="chip stop">Never: guessing who said something</span>
+  </div>
+  <div class="body">
+    <div class="callout warn" style="margin-bottom:14px"><strong>Why this step exists.</strong> In an early run we published a verdict about a sentence a journalist had written themselves. That is not our job — we check what people in public life say, not how a newsroom writes. So before anything is read for checking, we work out whose words each sentence is.</div>
+    <h5 style="margin-bottom:8px">Whose words is it?</h5>
+    <table>
+      <thead><tr><th>Whose words</th><th>Example</th><th style="width:150px">Can we check it?</th></tr></thead>
+      <tbody>
+        <tr><td>A person we can name</td><td>“Crime is up 30%,” the Minister said.</td><td><strong>Yes</strong></td></tr>
+        <tr><td>An opinion writer, in their own voice</td><td>“This policy will fail,” in a column.</td><td><strong>Yes</strong>, if it is a factual claim about politics.</td></tr>
+        <tr><td>The newsroom's own writing</td><td>“The Department also works on international policy…”</td><td><strong>No</strong> — we note it and leave it alone.</td></tr>
+        <tr><td>A quotation with nobody we can identify</td><td>“We were never told,” a spokesperson said.</td><td><strong>No</strong> — we never guess.</td></tr>
+      </tbody>
+    </table>
+    <h5 style="margin:16px 0 8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>Where the page already tells us, we use that. An official parliamentary transcript marks who was speaking and video captions mark when each line was said — that is the record, not a guess.</li>
+      <li>Otherwise we read the sentences in order and decide whose words each one is.</li>
+      <li>We note only the name the text itself gives. We do not fill in party, job title or any kind of confidence score.</li>
+      <li>We record <em>how</em> we decided, because “the transcript tells us” and “a model read it” are different claims, and the public page says which one was used.</li>
+      <li>If we cannot tell, we do not guess. The sentence is recorded and never checked.</li>
+      <li>We count how many sentences survive this step for each source. If that count collapses it looks exactly like a healthy source producing nothing — so it raises a warning.</li>
+    </ol>
+    <details data-depth="1"><summary>The four classes, and how the kind of publication changes the rule<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <table>
+          <thead><tr><th>Class</th><th>What it means</th><th style="width:150px">Can it become a claim?</th></tr></thead>
+          <tbody>
+            <tr><td><code>quoted-actor</code></td><td>Someone else's words, with a speaker we can name. The quotation marks may open in one sentence and the speaker's name may appear in the next, so we read the sentences around it.</td><td><strong>Yes</strong>, if the person is in scope.</td></tr>
+            <tr><td><code>author-claim</code></td><td>The author of an opinion or analysis piece asserting something in their own voice. This class is never available in a news report.</td><td><strong>Yes</strong>, if it is a factual claim about politics.</td></tr>
+            <tr><td><code>outlet-prose</code></td><td>The newsroom's own writing: narration, summary, background. A reporter's sentence that happens to contain a number is still the newsroom's writing.</td><td><strong>No.</strong> We record it and leave it alone.</td></tr>
+            <tr><td><code>unresolved</code></td><td>A quotation with nobody we can identify, or one that genuinely could be two people.</td><td><strong>No.</strong> We never guess.</td></tr>
+          </tbody>
+        </table>
+        <h4>The kind of publication decides the rule</h4>
+        <table>
+          <thead><tr><th style="width:160px">Kind of publication</th><th>Whose words can become claims</th></tr></thead>
+          <tbody>
+            <tr><td>Press release</td><td>The body that published it. Everything it forwards stays eligible.</td></tr>
+            <tr><td>News report</td><td>Quoted people who are in scope, and nobody else.</td></tr>
+            <tr><td>Opinion or analysis</td><td>The author's own political claims, plus anyone the piece quotes.</td></tr>
+            <tr><td>Transcript</td><td>The person speaking in that turn.</td></tr>
+            <tr><td>Institutional post</td><td>The institution itself.</td></tr>
+          </tbody>
+        </table>
+        <p class="note">In scope means elected politicians, parties and candidates, officials speaking for the government, and the institutions we follow. Journalists and newsrooms are sources of quotation, never claimants.</p>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Doing it by hand — and the two rules that never guess<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li>Use the page's own structure wherever it has one. A parliamentary transcript marks who was speaking. Video captions mark when each line was said. A press release is written by the body that published it. None of these needs a judgement call, so none of them gets one, and we record that we used the record rather than a reader.</li>
+          <li>Where there is no structure, read the sentences in order, in batches of at most 20 sentences or 6000 characters. If a batch comes back in a shape we cannot read, retry it at half the size before failing the whole document.</li>
+          <li>For a quotation, write down only the name the text itself gives. Do not fill in the party, the job title, or a confidence score. Nothing has yet worked out who that person is.</li>
+          <li>Record how each sentence was decided. "The transcript tells us" and "a model read it" are different claims, and the public page has to say which one it was.</li>
+          <li>If the decision is missing, or the method is missing, or the kind of publication is missing, the claim cannot be published. That is deliberate: no record means no page.</li>
+        </ol>
+        <div class="callout"><strong>Two rules do the real work here.</strong> Knowing who said something decides only whether a sentence may be checked. It never decides what the check finds. And the check itself never sees a person to reason about: it gets a yes-or-no flag and a name the text gave.</div>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — narration and quotation in one article<span class="tag">example</span></summary>
+      <div class="dbody">
+        <table>
+          <thead><tr><th>Sentence from the RNZ article</th><th style="width:150px">Class</th><th style="width:96px">Candidate?</th></tr></thead>
+          <tbody>
+            <tr><td>"MFAT also played a key role on international policy and diplomacy…"</td><td><code>outlet-prose</code></td><td>No — excluded</td></tr>
+            <tr><td>"Crime is up 30% since 2017," the Minister said.</td><td><code>quoted-actor</code></td><td><strong>Yes</strong></td></tr>
+            <tr><td>"We inherited a mess," a spokesperson said.</td><td><code>unresolved</code> — no name</td><td>No — never guessed</td></tr>
+          </tbody>
+        </table>
+        <p class="mini">We count, per source, how many sentences survive this step. That count is a useful warning sign. If it collapses, the source looks healthy while producing nothing worth checking — the same picture as a feed that answers with no items.</p>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>What can go wrong, and where this stands today<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">ING-R15</span><span>The newsroom's own writing being checked as a claim is caught by a fixture in which both the narration and a quotation assert something. Only the quotation may become a claim.</span></div>
+          <div><span class="k2">ING-R16</span><span>A quotation attributed to the wrong person is caught by fixtures covering the real cases: attribution inside one sentence, across two sentences, an unattributed pull-quote, an opinion writer's own claim, transcript markup, and a forwarded press-release line. A quotation with no identifiable speaker is never promoted.</span></div>
+          <div><span class="k2">ING-R17</span><span>A source quietly producing no eligible sentences is caught by counting, per source, how many sentences survive this step. That number leaving its normal range raises an alert.</span></div>
+        </div>
+        <div class="callout warn"><strong>Where this stands.</strong> The reader that makes this decision is built, and it runs on the live source. Working out the kind of publication from the text is <em>not</em> built; each source declares what it is. Until a source's records carry a complete decision, the site serves none of them, and we read them separately. That is the gate working, not the site breaking.</div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 4 ══════════════ -->
+<article class="stage" id="s4">
+  <div class="stage-head">
+    <div class="num">4</div>
+    <div>
+      <h3>Not checking the same thing twice</h3>
+      <p class="lede">An article fetched twice does not become two articles. A claim made again does not become a second verdict.</p>
+      <p class="src">INGESTION §2.8, §3.1 · TRIAGE §2.4 · CROSS-CUTTING §6 · STORE §2.2</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the item's address, the source's own item number, and a code for its contents</span>
+    <span class="chip out">Produces: either a genuinely new item, or a note that we have seen this one again</span>
+    <span class="chip stop">Never: merging two similar-but-different claims into one</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>Every saved item gets a code based on its contents, plus its web address and the source's own item number.</li>
+      <li>If any of those match something we already hold, we do not save a second copy — we simply note that we saw it again.</li>
+      <li>For claims, we look for a near-match on what the claim is actually about — using a comparison of the claim's wording, not a hand-built key. A claim that appears again is recorded as said again, by whom, where and when, rather than starting a second check.</li>
+      <li>But if two similar claims differ in who said them, in the period, or in what they were arguing for, they stay separate. Merging them would lose a real instance of the claim.</li>
+      <li>Nothing we publish is ever withdrawn, so the collection only grows. Running any step again must produce the same result, never a duplicate.</li>
+    </ol>
+    <details data-depth="1"><summary>Two different comparisons at two different levels<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <table>
+          <thead><tr><th style="width:152px">What we compare</th><th>What we compare on</th><th>What a match means</th></tr></thead>
+          <tbody>
+            <tr><td><strong>The document</strong><br><span class="mini">happens here</span></td><td>The source's own item id, the address, and a code for the contents.</td><td>No second copy. We update the note of when we last saw it. This is the only comparison that has to happen at this step, and the contents code is unique in the database, so a retry cannot produce a duplicate.</td></tr>
+            <tr><td><strong>The claim</strong><br><span class="mini">happens here and in the next step</span></td><td>A near-match search over the claim's wording.</td><td>We note that the claim was said again, in that place, on that date. It does not become a second item waiting to be checked. This step prepares the comparison; it does not merge anything.</td></tr>
+            <tr><td><strong>The claim's identity</strong><br><span class="mini">checked when we store it</span></td><td>The sentence, the words around it, and the kind of claim, hashed together.</td><td>Running the same work again finds the claim we already made instead of making a new one. This is a different thing from the near-match search above: it is exact, and it is what makes re-running safe.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn"><strong>A near match is a question, not a merge.</strong> If two claims are similar but differ in who said them, in the period, or in what they were arguing for, they stay separate. Merging them would swallow a real instance.</div>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Doing it by hand — and why running it twice is safe<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li>Look for the item by its own id, then by its address, then by its contents code. If any of them match, stop. Update the time we last saw it, and the version of the process that read it.</li>
+          <li>If nothing matches, save the item. Save a separate record for each part of a document, but only where the document really has parts: caption turns or transcript turns.</li>
+          <li>Work out the claim-level matching inputs and pass them on. Merge nothing at this step.</li>
+          <li>Pass on the document record, how we extracted it, whose words we think each sentence is, and the matching inputs. Never pass on a finished verdict. Never pass on a name for the check to reason about.</li>
+        </ol>
+        <div class="callout"><strong>Running it again must change nothing.</strong> Any source can be read a second time, and doing so must produce the same set of claims: no duplicates, at most a new note that a claim was said again. We test this directly, because the failure would cost twice and leave near-identical claims in the record.</div>
+        <p class="note">A claim cannot be taken back. The identity check cannot remove a claim that a later run would not make, so the record grows by everything any run has found. For a system whose verdicts are public and permanent, that is the right direction.</p>
+      </div>
+    </details>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">ING-R5 / STO-R13</span><span>Duplicates on a re-run are caught by fixtures: identical copies collapse on the item id or the contents code, and reading the same fixture twice leaves one document, not two.</span></div>
+          <div><span class="k2">ING-R6</span><span>Two genuinely different claims being merged is caught by the same fixtures: identical copies collapse, and claims that are merely similar must stay apart.</span></div>
+          <div><span class="k2">STO-R4</span><span>A search index going stale after a bulk load is caught by loading fixtures, applying the migrations, and checking that near-match searches still find their neighbours.</span></div>
+          <div><span class="k2">STO-R11</span><span>The matching key changing meaning between versions is caught by pinning a known pair of repeated claims. Any change that stops them matching shows up as something a reviewer reads.</span></div>
+          <div><span class="k2">CRO-R9</span><span>A re-run creating duplicates is caught by a double-run test that asserts the same counts and the same ids.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 5 ══════════════ -->
+<article class="stage" id="s5">
+  <div class="stage-head">
+    <div class="num">5</div>
+    <div>
+      <h3>Deciding what is worth checking</h3>
+      <p class="lede">For every sentence we ask: could this be checked against evidence? If not, we write down why we set it aside.</p>
+      <p class="src">TRIAGE §2 · ADR-0004, ADR-0008, ADR-0019</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the sentences that survived the “whose words” step</span>
+    <span class="chip out">Produces: claims worth checking, each with its kind and its context — plus a record of everything set aside</span>
+    <span class="chip stop">Never: a verdict, or a confidence score</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li><strong>Checkable</strong> means a specific factual statement: a number, a quotation, or a claim resting on a document.</li>
+      <li><strong>Not checkable</strong> means opinion, rhetoric, questions, procedural talk, or satire. Satire is deliberately set aside, never “checked”.</li>
+      <li>A promise about the future is not checkable as a fact. It can only be checked later, as “did they do what they said”.</li>
+      <li>We also work out what kind of claim it is. That does not pick the check — the next step builds the plan — but it decides which checks the plan is required to consider.</li>
+      <li>We note what the claim was arguing for — taken only from the words around it, never from who said it.</li>
+      <li>Every sentence we set aside is kept, with its reason. Those records are how we measure what we might have missed.</li>
+      <li>Long articles are read in batches, so a very long piece cannot quietly be half-read.</li>
+    </ol>
+    <div class="callout">“Is this checkable?” is a judgement, and it is made by an AI model. We measure how often it gets that right and publish the number, rather than pretending the judgement is exact.</div>
+    <details data-depth="1"><summary>What this step does, one thing at a time<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li><strong>Split the sentences.</strong> We cut the text into sentences with a fixed rule, not a model. For captions the cut has to keep each sentence attached to its place in the recording, because automatic captions often have no punctuation to cut on.</li>
+          <li><strong>Ask whether each sentence is checkable.</strong> The answer is one of three. Checkable. Not checkable, meaning opinion, rhetoric, procedure or satire. Or a promise, which cannot be checked yet. Satire is set aside and never checked. A promise can only be checked later, as "did they do what they said".</li>
+          <li><strong>Work out what kind of claim it is.</strong> This does not pick the check — the plan does, in the next step. It decides which checks the plan is <em>required</em> to consider: a number claim must have the figures check decided on, a quotation must have the recording check decided on.</li>
+          <li><strong>Note the claim's context,</strong> from the words around it. Those notes decide which alternative readings matter later, so a mistake here reaches the verdict. They are listed below.</li>
+          <li><strong>Write down every sentence we set aside,</strong> with the reason. Those records are how we measure what we might have missed.</li>
+        </ol>
+        <h4>Long documents are read in batches</h4>
+        <ul class="plain">
+          <li>At most 20 sentences or 6000 characters at a time, whichever comes first.</li>
+          <li>If a batch comes back in a shape we cannot read, we retry it at half the size before failing the document.</li>
+          <li>The count of sentences read covers the whole document. A document that was only partly read can never be recorded as fully read, and a batch that still fails stops the run instead of quietly shrinking what we claim to have looked at.</li>
+          <li>If two batches disagree about which model answered them, the run fails rather than recording the first batch's model for all of them.</li>
+          <li>A response cut off by a length limit is recorded as cut off, not as "the model did not answer".</li>
+        </ul>
+      </div>
+    </details>
+    <details data-depth="1"><summary>The notes we keep about a claim’s context<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <table>
+          <thead><tr><th style="width:196px">Note</th><th>Where it comes from, and what it changes</th></tr></thead>
+          <tbody>
+            <tr><td>Where it was said</td><td>The document's own record. The venue and the occasion. Not inferred.</td></tr>
+            <tr><td>The topic</td><td>Read from the surrounding words. Seeds the questions we search for, and the topic pages on the site.</td></tr>
+            <tr><td>What it was arguing for</td><td><strong>Read from the surrounding words only.</strong> This decides which alternative readings count as relevant, and it produces the "as deployed" line on the page.</td></tr>
+            <tr><td>Which way it leans</td><td>Whether the surrounding words frame the situation as a problem or as a success. Left blank when it is not clear.</td></tr>
+            <tr><td>The speaker's own caveats</td><td>Any qualification the speaker attached, such as "up from a low base". These stop a fair statement from looking misleading.</td></tr>
+            <tr><td>The words around the claim</td><td>Kept word for word. This is the record a reader can check.</td></tr>
+          </tbody>
+        </table>
+        <ul class="plain">
+          <li>Every note is optional, and every one is stored as it was found.</li>
+          <li>A claim with no notes at all still gets checked. The page simply shows no "as deployed" line.</li>
+          <li>A sentence with no surrounding words gets no context pass at all, and the notes stay empty. A missing window means absent, never "work it out from the claim".</li>
+          <li>None of these may be filled in from who said it, which party they belong to, or what they said before.</li>
+        </ul>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — the 30% sentence, sifted and read<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre>[chunk 1 of 3 — 20 sentences, 4 812 chars]
+
+call <span class="k">triage-checkability</span>
+  in : { sentences: [{id:"s7", text:"Crime is up 30% since 2017."}, …] }
+  out: { sentenceId:"s7", checkable:<span class="s">true</span>,
+         claimType:<span class="s">"statistical"</span>, mode:<span class="s">"stat-grid"</span> }
+       { sentenceId:"s8", checkable:<span class="s">false</span>,
+         rejectionClass:<span class="s">"opinion"</span> }
+
+call <span class="k">triage-context</span>   <span class="c">// one per checkable claim that has a window</span>
+  in : { claim:"Crime is up 30% since 2017.",
+         window:"…post-Cabinet press conference, 8 September 2026.
+                 The Minister said the package would …" }
+  out: { speechContext:"post-Cabinet press conference",
+         policyTopic:"justice",
+         attachedProposal:"tougher sentencing package",
+         argumentDirection:"problem",
+         contextQualifiers:null }
+
+claim_key  = sha256("Crime is up 30% since 2017." | window | "statistical")
+triage_record = { sentencesRead: 41, checked: 3, setAside: 38, held: 0 }</pre>
+        <p class="mini">For every sentence we set aside we keep the sentence itself, the words around it, the reason we set it aside, and the versions of everything that ran. At every full test run, people label a sample of these records and answer one question: should this have been checked? That is how we get a number for what we are missing, instead of assuming it.</p>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>Where the design and the code differ — then what can go wrong<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="callout warn"><strong>Where the design and the code differ.</strong> The design showed two separate steps: one to decide the kind of claim, and one to build a matching key for it. In the code, deciding the kind happens inside the same call as the checkability question — and the key-building step has since been <em>deleted</em> rather than left unwired. Nothing ever read the key, and the only two things anything took from it were the claim's period and its number, which are now read properly in the figures check itself. A test pins which steps this part of the process calls, and which one it does not, so switching typing on is a decision rather than an accident.</div>
+        <div class="callout warn"><strong>The other gap is repetition.</strong> Our models ignore the settings meant to make them repeatable, so the same sentence can be judged differently on two runs. That is why the final answer is decided twice before it is published.</div>
+        <div class="kv">
+          <div><span class="k2">TRI-R1 / R2</span><span>Checking too much — opinions, satire, promises — is caught by fixtures that must not become claims. Missing real claims is caught by having people label a sample of the sentences we set aside at every full test run, and reporting the result as a number.</span></div>
+          <div><span class="k2">TRI-R3</span><span>Typing a claim wrongly is the costliest mistake here. A number claim typed as something else never makes the figures check required, so the strongest verdict becomes unreachable without anything looking wrong. Fixtures assert the type, and the plan's required checks follow from it.</span></div>
+          <div><span class="k2">TRI-R5 / R6</span><span>A wrong context note changes which alternative readings matter. Fixtures vary the context and assert that the relevant readings change. A note filled in from identity alone must come out empty.</span></div>
+          <div><span class="k2">TRI-R7</span><span>The tidied-up version of a claim drifting from the original words is caught by keeping both, and by checking that the tidied version can be derived from the original and its window.</span></div>
+          <div><span class="k2">TRI-R11</span><span>Automatic-caption wording being treated as reviewed is caught by requiring every caption claim to carry its tier and quality flags. A missing flag fails validation.</span></div>
+          <div><span class="k2">TRI-R12 / R13</span><span>A sentence quietly disappearing on a shape error is caught by recording the failure and counting it. Reading the same document twice must produce the same claims with the same ids.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 6 ══════════════ -->
+<article class="stage" id="s6">
+  <div class="stage-head">
+    <div class="num">6</div>
+    <div>
+      <h3>Working out what this claim needs</h3>
+      <p class="lede">A claim gets a <strong>plan</strong>: the list of checks it needs. Some claims need two — a quoted number needs the quotation checked <em>and</em> the figure checked. Nobody's name or party is involved.</p>
+      <p class="src">VERIFICATION §2.1 · plan.ts · ADR-0023 (replaces ADR-0005 §2.1 mode routing)</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the claim, what it says, and the list of checks we know how to run</span>
+    <span class="chip out">Produces: the plan — every check this claim will get, and any we considered and did not run, with the reason</span>
+    <span class="chip stop">Never: a different standard for different people, or a check quietly left out</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li><strong>Look at what the claim actually says.</strong> Does it state a number? Does it quote someone? Does it rest on a document? That is all the planner is allowed to look at — never who said it, and never their party.</li>
+      <li><strong>Some things force a check.</strong> A claim that states a number must have the figures check decided on. A claim that quotes someone must have the recording check decided on. A claim that rests on a document must have that document check decided on. We may still decide not to run one — but the decision and the reason are written down.</li>
+      <li><strong>Ask what worked before.</strong> We keep a list of the checks we know how to run, each with a note of what it can and cannot establish. For this subject, we look at which checks past plans used, and put the most-used first. That is a <em>suggestion</em>.</li>
+      <li><strong>Add anything else that is needed.</strong> The planner may add a check that is not on the list at all — including one we have never run before. The list advises; it never decides.</li>
+      <li><strong>Write the plan down and show it.</strong> Every step records which check, which version of it, why it is there, and whether it ran or was declined. The page shows the plan.</li>
+      <li><strong>Never leave out a check the claim needed.</strong> If a required check is not in the plan, the plan is refused rather than published.</li>
+    </ol>
+    <h5 style="margin:18px 0 8px">What the claim says, and the check that must be considered</h5>
+    <table>
+      <thead><tr><th style="width:290px">The claim…</th><th>The plan must consider…</th></tr></thead>
+      <tbody>
+        <tr><td>states a number over a period</td><td><strong>Comparing it with the official figures</strong> — and showing every other way those figures can be read.</td></tr>
+        <tr><td>rests on a document it names</td><td><strong>Reading that document</strong>, and checking the claim uses it the way the document does.</td></tr>
+        <tr><td>is about what someone said</td><td><strong>Comparing the wording</strong> with the recording or transcript it reports.</td></tr>
+        <tr><td>is attached to a photo, clip, event or date</td><td><strong>Checking that attachment</strong> against the record. <em>Practice set only.</em></td></tr>
+        <tr><td>is none of the above</td><td><strong>Researching it on the open web</strong> — the floor every plan falls back to, and the most common check.</td></tr>
+      </tbody>
+    </table>
+    <ul class="plain" style="margin-top:14px">
+      <li><strong>The same claim gets the same treatment whoever says it.</strong> The planner cannot see the speaker, and it never looks at the claim's wording for tone or framing — only for what kind of thing the claim is.</li>
+      <li><strong>We say which checks ran and which we declined.</strong> A check that was considered and not run is printed with the reason. Staying silent about it would read as though we had done it.</li>
+      <li><strong>There is no fixed set of five.</strong> The checks are a list we keep and add to. Early on it holds the five below; when a claim needs a kind of check we have not built, the plan can name it anyway, and the gap is visible rather than hidden behind a weaker check.</li>
+    </ul>
+    <div class="callout warn"><strong>One limit, stated openly.</strong> Nothing here can prove that one thing <em>caused</em> another. Our checks can show that two things changed at the same time; not that one caused the other. Where a claim is about cause, the page says so instead of letting a timing finding look like a causal one.</div>
+    <details data-depth="1"><summary>Doing it by hand — and why the decision is kept<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li>Work out the claim's subject, from the claim's own words. That subject, not the claim text, is what the suggestions are keyed on — so two claims about the same subject get the same suggestions whatever they say about it.</li>
+          <li>Note what the claim does: states a number, quotes someone, rests on a document, was deployed in support of a proposal. Those are the features that force a check to be considered.</li>
+          <li>Look up which checks past plans for this subject used, most-used first. Keep that as a suggestion.</li>
+          <li>Build the plan: the required checks first, then the suggestions, then anything the planner wants to add. Mark each one as to run or declined, and give a reason for every decline.</li>
+          <li>Check the plan against the rule: every required check must appear. Refuse the plan if one is missing, rather than publishing it.</li>
+          <li>Store the plan with the evidence record, and record which version of the check list suggested it, so the run can be reproduced.</li>
+        </ol>
+        <div class="callout"><strong>The site cannot work this out for itself.</strong> Whether a number claim could actually be checked against official figures depends on a lookup the reader cannot see, so the plan is stored and shown on the page. A page that guessed would be publishing a claim about which checks ran when nothing recorded one.</div>
+        <div class="callout warn"><strong>No check can establish cause.</strong> About one claim in nine in our standard test set is about cause. The checks we have test numbers, documents, quotations and attachments. None of them can show that one thing made another happen. A claim about cause is planned onto open-web research, where any timing evidence is reported as timing and the causal part is left unassessed. Closing that gap means <em>adding a check</em> — comparing the trend before the policy started, and against a similar group it never touched — not re-routing the claim. The page says so in the meantime.</div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 7 ══════════════ -->
+<article class="stage" id="s7">
+  <div class="stage-head">
+    <div class="num">7</div>
+    <div>
+      <h3>Checking it</h3>
+      <p class="lede">The checks we can run. Each one says what it can establish, and what it cannot — and a claim can be checked more than one way.</p>
+      <p class="src">VERIFICATION §2.2–2.8 · ADR-0005, ADR-0007, ADR-0018, ADR-0020, ADR-0023</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the claim, what it was arguing for, and the official sources or recordings it can be matched against</span>
+    <span class="chip out">Produces: the evidence, the figures we computed, our written reasoning, and the outcome of the second-reasoning check</span>
+    <span class="chip stop">Never: an opinion about the person who said it</span>
+  </div>
+  <div class="body">
+    <p class="mini" style="margin-bottom:8px">These five are the checks we have built so far — the starting list, not the whole of what is possible. A plan can name a check that is not here, and the list grows as we learn what claims need.</p>
+    <table>
+      <thead><tr><th style="width:172px">The check</th><th>What it does</th><th style="width:270px">What it cannot show</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Official figures</strong></td><td>Checks the number against the official figures for it, and shows every reading of those figures — including the ones that disagree with the claim.</td><td>That one thing caused another. It can show two things changed at the same time.</td></tr>
+        <tr><td><strong>The source it cites</strong></td><td>Reads the document the claim rests on, and checks whether the claim uses it the way the document does.</td><td>Anything about a document we cannot get. If it is paywalled, the page says the claim was checked against its own wording and nothing else.</td></tr>
+        <tr><td><strong>The recording</strong></td><td>Checks the claim's wording against the recording or transcript it reports — and says first whether the words were found at all.</td><td>A quotation that appears in no published record. If the words cannot be found, the page says so — it does not say the person was misreported.</td></tr>
+        <tr><td><strong>The context it carries</strong></td><td>Checks whether a photo, clip or document really comes from the event it is attached to. <em>Practice set only.</em></td><td>Why someone attached it wrongly. The record can show where something comes from; it cannot show anyone's intent.</td></tr>
+        <tr><td><strong>Open-web research</strong></td><td>Turns the claim into questions, searches for published evidence, and reports what it found — including what it set aside and where it stopped.</td><td>A fact nobody has published, or causation. No evidence is reported as no evidence, never as proof the claim is false.</td></tr>
+      </tbody>
+    </table>
+    <h5 style="margin:18px 0 8px">What applies to every check</h5>
+    <ul class="plain">
+      <li><strong>Every claim gets a real search before we give up.</strong> A check that finds nothing does not simply stop — it keeps going, with more research, before we will say we could not settle it. “We could not find enough evidence” is meant to be expensive to reach, so that it means we looked hard.</li>
+      <li><strong>A decisive answer needs proper sourcing.</strong> Either an official record, or at least two independent sources. One blog post is never enough.</li>
+      <li><strong>We search for evidence the claim is wrong</strong>, not only for evidence that supports it. At least one search is always aimed at refuting the claim.</li>
+      <li><strong>We never take a search engine's top result as the answer.</strong> In an early run we “verified” a claim about policing using a politician's Wikipedia page — a page that did not mention the claim. So some kinds of sources can never be the evidence for a verdict.</li>
+      <li><strong>For numbers we compute the alternatives ourselves.</strong> Not just the figure the speaker used, but the same figure a fixed set of other ways — different start dates, per person rather than in total, different comparison groups — and we show all of them. That set of ways is fixed in advance and identical for every speaker, so nobody is held to a standard invented after the fact.</li>
+      <li><strong>A number can be true and still mislead.</strong> We have a separate verdict for that: “accurate but incomplete”. A true but selective number is never called false.</li>
+    </ul>
+
+    <details data-depth="1"><summary>7a · Official figures <span class="mono" style="color:var(--faint);font-weight:600">(stat-grid)</span><span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note"><strong>What this check cannot establish:</strong> that one thing caused another. It can show that two things changed at the same time. It cannot show that one caused the other.</p>
+        <ol class="steps">
+          <li><strong>Read the claim's period and its number.</strong> Two things are taken from the claim's own words: the period it is about, and the size of the change it asserts. Both are read as <em>structured</em> values, not as free text — the period as a start year and an end year, the number as a kind and a value. If the claim states a change but the number cannot be read, we stop here and report that we could not read it, rather than grading the claim on direction alone.</li>
+          <li><strong>Look for what we already hold.</strong> If the same figures are already in our evidence store, use those, with their recorded dates. If they are not, fetch the series from the official source named for that subject. A fetch resumes from what we already hold; it does not start again.</li>
+          <li><strong>Save the series with its own date.</strong> Every series is stored with the date the data was published, not the date we fetched it, plus a snapshot of the source page. <strong>The numbers in the claim's own press release are never the evidence.</strong> We go to the official series and work the figure out ourselves.</li>
+          <li><strong>Work out the alternative readings.</strong> The ways of counting are fixed in advance and identical for every speaker. We work out four things: the same period the claim used; the same period starting two years later; the same change per person rather than in total; and every year-on-year change in the series.</li>
+          <li><strong>Ask the model which readings are relevant, and nothing else.</strong> The model marks which of the readings we computed bear on how the claim was used. It never invents a reading and never does arithmetic. A missing population figure leaves the per-person reading blank rather than producing a fake rate.</li>
+          <li><strong>Compare the claim's number with the readings, using fixed limits:</strong>
+            <table style="margin-top:8px">
+              <thead><tr><th>What we find</th><th class="num-col">What we publish</th></tr></thead>
+              <tbody>
+                <tr><td>No official series covers this claim</td><td class="num-col"><span class="verdict-pill p-nei">not enough evidence</span></td></tr>
+                <tr><td>No number in the claim, and every year-on-year change in the window rises</td><td class="num-col"><span class="verdict-pill p-sup">supported</span></td></tr>
+                <tr><td>No number in the claim, and the direction is not consistent</td><td class="num-col"><span class="verdict-pill p-nei">not enough evidence</span></td></tr>
+                <tr><td>We cannot compute a reading for the period the claim used</td><td class="num-col"><span class="verdict-pill p-nei">not enough evidence</span></td></tr>
+                <tr><td>The number runs the same way and is within 10 percentage points of the reading</td><td class="num-col"><span class="verdict-pill p-sup">supported</span></td></tr>
+                <tr><td>The number runs the other way, or is more than three times the reading</td><td class="num-col"><span class="verdict-pill p-ref">refuted</span></td></tr>
+                <tr><td>The right direction, but the number is inflated</td><td class="num-col"><span class="verdict-pill p-inc">accurate but incomplete</span></td></tr>
+              </tbody>
+            </table>
+            <p class="mini" style="margin-top:8px">Both limits are fixed numbers written into the code. A true but selective number is never called false. "Does not match the evidence" is for a number that matches no reading at all. "Accurate but incomplete" is for a number that is real but leaves out the reading that changes the impression.</p>
+          </li>
+          <li><strong>Show the "as deployed" line only when the context note exists.</strong> If the surrounding words do not say what the claim was arguing for, the page shows nothing there. It is never filled in from who said it.</li>
+        </ol>
+        <div class="callout"><strong>Why the model is kept away from the arithmetic.</strong> The fair objection to statistical fact-checking is that the checker invents its standard after seeing the claim. Here the readings are fixed and versioned, the arithmetic is plain logic with exhaustive tests, and the model only points at readings that already exist. The arithmetic is checked against a hand-computed example, reading by reading.</div>
+        <p class="mini">The page leads with the figures, then a table of the alternative readings, and shows the ways of counting that were used. That includes the readings that disagree with the claim.</p>
+      </div>
+    </details>
+
+    <details data-depth="1"><summary>7b · The source it cites <span class="mono" style="color:var(--faint);font-weight:600">(citation-check)</span><span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note"><strong>What this check cannot establish:</strong> anything about a document we cannot get. If the cited source is paywalled or unreachable, the page says the claim was checked against its own wording and nothing else.</p>
+        <ol class="steps">
+          <li><strong>Fetch the cited document from the server.</strong> If it is paywalled, the claim is checked against its own wording only. We never work around a paywall.</li>
+          <li><strong>Compare the claim with the document, within limits.</strong> Does the document say what the claim says it says: the numbers, the period, the group, the direction. This is a careful reading task rather than open-ended research, so it runs on a stronger model and is checked against a fixture set.</li>
+          <li><strong>Write down how closely the check binds.</strong> If the citation is doing real work in the claim's argument, the check binds tightly. If the citation is decorative, it does not. For a paywalled citation no comparison happened at all, so this is left blank rather than filled in.</li>
+          <li><strong>Keep the citation in its place.</strong> The cited document is what we check the claim against. It is never the evidence for the claim. If an institution's own statistic is a number claim, it is checked against the official figures instead. A campaigning group's numbers never decide a verdict.</li>
+          <li><strong>State the result as claim against source.</strong> When they disagree, the disagreement is the finding. It is never written up as a remark about the person who said it.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details data-depth="1"><summary>7c · The recording <span class="mono" style="color:var(--faint);font-weight:600">(quote-fidelity)</span><span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note"><strong>What this check cannot establish:</strong> a quotation that appears in no published record. If we cannot find the words, the page says so. It does not say the person was misreported.</p>
+        <ol class="steps">
+          <li><strong>Start from what we hold.</strong> The claim carries its place in the recording, the kind of caption track, and the timestamps of the line.</li>
+          <li><strong>Compare the claim's wording with the stored caption text,</strong> not with the audio. We make no recordings of our own. Audio-only material is out of scope, and the methodology page says so.</li>
+          <li><strong>Expect the known caption errors.</strong> Automatic captions confuse similar-sounding words, drop punctuation and join sentences wrongly, and format numbers inconsistently. Māori words are often misread. A caption error is not a misquotation, and the check must not report one.</li>
+          <li><strong>Carry the caution onto the page.</strong> A number quoted in a caption is checked against the official figures, never against the caption. A claim whose exact wording matters is published as "verification limited to the quoted claim". A claim from an automatic track carries a note that the wording rests on unreviewed speech recognition.</li>
+          <li><strong>Build the link from the stored timestamps only.</strong> If a claim cannot be placed in the recording, it is published as an open question rather than as a verdict with a link that goes nowhere.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details data-depth="1"><summary>7d · The context it carries <span class="mono" style="color:var(--faint);font-weight:600">(provenance · practice set only)</span><span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note"><strong>What this check cannot establish:</strong> why someone attached a clip or an image to the wrong event. The record can show where something comes from. It cannot show what anyone intended.</p>
+        <ul class="plain">
+          <li><strong>It only runs on the practice set.</strong> The code refuses to run it on anything else. There is no schedule, no health check and no alerting for it, and we do not claim it can find false context on live material.</li>
+          <li><strong>How it works.</strong> We take what the post claims about where the material comes from, then look for the original: when it was first published, by whom, and where. We compare the claimed context with the recorded one.</li>
+          <li><strong>What it can find.</strong> "False context" is a finding in its own right: the content is genuine, but the when, the where or the who is wrong. The page shows the true context beside the claimed one.</li>
+          <li><strong>What it produces for now.</strong> Numbers per group of claims, and a demonstration. The methodology page says exactly that.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details data-depth="1"><summary>7e · Open-web research — the capped catch-all<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note"><strong>What this check cannot establish:</strong> a fact nobody has published, or causation. It reports what is published and where the searching stopped. Finding no evidence is reported as finding no evidence, never as proof that the claim is false.</p>
+        <p class="mini" style="margin-bottom:6px">This is the least reliable check, so it is capped, labelled, and the most obviously open to challenge. The rules below are what stop "we could not verify this" from meaning "we did the minimum and gave up".</p>
+        <ol class="steps">
+          <li><strong>Every claim gets a real search before we give up.</strong> If the evidence we hold cannot settle a claim, it gets a proper research pass before any verdict. A check that finds nothing usable keeps going with a search rather than stopping short. And a citation check with no cited document never runs at all.</li>
+          <li><strong>Break the claim into questions, not search terms.</strong> Up to six separate questions, each with one or two searches. A claim sentence makes a poor search; the things it is about make good ones. We do not add a country to the search unless the claim is about that country. If the questions cannot be worked out, the claim itself becomes the question so that the search still runs.</li>
+          <li><strong>Search what we hold first, then the web.</strong> We search our own stored evidence before going out. We use search engines that let us control the query, because the evidence record has to be reproducible. Every query and every result address is written onto the evidence record.</li>
+          <li><strong>Decide what counts as a source, in two passes.</strong> A fixed list removes some sources straight away: known campaigning groups, foreign government sites, and anything not served over https. Everything that survives is classified in one batch by an AI model as official, academic, mainstream media, sector body, or unknown, with a reason recorded. Some sources can never be the evidence for a verdict, whatever they would score: encyclopaedia pages, social posts, link aggregators, and the claimant's own biography.</li>
+          <li><strong>Require a real source for a decisive answer.</strong> To publish "supported" or "does not match the evidence", we need a source at sector-body level or better. Below that, the honest answer is that we could not verify it — or, where the only live question is whether someone said it, a finding about who said it.</li>
+          <li><strong>Look for the other side, and look twice.</strong> For a factual claim we need either one official record for the right country that states the figure, or at least two independent sources from different places. One non-official source is not enough, and commentary about a related number is not enough either. At least one of the searches must be aimed at showing that the claim is wrong. A search that only looks for agreement is not verification.</li>
+          <li><strong>Assess what we have and chase what is missing.</strong> The researcher reads the results, says what is still missing, and issues searches aimed at those gaps rather than repeating what we already ran. It reports whether the evidence is enough, its current reading, and a confidence number.</li>
+          <li><strong>Stop at the cap, and say that we did.</strong> The search has a fixed budget of twelve searches. If we hit it, the evidence record shows that we stopped at the cap rather than running out of evidence. Finding nothing at all leaves the confidence at zero. A confident answer from a model that saw no evidence is the exact thing this prevents.</li>
+        </ol>
+      </div>
+    </details>
+
+    <details data-depth="2" class="ex" data-example open><summary>Worked example — the figures, worked out<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre>claim            <span class="s">"Crime is up 30% since 2017."</span>            claimType = statistical
+plan             features: category=crime-statistics · assertsNumber=true
+                 step 1  stat-grid@1        <span class="c">// required: the claim states a number</span>
+                 step 2  open-web-research@1 <span class="c">// suggested: past plans for this subject used it</span>
+                 not attempted: whether any policy caused the change
+claim parameters window   kind=since · start=2017 · end=2026 · raw="since 2017"
+                 quantity kind=percent-change · value=30 · raw="up 30%"
+series           policedata.nz · victimisations-monthly · vintage 2026-06-30
+                 archive: web.archive.org/web/2026/…
+                 population series: nz-pop-estimate, vintage 2026-06-30</pre>
+        <table class="grid-tbl">
+          <thead><tr><th>axis</th><th>variant</th><th>periods</th><th class="num-col">change</th></tr></thead>
+          <tbody>
+            <tr class="mat"><td>window</td><td>2017→2026</td><td>2017, 2026</td><td class="num-col">+11.6%</td></tr>
+            <tr><td>window</td><td>2019→2026</td><td>2019, 2026</td><td class="num-col">+13.7%</td></tr>
+            <tr class="mat"><td>per-capita</td><td>2017→2026</td><td>2017, 2026</td><td class="num-col">+1.9%</td></tr>
+            <tr><td>window</td><td>2017→2018</td><td>2017, 2018</td><td class="num-col">−4.9%</td></tr>
+            <tr><td>window</td><td>2018→2019</td><td>2018, 2019</td><td class="num-col">+3.2%</td></tr>
+            <tr><td>window</td><td>2019→2020</td><td>2019, 2020</td><td class="num-col">+4.0%</td></tr>
+            <tr><td>window</td><td>2020→2024</td><td>2020, 2024</td><td class="num-col">+5.1%</td></tr>
+            <tr><td>window</td><td>2024→2026</td><td>2024, 2026</td><td class="num-col">+4.0%</td></tr>
+          </tbody>
+        </table>
+        <pre>claim quantity   = 30        cited-window row = 11.585%
+|30 − 11.585|    = 18.4  &gt; 10 pts tolerance          → not <span class="k">supported</span>
+|30| &gt; 3 × 11.585 = 34.8 ?   30 &lt; 34.8               → not <span class="k">refuted</span>
+same sign, inflated magnitude                        → <span class="s">conflicting_cherry_picking</span>
+
+relevant readings (the model marks which ones; it never invents them):
+  relevant = [ window-2017-2026, per-capita-2017-2026 ]
+
+justification  <span class="s">"The cited window shows 11.6%, not 30%."</span>
+as_deployed    <span class="s">"deployed in support of tougher sentencing package"</span></pre>
+        <p class="mini">The reading that most weakens the claim is the per-person one: over the same period the change is about 1.9%. The number in the claim is real, and the direction is right. The verdict says exactly that.</p>
+      </div>
+    </details>
+
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">VER-R1</span><span>Arithmetic errors — a wrong denominator, an out-of-date figure, a wrong starting point — are caught because the arithmetic is plain logic. Tests cover every reading against a hand-computed example, check that the data date is not the fetch date, and recompute the figures independently.</span></div>
+          <div><span class="k2">VER-R3</span><span>The general search quietly setting the accuracy ceiling is caught by trending how well retrieval performs. A failed fetch must be recorded as a flagged, weakened result, never as a normal one.</span></div>
+          <div><span class="k2">VER-R4</span><span>A loose citation treated as binding, or a mismatch in number, period or group being missed, is caught by a fixture corpus that asserts both the verdict and how tightly the check bound.</span></div>
+          <div><span class="k2">VER-R5</span><span>A caption error reported as a misquotation is caught by fixtures covering homophones, punctuation, number formats and Māori words, each with the treatment we expect.</span></div>
+          <div><span class="k2">VER-R6</span><span>The practice-only context check being over-trusted is caught by refusing to run it outside the practice set, and by asserting the wording on the methodology page at build time.</span></div>
+          <div><span class="k2">VER-R8 / R18</span><span>Cost running away is caught by tests on the search budget, by a cost estimate that blocks an over-budget run, and by a hard cap of $25 per run.</span></div>
+          <div><span class="k2">VER-R9</span><span>A verdict published on weaker evidence without saying so is caught by an evidence-record rule: every item is either resolved or flagged as degraded, and there is no third state.</span></div>
+          <div><span class="k2">VER-R10</span><span>Picking the wrong readings as relevant is caught by fixtures with hand-labelled expectations, plus a deliberate oversample of cherry-picking cases in the full test run.</span></div>
+          <div><span class="k2">VER-R11</span><span>Getting the verdict boundary wrong in either direction is caught by cases on the edges: a selective number becomes "accurate but incomplete", a number matching no reading becomes "does not match the evidence", and thin evidence becomes "we could not verify this".</span></div>
+          <div><span class="k2">VER-R13 / R14</span><span>Working the figures out over the wrong period, or using campaigning material as evidence, is caught by round-trip tests from the claim key to the figures, and by asserting that lower-tier sources are refused.</span></div>
+          <div><span class="k2">VER-R15</span><span>A claim routed to the wrong check is caught by fixtures over claim kinds, with the decision recorded so a full test run can cross-check it.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 8 ══════════════ -->
+<article class="stage" id="s8">
+  <div class="stage-head">
+    <div class="num">8</div>
+    <div>
+      <h3>Two last checks before we publish</h3>
+      <p class="lede">Two independent checks stand between a worked-out answer and a public verdict. Either one can stop it.</p>
+      <p class="src">VERIFICATION §2.7, §2.7a · VER-R2, VER-R16 · ADR-0002, ADR-0004</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: our written reasoning and the evidence behind it</span>
+    <span class="chip out">Produces: either a published verdict, or nothing at all</span>
+    <span class="chip stop">Never: publishing when the two checks disagree</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li><strong>First check.</strong> Does our written reasoning actually follow from the evidence we cite? Every sentence of our explanation has to be supported by the source beside it.</li>
+      <li>If it does not, nothing is published — the case goes to a person to review instead.</li>
+      <li><strong>Second check.</strong> We work out the same answer twice, independently, and only publish an answer that comes out the same way both times.</li>
+      <li>If the two runs disagree, we publish nothing and record the disagreement.</li>
+      <li>If we cannot reach a verdict at all, the page says so plainly and invites corrections. That is a real outcome, not a failure.</li>
+      <li>We do not publish a confidence percentage. Nothing here measures one, and an invented number would be worse than none.</li>
+    </ol>
+    <div class="callout warn"><strong>Both checks are made by AI models, and we say so.</strong> The reasoning check catches the worst mistakes; it is not a guarantee of truth. And the two-run rule exists because our models give slightly different answers to identical input — so rather than pretending to be certain, we measure how often they disagree and publish that number.</div>
+    <details data-depth="1"><summary>How the two checks work<span class="tag">in detail</span></summary>
+      <div class="dbody">
+    <div class="twocol">
+      <div>
+        <h4>First check: does our reasoning follow from the evidence?</h4>
+        <p class="note">Every sentence of our written reasoning has to be supported by the source beside it before anything is published. This is not a spot check afterwards. It runs before publication.</p>
+        <ul class="tight" style="margin-top:8px">
+          <li><strong>One pass over the whole evidence record, not one per sentence.</strong> If the response does not give an answer for every sentence, the check has failed. It is never read as a pass. A record with a single sentence keeps the single-sentence form.</li>
+          <li>It also enforces two writing rules: nothing asserted without a source, and any arithmetic stated out loud.</li>
+          <li>It can fail for four reasons: something asserted with no source, arithmetic left unstated, a source treated as proof because it was cited, or something invented that is not in the evidence.</li>
+          <li>A failure stops publication and sends the case to a person.</li>
+          <li><strong>We say plainly what this is.</strong> The check is made by an AI model. It is measured against a set of cases that must pass and a set that must fail, and against human judgement in the full test runs. It catches the worst mistakes. It is not proof that the reasoning is correct.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Second check: do two independent runs agree?</h4>
+        <p class="note">The decision is made at least twice, and <strong>only an answer that comes out the same way both times is published</strong>. If the two runs disagree, we publish nothing and record the disagreement.</p>
+        <ul class="tight" style="margin-top:8px">
+          <li><strong>Why we do it this way.</strong> The obvious alternative does not work. Our models ignore the settings meant to make them repeatable, so the same input moved between "we could not verify this" and "supported" on different runs, while the first check passed every time. When we cannot pin the models down, we pin the decision instead.</li>
+          <li><strong>The first run is the published one.</strong> Its reasoning comes from a run whose answer matched the other runs, and the rule is easy to state.</li>
+          <li><strong>A failed call is not a disagreement.</strong> If a provider errors, that error is passed on. Counting outages as disagreement would swamp the real signal.</li>
+          <li><strong>Two runs is a floor, not a target.</strong> A single run would agree with itself by definition.</li>
+          <li>We deliberately do not do this during the earlier sifting step, which runs once per sentence per document and would multiply the main cost. We measure the variation there instead, and disclose it.</li>
+        </ul>
+      </div>
+    </div>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Why we do not publish a confidence figure<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ul class="plain">
+          <li><strong>Not reaching a verdict is a real outcome.</strong> It is not a failure. The claim is published as an open question with its evidence attached, so anyone can add to it, and the page says we could not verify it.</li>
+          <li><strong>Nothing in the system measures confidence,</strong> so we publish none. An early version wrote a placeholder figure of 0.7 into every verdict, which is how every page came to read "Confidence: 70%". That was removed. It comes back only when something actually produces a confidence value <em>and</em> that value has been checked against real outcomes. When it does, it will be small text, never a bar, a dial or a headline.</li>
+        </ul>
+        <div class="callout warn"><strong>Watch the disagreement rate.</strong> How often the two runs disagree is our best sign of whether a decision is stable enough to publish at all. It belongs next to the failure rate of the first check, on the same page of numbers.</div>
+      </div>
+    </details>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">VER-R2</span><span>The reasoning check passing things it should fail is caught by cases that must pass and cases that must fail, by comparing the check against human judgement in the full runs, and by alerting on a failure rate that is implausibly low.</span></div>
+          <div><span class="k2">VER-R16</span><span>An answer moving between runs is caught by tests in both directions: agreement publishes the first run, disagreement publishes nothing and records both answers, and an error is passed on rather than counted as a disagreement.</span></div>
+          <div><span class="k2">VER-R12</span><span>Confidence being badly calibrated is caught by edge cases around the threshold, and by a calibration table in every full run.</span></div>
+          <div><span class="k2">SIT-R6</span><span>A confidence figure appearing on a public page is caught twice: in the page's data model, and in the rendered page itself.</span></div>
+          <div><span class="k2">TRI-R10</span><span>A provider quietly changing its model is caught by comparing pinned examples on every change, so the difference shows up as something a reviewer reads.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 9 ══════════════ -->
+<article class="stage" id="s9">
+  <div class="stage-head">
+    <div class="num">9</div>
+    <div>
+      <h3>Recording the verdict permanently</h3>
+      <p class="lede">A verdict is added to, never edited. If it changes, we publish a new version showing exactly what changed and why.</p>
+      <p class="src">STORE §2.1–2.7, §4 · ADR-0002, ADR-0005</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: the verdict, the evidence, and the versions of everything that produced it</span>
+    <span class="chip out">Produces: a permanent, versioned record that cannot be silently changed</span>
+    <span class="chip stop">Never: editing or deleting a published verdict — by anyone, including us</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>We save the claim, the evidence, our written reasoning, and the versions of everything used to produce the verdict.</li>
+      <li>Every piece of evidence carries two dates: when the data was published, and when we fetched it. Both are shown on the page.</li>
+      <li>If a source later revises its figures, the record still shows exactly what the verdict relied on. A correction is a new version, never a change to the old one.</li>
+      <li>Nothing can be deleted — not even evidence we rejected. Rejections are part of the public record.</li>
+      <li>The rules are enforced by the database itself, so nobody can quietly edit history. That includes us.</li>
+      <li>From 5 to 27 November 2026 — the pre-election freeze — the system refuses to change any published verdict at all.</li>
+    </ol>
+    <details data-depth="1"><summary>The order things are written, and what each record holds<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <ol class="steps">
+          <li><strong>The claim.</strong> Its identity is the sentence, the words around it, and the kind of claim hashed together. That makes the write safe to repeat: running the same work twice finds the claim instead of adding a second one.</li>
+          <li><strong>Each piece of evidence,</strong> as its own record: which official source it came from, the name of the series, <strong>the date the data was published</strong>, the address, a snapshot of the source page, a contents code, and a version number. Fetching it again creates a new version. It never changes the old one.</li>
+          <li><strong>The evidence record for this check:</strong> which items were used, the figures we worked out, our written reasoning, and the outcome of the reasoning check. Once a verdict points at it, it is frozen.</li>
+          <li><strong>The verdict,</strong> version one: the answer, its state, the evidence record it rests on, and the versions of everything that produced it. No confidence figure, because nothing measured one.</li>
+          <li><strong>The change of state:</strong> from draft to published, with a reason. Every change is logged, including rejected evidence, which is logged and never deleted.</li>
+        </ol>
+        <h4>The states a verdict can be in</h4>
+        <pre>DRAFT → PUBLISHED → CONTESTED → VALIDATING → MUTATED → AUDIT
+                              ↘ back to PUBLISHED <span class="c">// evidence rejected, reason logged</span>
+         PUBLISHED → FROZEN  <span class="c">// 5–27 Nov 2026, enforced by the database</span></pre>
+        <p class="note">The states are part of the database, not a checklist someone follows. During the freeze window the database refuses any change to a published verdict. A contested verdict during the freeze is shown as contested and under review.</p>
+      </div>
+    </details>
+    <details data-depth="1"><summary>How “never edited” is enforced<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ul class="plain">
+          <li><strong>Each part of the system has its own permissions.</strong> The part that writes verdicts can add rows and read them. It cannot change or delete one. The site can only read. The parts that produce the ground-truth labels have their own separate area, which the pipeline cannot open.</li>
+          <li><strong>There is a second guard underneath.</strong> The database refuses an edit or a delete on every one of these tables, even for someone who had permission. Both guards are tested against a real database, including the attempt to edit a row.</li>
+          <li><strong>A correction is a new row</strong> that points at the one it replaces. If a source revises its figures, the new version is added and the old one still shows exactly what the verdict relied on.</li>
+          <li><strong>Verdicts are numbered per claim,</strong> and a change carries a stored, field-by-field list of what changed. The public diff is generated from that list rather than worked out again later, so it cannot drift from what actually changed.</li>
+          <li><strong>We store how the verdict was made, not what it cost.</strong> Token counts and the model are recorded for each call. Money is worked out later from one dated price list, so a price change re-prices the history without rewriting it.</li>
+        </ul>
+        <div class="callout"><strong>Repeating work has the same shape.</strong> Reading a document again produces the same claims. Reading a source again produces no duplicates. Reprocessing a verdict adds a version instead of replacing one. The database hands each job to one worker at a time, and unique rules stop a double write if two ever try.</div>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — the records this one claim wrote<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre>claim                 id=clm_8f21…  key=9a41…(unique)  type=statistical
+                      mode=stat-grid  speakership=quoted-actor (classified)
+                      genre=press-release  attached_proposal=<span class="s">"tougher sentencing package"</span>
+evidence_item         1 row · authority=policedata.nz
+                      series=victimisations-monthly  vintage=2026-06-30
+                      retrieved_at=2026-09-08  archive=web.archive.org/…
+evidence_pack         id=pk_77c0…  gridResult={rows:8, material:2}
+                      justifications=[<span class="s">"The cited window shows 11.6%, not 30%."</span>]
+                      nli_outcome=pass  created_at=2026-09-08T21:14:52Z
+verdict_version       v1  class=conflicting_cherry_picking  status=PUBLISHED
+                      evidence_pack_id=pk_77c0…  confidence=null
+                      diff=null (v1)
+verdict_provenance    pipeline=0.1.0+git.4b91c2  prompts={triage-checkability@1,
+                        triage-context@2, grid-materiality@1, nli-audit@1}
+                      models={…}  searchRefs=[]
+transition_log        DRAFT → PUBLISHED  reason=<span class="s">"verified + evidence pack assembled"</span></pre>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">STO-R1 / CRO-R12</span><span>History being edited is caught by tests that attempt an edit and a delete on every protected table, using the real permissions. A migration that changes old rows fails review.</span></div>
+          <div><span class="k2">STO-R2</span><span>A missing version or diff is caught by writing one version, simulating new evidence, writing a second, and checking that the number went up, that a diff exists, and that the old version points at the new one.</span></div>
+          <div><span class="k2">STO-R3</span><span>The date the data was published being confused with the date we fetched it is caught by requiring a published date on every series record, and by asserting the two are different.</span></div>
+          <div><span class="k2">STO-R9</span><span>A change of state that should be refused but is not is caught by testing every legal and illegal change, including a change during the freeze. We rehearse the freeze in October.</span></div>
+          <div><span class="k2">STO-R10</span><span>A verdict stored without a full record of how it was made is refused by the write path.</span></div>
+          <div><span class="k2">STO-R15</span><span>Context notes being filled in by default instead of left absent is caught by refusing defaulted values, and by fixtures that must stay empty when the words around the claim say nothing.</span></div>
+          <div><span class="k2">STO-R7 / R17</span><span>Backups that cannot be restored, and corrections that lose their history, are caught by a scripted restore that checks counts, versions, contents codes and permissions, and by requiring a correction to be a new row.</span></div>
+          <div><span class="k2">CRO-R8 / R13</span><span>Cost numbers being wrong, and the shared record shapes drifting apart, are caught by requiring every call to record its model and its token counts, and by asserting the two schema versions match before a test run scores anything.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<!-- ══════════════ 10 ══════════════ -->
+<article class="stage" id="s10">
+  <div class="stage-head">
+    <div class="num">10</div>
+    <div>
+      <h3>Publishing the page</h3>
+      <p class="lede">A web page anyone can read — or nothing at all, if the claim is not ours to check.</p>
+      <p class="src">SITE-MVP §2.2–2.7, §3 · STORE §3 · ADR-0002, ADR-0004</p>
+    </div>
+  </div>
+  <div class="io">
+    <span class="chip in">Needs: a published verdict and everything behind it</span>
+    <span class="chip out">Produces: a web page with the verdict, the evidence and the audit trail, plus machine-readable details for search engines</span>
+    <span class="chip stop">Never: publishing a claim we cannot attribute, or hiding how a page was made</span>
+  </div>
+  <div class="body">
+    <h5 style="margin-bottom:8px">What happens, step by step</h5>
+    <ol class="steps">
+      <li>Before anything is published, two conditions must hold: the claim came from a document we actually hold, and we have positively decided whose words it is, with the reason recorded.</li>
+      <li>If either is missing, the page shows nothing. That is deliberate — no decision means not publishable.</li>
+      <li>Every page leads with the claim and the verdict, in the same order every time.</li>
+      <li>Below that is the audit trail: five dated sections in everyday words — what else was in the document and what we did not check; what the claim was read as and which check it got; how that check works, what it did here and what it cannot show; what we compared it against; and the second look at our own reasoning.</li>
+      <li>Nothing is hidden behind a click. If we do not hold a piece of information, the page says so rather than filling the gap.</li>
+      <li>Each page carries machine-readable details that let search engines and fact-checking tools list it, and it is built to work with JavaScript turned off.</li>
+      <li>The published accuracy figures are generated from the actual test run, never typed in by hand. If that file is missing, the site refuses to build rather than showing a blank table.</li>
+    </ol>
+    <details data-depth="1"><summary>The gate before publication — two conditions<span class="tag">in detail</span></summary>
+      <div class="dbody">
+        <p class="note">The site serves a claim only when both of these are true. It cannot work either one out for itself, so it does not guess.</p>
+        <ol class="steps">
+          <li><strong>We hold the document it came from.</strong> That is what makes a check traceable to something a reader can open.</li>
+          <li><strong>We positively decided whose words it is,</strong> and recorded how we decided and what kind of publication it was. If any of those three is missing, the claim cannot be published.</li>
+        </ol>
+        <p class="note">Everything else is kept and not published: evaluation material, records written directly by our own scripts with no document behind them, the newsroom's own writing, quotations we could not attribute, and anything classified before this rule existed. One rule gates both the page and the list, so a record cannot be listed but unreadable. We can still inspect all of it through a deliberate override, which is not the default.</p>
+        <div class="callout"><strong>This is deliberate, and dated.</strong> Because the step that decides whose words a sentence is does not yet run on every source, a lot of what we hold is unclassified — and the gate, which refuses anything incomplete, serves none of it. An empty site is the correct state here, not a fault.</div>
+      </div>
+    </details>
+    <details data-depth="1"><summary>The verdict page: fixed section order and the trail<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <h4>Every page, in the same order</h4>
+        <ol class="steps">
+          <li>The claim, word for word, with who said it and the document it came from.</li>
+          <li>The verdict mark. A band and a pin, never a dial or a smiley face.</li>
+          <li>One sentence saying what the verdict means.</li>
+          <li>The "as deployed" line, shown only when the words around the claim said what it was arguing for.</li>
+          <li>A "hear it" or "watch it" link, shown only when we hold the clip's timestamps, with a note when the wording came from automatic captions.</li>
+          <li>The evidence, strongest source first. Each item is linked, with the date the data was published and the date we fetched it. Source types are written in plain words, and the internal codes stay in the technical record.</li>
+          <li>The audit trail: five dated sections, described below. All of them are open by default.</li>
+          <li>Related claims, last.</li>
+        </ol>
+        <p class="mini">Nothing is hidden behind a click, because an audit record a reader has to ask for is one most readers never see. Where we do not hold something, the section says so. It is never filled with a generic paragraph, and it never borrows a different check's explanation.</p>
+        <h4>The five sections of the audit trail</h4>
+        <table>
+          <thead><tr><th style="width:34px">#</th><th>Section</th><th>Where it comes from</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>What else was in the document, and what we did not check</td><td>The stored record of the sifting step: how many sentences we read, how many we checked, which we set aside and why, and which we held back.</td></tr>
+            <tr><td>2</td><td>What the claim was read as, and which check that produced</td><td>The kind of claim, and the recorded check it got.</td></tr>
+            <tr><td>3</td><td><strong>How this kind of check works, what it did here, and what it cannot show</strong></td><td>The recorded check, matched to an explanation written once for that kind of check and applied to this claim.</td></tr>
+            <tr><td>4</td><td>What we compared it against</td><td>The evidence, with the date the data was published and the date we fetched it.</td></tr>
+            <tr><td>5</td><td>The second look at our own reasoning</td><td>The outcome of the first check, and the versions of everything that ran.</td></tr>
+          </tbody>
+        </table>
+        <ul class="plain" style="margin-top:10px">
+          <li>Each section prints its own audit line. The labels come from an approved list, and an unapproved label fails the build. The values print exactly as they were recorded, because a value ties the page to the run that produced it and a paraphrase can drift.</li>
+          <li>A step whose date we do not hold is left out. It is never guessed at.</li>
+          <li><strong>A number claim with no recorded check never falls back to its kind.</strong> A number claim reaches the figures only when the official source is listed, and the general search otherwise, so guessing would publish a check that never ran.</li>
+        </ul>
+      </div>
+    </details>
+    <details data-depth="1"><summary>Being found by search engines, staying fresh, and the accuracy figures<span class="tag">by hand</span></summary>
+      <div class="dbody">
+        <ul class="plain">
+          <li><strong>Each page carries machine-readable details</strong> that let search engines and fact-checking tools list it: the address, who wrote it, the date it was published and any date it changed, the claim word for word, a rating, and the verdict in one sentence. Broken machine-readable data fails silently out in the world — the page is simply dropped with no error anywhere — so it is validated as the site is built, and the build fails loudly.</li>
+          <li><strong>Everything that matters is in the server's first response,</strong> before any browser scripting runs: the verdict, the machine-readable data, and the clip link. That is what search engines, link previews and readers with scripting turned off receive.</li>
+          <li><strong>A changed verdict updates the page within minutes.</strong> Our writer tells the site which pages to rebuild whenever a verdict changes. A change updates the content and the published date. The claim's address never changes, so links people have shared stay good.</li>
+          <li><strong>The accuracy figures are generated, never typed in.</strong> A full test run writes a dated file recording the versions of everything used. The methodology page reads that file and prints the numbers. If the file is missing or unreadable, the site refuses to build rather than showing an empty table, and a build check asserts the printed numbers match the file.</li>
+          <li><strong>Public pages use everyday words.</strong> A build check fails the page if it contains the internal vocabulary. The methodology page is the one page whose job is to explain the machinery, and it is allowed plain-English descriptions rather than jargon.</li>
+        </ul>
+      </div>
+    </details>
+    <div class="body" style="padding:0"><details data-depth="2" class="ex" data-example open><summary>Worked example — what the reader receives<span class="tag">example</span></summary>
+      <div class="dbody">
+        <pre>GET /claim/clm_8f21…                      <span class="c">// SSR, verdict in the first response</span>
+
+  <span class="s">"Crime is up 30% since 2017."</span>
+  Hon Sample Minister · Beehive release · 8 Sept 2026
+
+  <span class="k">Accurate but incomplete</span>          <span class="c">// conflicting_cherry_picking</span>
+  The figure is real but the period it is drawn from does not support the
+  impression it was used to create.
+
+  deployed in support of tougher sentencing package
+  ▶ watch it  <span class="c">(t=412s, from the stored anchor)</span>
+
+  Evidence: policedata.nz victimisations-monthly · dated 30 Jun 2026
+            · fetched 8 Sept 2026 · Official statistics
+
+  Trail: 5 sections, each with its audit line
+  ClaimReview JSON-LD: reviewRating 3/4 <span class="s">"Accurate but incomplete"</span></pre>
+      </div>
+    </details></div>
+    <details data-depth="2"><summary>What can go wrong, and how we catch it<span class="tag">everything</span></summary>
+      <div class="dbody">
+        <div class="kv">
+          <div><span class="k2">SIT-R1 / R2</span><span>Broken machine-readable data, or accuracy figures drifting from the test-run file, are caught by extracting and validating the data from every rendered page, by failing the build when the file is missing or unreadable, and by asserting the printed table matches the file.</span></div>
+          <div><span class="k2">SIT-R3</span><span>A broken clip link is caught by requiring the link to be built from the stored timestamps, and by loading the real link before release.</span></div>
+          <div><span class="k2">SIT-R4 / R5</span><span>Internal vocabulary, and wording about a person rather than a claim, are caught by scanning rendered pages for banned wording. Character judgements cannot appear in generated text at all.</span></div>
+          <div><span class="k2">SIT-R7 / R8</span><span>A stale page is caught by changing a verdict and checking that the page and its published date follow. A blank page is caught by requiring the verdict in the server's first response, before any scripting runs.</span></div>
+          <div><span class="k2">SIT-R9 / R10</span><span>The verdict relying on colour alone is caught by always printing the words with the colour, and by accessibility checks on the page and the list. A phone layout is checked at 375 pixels wide.</span></div>
+          <div><span class="k2">SIT-R11 / R14</span><span>Counts on the topic and entity pages disagreeing with the claims are caught by recomputing them independently. An empty site and a request past the last page must both render honestly rather than blankly or with an error.</span></div>
+          <div><span class="k2">SIT-R15</span><span>A page describing a check that did not run is caught by asserting the missing-information states, by requiring every check to print what it cannot establish, and by never letting a number claim derive its check from its kind.</span></div>
+        </div>
+      </div>
+    </details>
+  </div>
+</article>
+
+<div class="rule"></div>
+<h2 class="block" style="padding-left:2px">Technical reference</h2>
+
+<!-- ══════════════ A ══════════════ -->
+<article class="stage" id="app-a">
+  <div class="stage-head">
+    <div class="num">A</div>
+    <div><h3>The four verdicts</h3><p class="lede">What a reader sees at the top of a page, and what produces it.</p><p class="src">ADR-0004 · VERIFICATION §2.2 · SITE-MVP §2.2</p></div>
+  </div>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:196px">The verdict</th><th>What it means</th><th style="width:300px">How it happens</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Backed by the evidence</strong></td><td>The evidence supports the claim as it was made.</td><td>The official figures agree; or the document the claim cites says what the claim says; or the wording matches the recording.</td></tr>
+        <tr><td><strong>Accurate but incomplete</strong></td><td>The number is real, but the way it is used gives a misleading impression.</td><td>Other readings of the same figures point the other way — for instance, the same change is much smaller once population is taken into account.</td></tr>
+        <tr><td><strong>We could not verify this</strong></td><td>We looked, and the record does not settle it. An open question, not a failure.</td><td>No official figures cover it; no comparable source exists; or the search ran out before the evidence did.</td></tr>
+        <tr><td><strong>Does not match the evidence</strong></td><td>The number or the description does not match the record.</td><td>The figure matches nothing we can find or points the other way — or the cited document does not say what the claim says.</td></tr>
+        <tr><td><em>A promise about the future</em></td><td>“Not yet checkable.” A commitment is assessed only later, as “did they do what they said”.</td><td>It fails the checkability question as a fact, and is deliberately not graded as one.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:14px"><strong>A true but selective number is never called “false”.</strong> The line between “does not match the evidence” and “accurate but incomplete” is arithmetic, not editorial judgement — which is exactly why the ways of counting are fixed in advance and applied to everyone the same way.</div>
+  </div>
+</article>
+
+<!-- ══════════════ B ══════════════ -->
+<article class="stage" id="app-b">
+  <div class="stage-head">
+    <div class="num">B</div>
+    <div><h3>Technical: the AI steps and their instructions</h3><p class="lede">Every AI step in the pipeline, what it is asked to return, and which part of the process uses it. Instructions are treated as code: they live beside the step that uses them, and they are versioned so a verdict can always name the exact instructions that produced it.</p><p class="src">CROSS-CUTTING §2–3 · ADR-0011, ADR-0012</p></div>
+  </div>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:190px">Role</th><th>What it returns</th><th style="width:130px">Called by</th><th style="width:120px">Tier</th></tr></thead>
+      <tbody>
+        <tr><td><code>speakership-classify</code></td><td>One class + speaker name per sentence, in document order.</td><td>attribute (prose only)</td><td>research</td></tr>
+        <tr><td><code>triage-checkability</code></td><td>Per sentence: checkable? plus <code>claimType</code> and <code>mode</code>; or a rejection class.</td><td>triage</td><td>research</td></tr>
+        <tr><td><code>triage-context</code></td><td>The optional discourse fields, over the window. Skipped when there is no window.</td><td>triage</td><td>research</td></tr>
+        <tr><td><code>claim-decompose</code></td><td>Up to 6 atomic questions, each with 1–2 queries.</td><td>verification spine</td><td>research</td></tr>
+        <tr><td><code>authority-classify</code></td><td>Source kind (1/2/3/5/6) + rationale for a whole candidate batch.</td><td>open-web pre-step</td><td>research</td></tr>
+        <tr><td><code>research-assess</code></td><td>Sufficiency, gaps, refined queries, the mandatory refutation query, a current reading and confidence.</td><td>open-web loop</td><td>research</td></tr>
+        <tr><td><code>grid-materiality</code></td><td>Which grid rows are material. <strong>Never authors the grid.</strong></td><td>stat-grid</td><td><strong>verdict</strong></td></tr>
+        <tr><td><code>citation-compare</code></td><td>Claim-vs-source verdict, binding strictness, the mismatch.</td><td>citation-check</td><td><strong>verdict</strong></td></tr>
+        <tr><td><code>quote-fidelity</code></td><td>Wording comparison against the stored caption, plus the anchor-missing case.</td><td>quote-fidelity</td><td><strong>verdict</strong></td></tr>
+        <tr><td><code>nli-audit</code></td><td>Entailment pass/fail per justification, with a failure class. The publication gate.</td><td>pack assembly</td><td><strong>gate</strong></td></tr>
+      </tbody>
+    </table>
+    <ul class="plain" style="margin-top:12px">
+      <li><strong>The model choice is tiered by what the output is used for, not by how hard the task looks.</strong> Research-tier output is a control signal — which questions to search, whether the evidence clears the bar, where the gaps are. Its confidence is neither published nor written to a verdict. The output a verdict is built from, and the check that gates publication, stay on the stronger model. A check that decides whether anything gets published is the last place to save money on the model.</li>
+      <li><strong>Declared but not called:</strong> <code>triage-typing</code> — folded into the checkability call, which returns the claim's kind alongside the checkability answer. A test pins the roles triage calls, <em>and</em> the one it does not, so wiring it is a decision rather than an accident.</li>
+      <li><strong>Removed, not merely unwired:</strong> <code>triage-fingerprint</code> and the claim key it built. The key had no reader, and the only two things taken from it were the claim's period and its number — read out of free text with two pattern matches, one of which silently rejected any period not written as “since YYYY”. Both are now read as structured values inside the figures check (<code>claim-parameters@1</code>), and a number that cannot be read stops the check instead of being graded on direction.</li>
+      <li><strong>A cautionary case:</strong> an <code>adjudication@1</code> role was recorded in provenance across an entire month of runs, naming a prompt that was never written — which is how every verdict came to carry a fabricated confidence and a provenance line for a step that did not run. The role vocabulary is now closed and a run manifest naming an unknown role is rejected. <em>Provenance records the roles a run actually invoked, never a hand-written list.</em></li>
+      <li><strong>Every stored artefact records its prompt versions</strong>, the methodology page publishes the exact prompt text a verdict used, and a prompt edit is a model-equivalent behaviour change: an L2 golden diff first, an L3 re-run if it ships.</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ══════════════ C ══════════════ -->
+<article class="stage" id="app-c">
+  <div class="stage-head">
+    <div class="num">C</div>
+    <div><h3>Technical: the warning signs we watch</h3><p class="lede">The numbers that move before a person notices anything is wrong — and what each one catches.</p><p class="src">CROSS-CUTTING §5.2 · ADR-0012 · per-component risk registers</p></div>
+  </div>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:230px">Signal</th><th>What it catches</th><th style="width:120px">Risk</th></tr></thead>
+      <tbody>
+        <tr><td>Fetch success rate per source</td><td>Dead feeds; bot walls appearing.</td><td><code>ING-R1</code></td></tr>
+        <tr><td><strong>Tier-2 fallback rate</strong> per source</td><td>Markup drift — the earliest signal a parser has stopped matching the page.</td><td><code>ING-R2</code>, <code>R14</code></td></tr>
+        <tr><td>Empty-extraction-from-known-nonempty rate</td><td>The generic-parser failure class: extraction “succeeds” and drops the content.</td><td><code>ING-R2</code></td></tr>
+        <tr><td>Unattributed / out-of-scope rate per lane</td><td>Attribution degradation, or scope starvation whose 200-with-zero shape looks healthy.</td><td><code>ING-R16</code>, <code>R17</code></td></tr>
+        <tr><td>Triage drop-rate shift</td><td>Claim-detection drift, visible before the harness catches it.</td><td><code>TRI-R2</code></td></tr>
+        <tr><td>Per-type and per-check accuracy</td><td>A statistical claim typed wrongly, so the figures check never becomes required and the strongest verdict is unreachable.</td><td><code>TRI-R3</code>, <code>VER-R15</code></td></tr>
+        <tr><td>Repeat-occurrence ratio</td><td>Dedupe health and claim traffic; a spike means duplicates are being re-verified.</td><td><code>STO-R4</code>, <code>ING-R5</code></td></tr>
+        <tr><td>Verdict-class distribution shift</td><td>Verification drift — over-refutation or over-support, before the accuracy run.</td><td><code>VER-R11</code></td></tr>
+        <tr><td><strong>Entailment-gate failure rate</strong></td><td>Justification hallucination. An implausibly <em>zero</em> rate is itself the alarm.</td><td><code>VER-R2</code></td></tr>
+        <tr><td><strong>Class-disagreement rate</strong></td><td>How unstable the class decision is — the calibration signal for publishing at all.</td><td><code>VER-R16</code></td></tr>
+        <tr><td>Depth-cap binding rate</td><td>How often the search budget, not the evidence, decided the outcome. A capped run must be visible.</td><td><code>VER-R3</code>, <code>R8</code></td></tr>
+        <tr><td>Cost per claim, per group</td><td>Cost blowout toward a naive ceiling; an anomalous stratum pages.</td><td><code>VER-R8</code>, <code>CRO-R18</code></td></tr>
+        <tr><td>Job heartbeat / silence</td><td>A job that never ran. Alerts fire on the absence of a heartbeat, not on an error.</td><td><code>CRO-R19</code>, <code>STO-R18</code></td></tr>
+        <tr><td>Event-vs-store reconciliation</td><td>Dashboards disagreeing with the store — instrumentation bugs, which are themselves monitored.</td><td><code>STO-R16</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</article>
+
+<!-- ══════════════ D ══════════════ -->
+<article class="stage" id="app-d">
+  <div class="stage-head">
+    <div class="num">D</div>
+    <div><h3>What we cannot do (yet)</h3><p class="lede">The things this system does not do. They are named on the public methodology page, and on the verdict page itself, rather than hidden behind a confident-sounding answer.</p><p class="src">VERIFICATION §2.1, §5 · SITE-MVP §2.5</p></div>
+  </div>
+  <div class="body">
+    <ul class="plain">
+      <li><strong>No check can prove that one thing caused another.</strong> In the standard test set, about 11% of claims are about cause. Every check states this limit on the page, and the open-web one names it explicitly. Closing the gap means <em>adding a check</em> — comparing trends before and after, or against a group the policy did not touch.</li>
+      <li><strong>We make no recordings of our own, and audio-only material is out of scope.</strong> The wording check compares a claim against <em>the record we hold</em>, never against the audio itself.</li>
+      <li><strong>Wording taken from automatic captions rests on unreviewed speech recognition.</strong> We mark those claims on the page, and a number quoted in a caption is checked against the official figures, never against the caption.</li>
+      <li><strong>“False context” checking is demonstration-only</strong>: it runs on a small hand-picked set of known miscaptioned items, and we do not claim it works on live material yet.</li>
+      <li><strong>We do not measure confidence</strong>, so we publish none. It returns only once something actually produces a confidence value <em>and</em> that value has been checked against real outcomes.</li>
+      <li><strong>A claim said in different words is only found by wording similarity.</strong> A hand-built key for matching the same figure across phrasings was designed and then deleted: nothing read it, and it could not identify a quotation or a cited document at all. Matching today is a wording-similarity search, which catches near-duplicates but not a rephrasing with no words in common.</li>
+      <li><strong>The list of checks we can run is short, and it is not a fixed set.</strong> Five checks are built. A claim that needs a kind of check we have not built can have it named in its plan, but until it exists the claim is researched rather than properly checked — and the plan says so on the page.</li>
+      <li><strong>Our AI models cannot be fully pinned down.</strong> They give slightly different answers to identical input, so we measure that variation and disclose it rather than hide it — which is also why every verdict is decided twice before it is published.</li>
+      <li><strong>Māori-language coverage is limited.</strong> Macron round-tripping is a tested byte-exact invariant, but that is text integrity, not language coverage — and the gap is named on `/methodology`.</li>
+      <li><strong>Contest-and-correction features, reader submissions, and chain-of-argument views are not built yet.</strong> The database can already record those steps; the current build only exercises the journey from draft to published, and that gap is itself treated as a risk.</li>
+    </ul>
+  </div>
+</article>
+
+<!-- ══════════════ E ══════════════ -->
+<article class="stage" id="app-e">
+  <div class="stage-head">
+    <div class="num">E</div>
+    <div><h3>Technical: the two vocabularies</h3><p class="lede">Everyday words for prose, internal names for machines — and a translation between them. A public page must never use the internal name as its explanation, so this key exists to keep the two apart.</p><p class="src">GLOSSARY.md · SITE-MVP §2.2</p></div>
+  </div>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:220px">Everyday word</th><th style="width:180px">Internal name</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>official source</td><td><code>verifier authority</code></td><td>A public, structured source trusted for one domain. Consulted as evidence, never checked as a claim.</td></tr>
+        <tr><td>the evidence behind the verdict</td><td><code>evidence pack</code></td><td>The frozen record of sources and figures a verdict used.</td></tr>
+        <tr><td>added to, never edited</td><td><code>append-only</code></td><td>A verdict changes by writing a new version; old versions stay.</td></tr>
+        <tr><td>the plan for a claim</td><td><code>verification_plan</code></td><td>The ordered list of checks built for one claim. A claim can need several — a quoted number needs the quotation checked and the figure checked.</td></tr>
+        <tr><td>a kind of check we can run</td><td><code>procedure</code></td><td>One auditable, versioned way of deciding something. Stored as a record, so the set grows; the plan picks which to use.</td></tr>
+        <tr><td>which checks we know about</td><td><code>procedure</code> library</td><td>The stored set of checks, each with a stated limit and a reason it exists. It suggests; it never decides what a plan must contain.</td></tr>
+        <tr><td>the full field / the other ways to count it</td><td><code>sensitivity grid</code></td><td>The fixed set of alternative framings tested against every claim — the same set for every speaker.</td></tr>
+        <tr><td>re-check of the reasoning</td><td><code>NLI audit</code></td><td>A second pass checking that the written justification actually follows from the evidence.</td></tr>
+        <tr><td>who said it</td><td><code>speakership</code></td><td>Which sentence belongs to which actor — a quoted minister, the outlet's own prose, or nobody we can name.</td></tr>
+        <tr><td>reading the page</td><td><code>extraction ladder</code></td><td>How text is got out of a page: direct, then a fallback reader.</td></tr>
+        <tr><td>group</td><td><code>stratum</code></td><td>One slice of the labelled set — a source kind, a claim type.</td></tr>
+        <tr><td>what the claim was arguing for</td><td><code>discourse context</code></td><td>The proposal a claim was deployed in support of. Absent stays absent.</td></tr>
+        <tr><td>we couldn't reach a verdict</td><td><code>abstention</code></td><td>The honest outcome when the evidence does not decide.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn" style="margin-top:14px"><strong>Banned in public copy</strong> and enforced by the site's register check: <span class="mono">sensitivity grid · extraction ladder · NLI audit · Tier-2 · stratum · discourse context · fingerprint · pgvector · drizzle</span>. Verbatim sentences quoted from a source document are exempt — a quotation is not our copy. Audit-line labels are the one region the lexicon check cannot police, so their labels come from a reviewed allow-list instead; the values print exactly as recorded.</div>
+  </div>
+</article>
+
+<!-- ══════════════ F ══════════════ -->
+<article class="stage" id="app-f">
+  <div class="stage-head">
+    <div class="num">F</div>
+    <div><h3>Running it yourself</h3><p class="lede">Everything deterministic runs with no API keys and no cost. Live runs are gated behind an explicit flag and spend real money.</p><p class="src">AGENTS.md · TEST-STRATEGY.md · LIVE_EGRESS=1 (CRO-R6)</p></div>
+  </div>
+  <div class="body">
+    <pre>pnpm install                 <span class="c"># pnpm 11.8.0 only; Node ≥ 24</span>
+docker compose up -d db      <span class="c"># pinned pgvector/pgvector:pg18 — same image as CI</span>
+cp .env.example .env         <span class="c"># DATABASE_URL and LABELS_DATABASE_URL must name DIFFERENT databases</span>
+pnpm db:migrate              <span class="c"># store chain → DATABASE_URL</span>
+pnpm db:migrate:labels       <span class="c"># labels chain → LABELS_DATABASE_URL</span>
+
+pnpm typecheck               <span class="c"># tsc --noEmit in every workspace, ops/ included</span>
+pnpm test                    <span class="c"># all packages + site; L1 mocks every LLM and search call</span>
+pnpm lint                    <span class="c"># biome check</span>
+
+<span class="c"># one file / one name</span>
+pnpm exec vitest run packages/pipeline/src/triage.test.ts
+pnpm exec vitest run -t <span class="s">"plan"</span>
+
+<span class="c"># live, end-to-end slices — REAL LLM + SEARCH SPEND (LIVE_EGRESS=1)</span>
+npx tsx ops/live-one-claim.ts
+npx tsx ops/live-lane-one.ts
+npx tsx ops/slice-acceptance.ts   <span class="c"># slice acceptance checklist</span></pre>
+    <ul class="plain" style="margin-top:12px">
+      <li><strong>The four test layers:</strong> L1 deterministic, every push, where nearly all work happens · L2 ~20 pinned claims producing a snapshot verdict and evidence path, every PR, a readable diff required · L3 the reference benchmark plus a stratified NZ set with real spend, weekly and pre-release, gated per stratum · L4 rendered-page and markup validation every push, plus a deploy smoke.</li>
+      <li><strong>The blind rule is structural, not conventional.</strong> Labels live in a separate database with no grants to the pipeline identity; <code>packages/pipeline</code> must never import <code>@cw/harness</code>; label credentials never enter pipeline env. Tests enforce role denial, import direction, and env separation, and they are never weakened.</li>
+      <li><strong>No hand-edited numbers.</strong> The published accuracy table is rendered from a run file carrying its whole provenance tuple. A re-run is auditable; a hand-edit is not.</li>
+      <li><strong>One concern per commit</strong>, conventional commits with a package scope and an em-dash summary, naming the risk id or ADR satisfied where one applies. Work lands on <span class="mono">main</span>; CI is the gate.</li>
+    </ul>
+  </div>
+</article>
+
+<footer class="foot">
+  <p><strong>Sources for this walkthrough:</strong> <span class="mono">docs/design/{INGESTION,TRIAGE,VERIFICATION,STORE,SITE-MVP,CROSS-CUTTING,HARNESS}.md</span>, <span class="mono">docs/ARCHITECTURE.md</span>, <span class="mono">docs/GLOSSARY.md</span>, the ADR set, and the implementations in <span class="mono">packages/pipeline/src</span>, <span class="mono">packages/store/src</span> and <span class="mono">apps/site/src</span>.</p>
+  <p style="margin-top:10px"><strong>Where the spec and the code disagree, this document says so and follows the code</strong> — the design docs are the spec, the code is the truth. Notable divergences carried above: the fingerprint step was specified and has now been deleted outright (ADR-0023); typing is folded into the checkability call; the class-agreement gate and the batched entailment gate are additions the design documents describe in their Sept-2026 revisions; and the step that decides whose words each sentence is runs on the live source but not yet on every source, which is why the site currently publishes none of the claims we hold.</p>
+  <p style="margin-top:10px">Written to be read by anyone; the detail layers are there for people who want to check our work. Docs and datasets CC BY 4.0; code MIT.</p>
+</footer>
+
+<script>
+(function () {
+  var all = [].slice.call(document.querySelectorAll('details[data-depth]'));
+
+  function setDepth(n) {
+    document.body.setAttribute('data-view', String(n));
+    all.forEach(function (d) {
+      if (d.hasAttribute('data-example')) return;   // examples have their own toggle
+      d.open = Number(d.getAttribute('data-depth')) <= n;
+    });
+    [].forEach.call(document.querySelectorAll('[data-depth-set]'), function (b) {
+      b.classList.toggle('on', Number(b.getAttribute('data-depth-set')) === n);
+      b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-depth-set')) === n));
+    });
+  }
+  [].forEach.call(document.querySelectorAll('[data-depth-set]'), function (b) {
+    b.addEventListener('click', function () { setDepth(Number(b.getAttribute('data-depth-set'))); });
+  });
+  setDepth(0);
+
+  var exOpen = true;
+  var exBtn = document.querySelector('[data-examples]');
+  if (exBtn) {
+    exBtn.addEventListener('click', function () {
+      exOpen = !exOpen;
+      [].forEach.call(document.querySelectorAll('details[data-example]'), function (d) { d.open = exOpen; });
+      exBtn.textContent = exOpen ? 'Hide examples' : 'Show examples';
+      exBtn.classList.toggle('on', !exOpen);
+    });
+  }
+
+  var links = [].slice.call(document.querySelectorAll('#rail a[href^="#"]'));
+  var targets = links.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+  if ('IntersectionObserver' in window && targets.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (l) { l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id); });
+      });
+    }, { rootMargin: '-70px 0px -68% 0px', threshold: 0 });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+})();
+</script>
+
+</main>
+</div>
+
+</body>
+</html>
