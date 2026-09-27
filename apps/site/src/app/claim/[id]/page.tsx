@@ -1,5 +1,5 @@
 import { claimReviewFromVerdict } from "@cw/store";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { EvidenceSourceKey } from "@/components/evidence-source-key";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -151,47 +151,78 @@ export default async function ClaimPage({
         <blockquote className="font-serif text-[30px] leading-[1.27] tracking-[-.01em]">
           “{data.claimText}”
         </blockquote>
-        {data.speaker ? (
-          <div className="mt-4 text-[13.5px] text-muted-foreground">
-            <b className="font-semibold text-foreground">{data.speaker}</b>
-            {data.speakerAffiliation ? <>, {data.speakerAffiliation}</> : null}
-            {data.speakerVenue ? <> · {data.speakerVenue}</> : null}
-            {/* The claim's own date, rendered only when the store holds one.
-                `claimDate` falls back to the verdict's publication date for the
-                ClaimReview payload (which requires a date), but showing that
-                fallback here would state the day we checked the claim as the day
-                it was made — the confusion this page exists to remove. */}
-            {data.claimMadeAt ? (
-              <>
-                <span className="mx-1.5 text-border">·</span>
-                {data.claimMadeAt.toLocaleDateString("en-NZ", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  timeZone: "Pacific/Auckland",
-                })}
-              </>
-            ) : null}
-          </div>
-        ) : null}
-        {/* The original item, so a reader can read it themselves — the claim is a
-            sentence pulled out of it, and checking us means being able to see it
-            in place. Rendered whenever the store holds a publication, even for a
-            claim with no attributed speaker. */}
-        {data.sourceUrl ? (
-          <div className="mt-3 text-[13.5px] text-muted-foreground">
-            As reported in{" "}
-            <a
-              href={data.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Read the original article"
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              {data.publisher ?? sourceHost(data.sourceUrl)}
-            </a>
-          </div>
-        ) : null}
+        {/* One line: who said it, where it was said, the original item it came
+            from, and when. The source link sits inline so a reader can read the
+            claim in place — it is a sentence pulled out of a document.
+
+            The date is the claim's own, rendered only when the store holds one:
+            `claimDate` falls back to the verdict's publication date for the
+            ClaimReview payload (which requires a date), but showing that fallback
+            here would state the day we checked the claim as the day it was made. */}
+        {(() => {
+          const parts: Array<{ key: string; node: ReactNode }> = [];
+          if (data.speaker) {
+            parts.push({
+              key: "who",
+              node: (
+                <b className="font-semibold text-foreground">
+                  {data.speaker}
+                  {data.speakerAffiliation ? `, ${data.speakerAffiliation}` : ""}
+                </b>
+              ),
+            });
+          } else if (data.speakerAffiliation) {
+            parts.push({ key: "affiliation", node: <span>{data.speakerAffiliation}</span> });
+          }
+          if (data.speakerVenue) {
+            parts.push({ key: "venue", node: <span>{data.speakerVenue}</span> });
+          }
+          if (data.sourceUrl) {
+            parts.push({
+              key: "source",
+              node: (
+                <span>
+                  As reported in{" "}
+                  <a
+                    href={data.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Read the original article"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {data.publisher ?? sourceHost(data.sourceUrl)}
+                  </a>
+                </span>
+              ),
+            });
+          }
+          if (data.claimMadeAt) {
+            parts.push({
+              key: "date",
+              node: (
+                <span>
+                  {data.claimMadeAt.toLocaleDateString("en-NZ", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    timeZone: "Pacific/Auckland",
+                  })}
+                </span>
+              ),
+            });
+          }
+          if (parts.length === 0) return null;
+          return (
+            <div className="mt-4 text-[13.5px] text-muted-foreground">
+              {parts.map((part, index) => (
+                <Fragment key={part.key}>
+                  {index > 0 ? <span className="mx-1.5 text-border">·</span> : null}
+                  {part.node}
+                </Fragment>
+              ))}
+            </div>
+          );
+        })()}
       </Card>
 
       {/* Verdict card — surface, rule and ink all keyed to the verdict class */}
