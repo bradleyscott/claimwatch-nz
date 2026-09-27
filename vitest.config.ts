@@ -1,6 +1,6 @@
-import { defineConfig } from "vitest/config";
-import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { defineConfig } from "vitest/config";
 
 // Load .env (gitignored) into process.env before suites run — no committed
 // credentials anywhere (Sept 2026). CI sets env directly; .env is

@@ -84,13 +84,18 @@ describe("serper adapter (VER-R3 retrieval surface)", () => {
     };
     const provider = createSerperSearch("k-test", fakeFetch);
     await provider.search("crime stats");
-    expect(captured[0]?.url).toBe("https://google.serper.dev/search");
-    expect((captured[0]?.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k-test");
-    expect(JSON.parse(String(captured[0]?.init.body)).q).toBe("crime stats");
+    // Asserted once and then dereferenced: an optional chain immediately followed
+    // by a property access throws on a missing call, so the failure reads as a
+    // TypeError instead of "the request was never made".
+    const request = captured[0];
+    if (request == null) throw new Error("no request reached the search provider");
+    expect(request.url).toBe("https://google.serper.dev/search");
+    expect((request.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k-test");
+    expect(JSON.parse(String(request.init.body)).q).toBe("crime stats");
     // Bounded result count: every organic result that survives guardrails is a
     // candidate in the tier-classification call, so an unbounded result set is an
     // unbounded fan-out (Sept 2026).
-    expect(JSON.parse(String(captured[0]?.init.body)).num).toBe(SERPER_RESULTS);
+    expect(JSON.parse(String(request.init.body)).num).toBe(SERPER_RESULTS);
   });
 
   it("honours an explicit result bound", async () => {

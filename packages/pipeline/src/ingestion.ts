@@ -127,8 +127,7 @@ const BOT_WALL = /verify you are human|access denied|are you a robot|checking yo
 // venue name (`M&amp;T Stadium`) and every query-string separator
 // (`?u=...&amp;id=...`) — so it rejected real RNZ pages whose markup was never
 // corrupt, and the lane could not extract a single article (ING-R8, Sept 2026).
-const DOUBLE_ENCODED =
-  /&amp;(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#[0-9]{1,7}|#x[0-9a-fA-F]{1,6});/;
+const DOUBLE_ENCODED = /&amp;(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#[0-9]{1,7}|#x[0-9a-fA-F]{1,6});/;
 
 export function extractArticle(html: string, canonicalUrl: string): ExtractedDocument {
   const $ = cheerio.load(html);

@@ -12,20 +12,24 @@ concurrency:
 jobs:
   typecheck-test:
     runs-on: ubuntu-latest
-    env:
-      # Ephemeral per-run password — nothing committed, no secret management.
-      # The service container, psql steps, and test env all derive from this.
-      PG_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
-      PG_USER: claimwatch
-      PG_HOST: localhost
-      PG_MAIN_DB: claimwatch_test
+    # The ephemeral per-run password is written out at each point of use rather
+    # than held in one variable for the three of them to share. GitHub does not
+    # allow a variable in an `env` map to be defined in terms of another in the
+    # SAME map, and the previous attempt at a single definition put two `env:`
+    # keys in this job — duplicate mapping keys, which is invalid YAML. GitHub
+    # rejected the whole workflow at validation, so `on: push` produced a run
+    # that failed in 0s without starting a job: the gate never gated anything
+    # (Sept 2026). Fixing it by moving the shared values one level up would swap
+    # a parse error for a silently empty password, which is worse — so the
+    # expression is repeated, and the four copies must stay identical:
+    # `ci-${{ github.run_id }}-${{ github.run_attempt }}`.
     services:
       # Pinned Postgres + pgvector, same image as compose (CRO-R15 parity).
       postgres:
         image: pgvector/pgvector:pg18
         env:
           POSTGRES_USER: claimwatch
-          POSTGRES_PASSWORD: ${{ env.PG_PASSWORD }}
+          POSTGRES_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: claimwatch_test
         ports:
           - 5432:5432
@@ -35,8 +39,14 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://claimwatch:${{ env.PG_PASSWORD }}@${{ env.PG_HOST }}:5432/${{ env.PG_MAIN_DB }}
-      LABELS_DATABASE_URL: postgres://claimwatch:${{ env.PG_PASSWORD }}@${{ env.PG_HOST }}:5432/claimwatch_labels_test
+      # Read by the psql step below. Cannot be reused inside DATABASE_URL /
+      # LABELS_DATABASE_URL — see the note above.
+      PG_PASSWORD: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      PG_USER: claimwatch
+      PG_HOST: localhost
+      PG_MAIN_DB: claimwatch_test
+      DATABASE_URL: postgres://claimwatch:ci-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/claimwatch_test
+      LABELS_DATABASE_URL: postgres://claimwatch:ci-${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/claimwatch_labels_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
