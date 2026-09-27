@@ -25,6 +25,9 @@ const pageData = {
   verdictClass: "conflicting_cherry_picking" as const,
   confidence: 0.72,
   attachedProposal: "tougher sentencing package",
+  claimPassage:
+    "The Prime Minister was asked about crime at today's press conference.\nCrime is up 30% since 2017.",
+  policyTopic: "crime",
   mediaAnchor: {
     mediaUrl: "https://youtube.com?v=x",
     startS: 2.5,
@@ -274,6 +277,10 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // The original item is linked, so a reader can read the claim in place.
     expect(html).toContain("As reported in");
     expect(html).toContain("https://www.rnz.co.nz/news/politics/x");
+    // ...and the passage the quote was cut from, so the sentence is read in its
+    // context rather than floating free.
+    expect(html).toContain("In context");
+    expect(html).toContain("The Prime Minister was asked about crime") /* passage lead */;
     // What the claim was read as, and which check that produced.
     expect(html).toContain("a number stated over a period");
     expect(html).toContain("check stat-grid");

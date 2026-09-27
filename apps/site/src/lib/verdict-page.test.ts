@@ -26,6 +26,8 @@ const input = (
   publishedAt: new Date("2026-09-08"),
   confidence: 0.72,
   attachedProposal: null,
+  claimPassage: null,
+  policyTopic: null,
   mediaAnchor: null,
   transcriptTier: null,
   evidence: [],

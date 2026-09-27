@@ -78,6 +78,8 @@ export default async function ClaimPage({
     verdictClass: data.verdictClass,
     confidence: data.confidence,
     attachedProposal: data.attachedProposal,
+    claimPassage: data.claimPassage,
+    policyTopic: data.policyTopic,
     mediaAnchor: data.mediaAnchor,
     transcriptTier: data.transcriptTier,
     evidence,
@@ -223,6 +225,27 @@ export default async function ClaimPage({
             </div>
           );
         })()}
+        {/* The passage the quote was cut from, so the sentence is read in its
+            context rather than floating free, with the claim's own sentence
+            highlighted inside it. Verbatim third-party text — not our copy, and
+            not register-scanned, the same rule the trail's quoted sentences
+            use. */}
+        {data.claimPassage ? (
+          <details className="group mt-5 border-border border-t pt-4">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-extrabold tracking-[.12em] text-faint uppercase hover:text-foreground [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden="true"
+                className="inline-block text-[13px] leading-none transition-transform group-open:rotate-90"
+              >
+                ›
+              </span>
+              In context{data.policyTopic ? ` · ${data.policyTopic}` : ""}
+            </summary>
+            <div className="mt-3 space-y-3 text-[14px] leading-relaxed text-muted-foreground">
+              {passageParagraphs(data.claimPassage, data.claimText)}
+            </div>
+          </details>
+        ) : null}
       </Card>
 
       {/* Verdict card — surface, rule and ink all keyed to the verdict class */}
@@ -350,6 +373,36 @@ export default async function ClaimPage({
       <VerdictTrail trail={model.trail} />
     </main>
   );
+}
+
+/**
+ * The passage as paragraphs, with the claim's own sentence highlighted. Falls
+ * back to plain paragraphs when the sentence cannot be located in the stored
+ * window (a normalised claim, an edited window) — the reader still gets the
+ * context.
+ */
+function passageParagraphs(passage: string, claimText: string): ReactNode[] {
+  const needle = claimText.trim();
+  return passage
+    .split("\n")
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0)
+    .map((block) => {
+      const at = needle.length > 0 ? block.indexOf(needle) : -1;
+      // The block's own text is the stable key: the passage is a fixed set of
+      // paragraphs, and quoting one verbatim twice is not a thing that happens.
+      const key = block.slice(0, 64);
+      if (at < 0) return <p key={key}>{block}</p>;
+      return (
+        <p key={key}>
+          {block.slice(0, at)}
+          <mark className="bg-transparent font-semibold text-foreground">
+            {block.slice(at, at + needle.length)}
+          </mark>
+          {block.slice(at + needle.length)}
+        </p>
+      );
+    });
 }
 
 /** A publication's display name when the store holds no publisher: its host. */

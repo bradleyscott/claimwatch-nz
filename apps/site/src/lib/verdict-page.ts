@@ -108,6 +108,14 @@ export interface VerdictPageInput {
    */
   confidence: number | null;
   attachedProposal: string | null;
+  /**
+   * The passage the claim was cut from, verbatim (claim.discourse_context.window).
+   * Rendered under the quote so a reader sees the sentence in its context rather
+   * than floating free. Null when the store holds no window.
+   */
+  claimPassage: string | null;
+  /** The policy topic the passage is about; rendered as a small line. */
+  policyTopic: string | null;
   mediaAnchor: { mediaUrl: string; startS: number; endS: number; deepLink: string } | null;
   transcriptTier: string | null;
   evidence: Array<{

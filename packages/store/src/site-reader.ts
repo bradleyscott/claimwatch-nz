@@ -63,6 +63,10 @@ export const VerdictPageData = z.object({
   // `verdict-page.ts` for why.
   confidence: z.number().min(0).max(1).nullable(),
   attachedProposal: z.string().nullable(),
+  /** The passage the claim was cut from (discourse_context.window) — verbatim. */
+  claimPassage: z.string().nullable().default(null),
+  /** The policy topic the passage is about (discourse_context.policyTopic). */
+  policyTopic: z.string().nullable().default(null),
   mediaAnchor: z
     .object({ mediaUrl: z.string(), startS: z.number(), endS: z.number(), deepLink: z.string() })
     .nullable(),
@@ -317,6 +321,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           // (STORE §2.1, ADR-0014) — the COLUMN is bound through the schema, so
           // a rename still fails typecheck; only the JSON keys are literals here.
           attachedProposal: sql<string | null>`${s.claim.discourseContext}->>'attachedProposal'`,
+          claimPassage: sql<string | null>`${s.claim.discourseContext}->>'window'`,
+          policyTopic: sql<string | null>`${s.claim.discourseContext}->>'policyTopic'`,
           // The VENUE (where/on what occasion the words were said) — never the
           // speaker. See `toStoredDiscourseContext` in the pipeline.
           speechContext: sql<string | null>`${s.claim.discourseContext}->>'speechContext'`,
@@ -439,6 +445,8 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         confidence: row.confidence ?? null,
         mediaAnchor: null, // caption lanes land with the YouTube slice
         attachedProposal: row.attachedProposal,
+        claimPassage: row.claimPassage ?? null,
+        policyTopic: row.policyTopic ?? null,
         evidence: itemRows.map((e) => ({
           authorityRef: e.authorityRef,
           seriesIdentity: e.seriesIdentity,
