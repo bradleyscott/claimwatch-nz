@@ -11,10 +11,7 @@ export type { LlmCallResult, LlmUsage } from "./llm-port.ts";
 
 /** The roles triage invokes — a closed set: a run manifest naming any other role
  * is rejected (CROSS-CUTTING §3, HAR-R7). */
-export type TriageRole =
-  | "triage-checkability"
-  | "triage-typing"
-  | "triage-context";
+export type TriageRole = "triage-checkability" | "triage-typing" | "triage-context";
 
 export type TriageLlm = LlmPort<TriageRole>;
 

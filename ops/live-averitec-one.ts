@@ -20,7 +20,6 @@ import {
   type ProviderResult,
 } from "../packages/pipeline/src/llm/live-adapter.ts";
 import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
-import { runOpenWebRetrieval } from "../packages/pipeline/src/open-web-retrieval.ts";
 import { derivePlanFeatures, planForClaim } from "../packages/pipeline/src/plan.ts";
 import { DECOMPOSITION_PROMPT, decomposeClaim } from "../packages/pipeline/src/search/decompose.ts";
 import { discoverAuthority } from "../packages/pipeline/src/search/discovery.ts";
@@ -35,7 +34,6 @@ import { createSerperSearch } from "../packages/pipeline/src/search/serper-adapt
 import { TRIAGE_CONTEXT_PROMPT, triageDocument } from "../packages/pipeline/src/triage.ts";
 import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
 import {
-  citationCheck,
   computeStatGrid,
   nliAudit,
   quoteFidelityCheck,
@@ -323,9 +321,6 @@ async function main(): Promise<void> {
   }> = [];
 
   const store = await createStore(DATABASE_URL);
-  const registry = {
-    resolveAuthority: (domain: string) => store.resolveAuthority(domain),
-  };
 
   // One canonical key for BOTH planning and discovery, derived from the claim
   // TEXT. It used to come from the fingerprint's `domain ?? core`, but the

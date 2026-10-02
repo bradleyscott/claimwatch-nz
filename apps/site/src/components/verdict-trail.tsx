@@ -98,11 +98,17 @@ function TrailSectionRow({ section }: { section: TrailSection }) {
             </div>
             {section.bounds.map((bound) =>
               section.bounds.length === 1 ? (
-                <p key={bound.label} className="mt-1 text-[13px] leading-snug text-muted-foreground">
+                <p
+                  key={bound.label}
+                  className="mt-1 text-[13px] leading-snug text-muted-foreground"
+                >
                   {bound.text}
                 </p>
               ) : (
-                <p key={bound.label} className="mt-1 text-[13px] leading-snug text-muted-foreground">
+                <p
+                  key={bound.label}
+                  className="mt-1 text-[13px] leading-snug text-muted-foreground"
+                >
                   <span className="font-semibold">{bound.label}:</span> {bound.text}
                 </p>
               ),

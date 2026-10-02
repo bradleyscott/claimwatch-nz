@@ -29,10 +29,9 @@ interface LoopDecision {
   refinedQuery?: string;
 }
 
-const Fingerprint = {
-  core: "",
-} as const;
-
+// A `const Fingerprint = { core: "" } as const` sat here, declared and never
+// read. It went with the fingerprint itself (ADR-0023): the loop's query is
+// built from the claim text, and the object had no other consumer.
 export async function runOpenWebRetrieval(
   input: {
     claim: string;

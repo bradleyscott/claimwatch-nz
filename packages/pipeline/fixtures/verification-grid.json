@@ -70,10 +70,7 @@
       },
       "expected": {
         "endpointWindow": {
-          "periods": [
-            "2017",
-            "2026"
-          ],
+          "periods": ["2017", "2026"],
           "percentChange": 11.6
         },
         "matchedGridRow": "raw-total-window-2017-2026",

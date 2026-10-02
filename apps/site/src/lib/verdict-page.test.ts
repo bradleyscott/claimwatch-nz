@@ -111,7 +111,6 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
     }),
   );
 
-
 /**
  * A one-step plan, for tests that only care which check the page describes.
  *
@@ -460,10 +459,9 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
       expect(check?.bounds, claimType).toEqual([]);
       // And the reasoning section says the plan was not written down, rather
       // than claiming a check it cannot name.
-      expect(
-        trail.sections.find((s) => s.kind === "chosen")?.technical,
-        claimType,
-      ).toContain("check not recorded");
+      expect(trail.sections.find((s) => s.kind === "chosen")?.technical, claimType).toContain(
+        "check not recorded",
+      );
     }
   });
 
