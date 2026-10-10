@@ -1,0 +1,393 @@
+{
+  "runId": "jev-calibration-2026-10-03T04-14-44-798Z",
+  "at": "2026-10-03T04:14:44.798Z",
+  "purpose": "ADR-0024: measure whether a decision model's probabilities are calibrated on our claims",
+  "model": {
+    "requested": "typesafe/jev-1.13",
+    "resolved": "typesafe/jev-1.13-20260917",
+    "provider": "OpenRouter → TypeSafe"
+  },
+  "promptVersion": "speakership-decisions@1",
+  "priceKey": "openrouter:typesafe/jev-1.13",
+  "priceMapNote": "cost computed from the versioned price map, not the provider's reported figure",
+  "itemCount": 13,
+  "arguableItemCount": 3,
+  "failedCalls": 0,
+  "usage": {
+    "tokensIn": 9685,
+    "tokensOut": 1124,
+    "costUsd": 0.00040677
+  },
+  "report": {
+    "n": 13,
+    "meanStated": 0.8730769230769232,
+    "accuracy": 0.8461538461538461,
+    "overconfidenceGap": 0.02692307692307705,
+    "brier": 0.027438461538461537,
+    "expectedCalibrationError": 0.09307692307692292,
+    "bins": [
+      {
+        "from": 0.3,
+        "to": 0.4,
+        "n": 1,
+        "meanStated": 0.37,
+        "observedAccuracy": 0,
+        "gap": 0.37
+      },
+      {
+        "from": 0.4,
+        "to": 0.5,
+        "n": 1,
+        "meanStated": 0.41,
+        "observedAccuracy": 0,
+        "gap": 0.41
+      },
+      {
+        "from": 0.8,
+        "to": 0.9,
+        "n": 1,
+        "meanStated": 0.81,
+        "observedAccuracy": 1,
+        "gap": -0.18999999999999995
+      },
+      {
+        "from": 0.9,
+        "to": 1,
+        "n": 10,
+        "meanStated": 0.9760000000000002,
+        "observedAccuracy": 1,
+        "gap": -0.0239999999999998
+      }
+    ],
+    "thresholds": [
+      {
+        "threshold": 0,
+        "settled": 13,
+        "settledShare": 1,
+        "settledAccuracy": 0.8461538461538461,
+        "escalated": 0
+      },
+      {
+        "threshold": 0.5,
+        "settled": 11,
+        "settledShare": 0.8461538461538461,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.7,
+        "settled": 11,
+        "settledShare": 0.8461538461538461,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.8,
+        "settled": 11,
+        "settledShare": 0.8461538461538461,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.9,
+        "settled": 10,
+        "settledShare": 0.7692307692307693,
+        "settledAccuracy": 1,
+        "escalated": 3
+      },
+      {
+        "threshold": 0.95,
+        "settled": 8,
+        "settledShare": 0.6153846153846154,
+        "settledAccuracy": 1,
+        "escalated": 5
+      },
+      {
+        "threshold": 0.99,
+        "settled": 6,
+        "settledShare": 0.46153846153846156,
+        "settledAccuracy": 1,
+        "escalated": 7
+      }
+    ]
+  },
+  "arguableReport": {
+    "n": 3,
+    "meanStated": 0.7433333333333333,
+    "accuracy": 0.3333333333333333,
+    "overconfidenceGap": 0.41,
+    "brier": 0.27030000000000004,
+    "expectedCalibrationError": 0.41000000000000003,
+    "bins": [
+      {
+        "from": 0.4,
+        "to": 0.5,
+        "n": 1,
+        "meanStated": 0.45,
+        "observedAccuracy": 0,
+        "gap": 0.45
+      },
+      {
+        "from": 0.7,
+        "to": 0.8,
+        "n": 1,
+        "meanStated": 0.78,
+        "observedAccuracy": 0,
+        "gap": 0.78
+      },
+      {
+        "from": 0.9,
+        "to": 1,
+        "n": 1,
+        "meanStated": 1,
+        "observedAccuracy": 1,
+        "gap": 0
+      }
+    ],
+    "thresholds": [
+      {
+        "threshold": 0,
+        "settled": 3,
+        "settledShare": 1,
+        "settledAccuracy": 0.3333333333333333,
+        "escalated": 0
+      },
+      {
+        "threshold": 0.5,
+        "settled": 2,
+        "settledShare": 0.6666666666666666,
+        "settledAccuracy": 0.5,
+        "escalated": 1
+      },
+      {
+        "threshold": 0.7,
+        "settled": 2,
+        "settledShare": 0.6666666666666666,
+        "settledAccuracy": 0.5,
+        "escalated": 1
+      },
+      {
+        "threshold": 0.8,
+        "settled": 1,
+        "settledShare": 0.3333333333333333,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.9,
+        "settled": 1,
+        "settledShare": 0.3333333333333333,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.95,
+        "settled": 1,
+        "settledShare": 0.3333333333333333,
+        "settledAccuracy": 1,
+        "escalated": 2
+      },
+      {
+        "threshold": 0.99,
+        "settled": 1,
+        "settledShare": 0.3333333333333333,
+        "settledAccuracy": 1,
+        "escalated": 2
+      }
+    ]
+  },
+  "records": [
+    {
+      "id": "q1",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "\"Crime is up 30% since 2017,\" the Minister said.",
+      "context": [],
+      "expected": "quoted-actor",
+      "said": "quoted-actor",
+      "confidence": 0.81,
+      "correct": true
+    },
+    {
+      "id": "q2",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "\"We will not be raising GST,\" she told RNZ.",
+      "context": [],
+      "expected": "quoted-actor",
+      "said": "unresolved",
+      "confidence": 0.37,
+      "correct": false
+    },
+    {
+      "id": "q3",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "Hipkins said the policy would cost more than the government had admitted.",
+      "context": [],
+      "expected": "quoted-actor",
+      "said": "quoted-actor",
+      "confidence": 0.99,
+      "correct": true
+    },
+    {
+      "id": "q4",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "\"There has been a lot more activity in this area.\"",
+      "context": [
+        "That was the assessment of the Associate Immigration Minister, Casey Costello."
+      ],
+      "expected": "quoted-actor",
+      "said": "unresolved",
+      "confidence": 0.41,
+      "correct": false
+    },
+    {
+      "id": "q5",
+      "label": "arguable",
+      "genre": "news-report",
+      "text": "That was the assessment of the Associate Immigration Minister, Casey Costello.",
+      "context": [
+        "\"There has been a lot more activity in this area.\""
+      ],
+      "expected": "outlet-prose",
+      "said": "quoted-actor",
+      "confidence": 0.45,
+      "correct": false
+    },
+    {
+      "id": "n1",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "The figures were released yesterday by the department.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 1,
+      "correct": true
+    },
+    {
+      "id": "n2",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "The rate rose from 4.1% to 4.4% over the quarter.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 0.97,
+      "correct": true
+    },
+    {
+      "id": "n3",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "The announcement was made at a press conference in Wellington.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 0.99,
+      "correct": true
+    },
+    {
+      "id": "n4",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "It remains to be seen how the policy lands with voters.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 0.94,
+      "correct": true
+    },
+    {
+      "id": "m1",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "Costello, who previously worked on migrant exploitation, has been in the role since 2023.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 1,
+      "correct": true
+    },
+    {
+      "id": "m2",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "The Minister was briefed on the review before it was published.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "outlet-prose",
+      "confidence": 1,
+      "correct": true
+    },
+    {
+      "id": "u1",
+      "label": "clear",
+      "genre": "news-report",
+      "text": "\"Something has to change, and it has to change now.\"",
+      "context": [
+        "The report was released on Tuesday."
+      ],
+      "expected": "unresolved",
+      "said": "unresolved",
+      "confidence": 1,
+      "correct": true
+    },
+    {
+      "id": "u2",
+      "label": "arguable",
+      "genre": "news-report",
+      "text": "\"This is the most important decision of the decade.\"",
+      "context": [],
+      "expected": "unresolved",
+      "said": "unresolved",
+      "confidence": 1,
+      "correct": true
+    },
+    {
+      "id": "a1",
+      "label": "clear",
+      "genre": "opinion-analysis",
+      "text": "This government has run out of ideas.",
+      "context": [],
+      "expected": "author-claim",
+      "said": "author-claim",
+      "confidence": 0.9,
+      "correct": true
+    },
+    {
+      "id": "a2",
+      "label": "clear",
+      "genre": "opinion-analysis",
+      "text": "I have argued for years that the policy is unsound.",
+      "context": [],
+      "expected": "author-claim",
+      "said": "author-claim",
+      "confidence": 0.97,
+      "correct": true
+    },
+    {
+      "id": "a3",
+      "label": "arguable",
+      "genre": "news-report",
+      "text": "This government has run out of ideas.",
+      "context": [],
+      "expected": "outlet-prose",
+      "said": "unresolved",
+      "confidence": 0.78,
+      "correct": false
+    }
+  ],
+  "powerWarning": "only 13 clear items — below the harness gate's n>=20 per stratum, so this run cannot settle a routing decision",
+  "thresholdDecision": {
+    "minimumSettledAccuracy": 0.97,
+    "chosen": {
+      "threshold": 0.8,
+      "settled": 11,
+      "settledAccuracy": 1
+    },
+    "configured": 0.9
+  }
+}

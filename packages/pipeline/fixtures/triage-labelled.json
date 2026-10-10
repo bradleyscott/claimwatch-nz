@@ -1,0 +1,556 @@
+{
+  "description": "Labelled triage set for decision-model calibration (ADR-0024). Each item is a real sentence pattern from NZ political text with a hand-assigned speakership class (ADR-0025 axis 1) and, where the sentence is eligible, a content class (axis 2). The decision port is calibrated against these labels; the gate is n>=20 per class. `arguable: true` marks an item whose label a careful second annotator could dispute — those are reported separately so they do not flatter the accuracy figure.",
+  "provenance": {
+    "annotator": "single annotator (project author)",
+    "sources": "Sentences drawn from the RNZ political article used in the live slice, the repo's triage fixtures, and NZ political reportage patterns.",
+    "note": "A labelled set is a published artefact: it is never hand-edited after a run, and a relabel is a new version with a new measurement behind it."
+  },
+  "items": [
+    {
+      "id": "sp-01",
+      "text": "\"We are comfortable with the definition used for violent crime,\" the minister said.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-02",
+      "text": "Police Minister Mark Mitchell said the government would fund 500 more front-line officers.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-03",
+      "text": "\"This is a budget for the many, not the few,\" the Prime Minister told the House.",
+      "speakership": "quoted-actor",
+      "content": "opinion",
+      "arguable": true
+    },
+    {
+      "id": "sp-04",
+      "text": "The Finance Minister has warned that inflation will stay above three percent until 2027.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-05",
+      "text": "\"There is no evidence for that assertion,\" Dr Reti told reporters.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-06",
+      "text": "According to the Mayor, the council will consult on the rates rise next month.",
+      "speakership": "quoted-actor",
+      "content": "procedure"
+    },
+    {
+      "id": "sp-07",
+      "text": "\"We will not be raising GST,\" the Finance Minister promised.",
+      "speakership": "quoted-actor",
+      "content": "pledge-conditional",
+      "arguable": true
+    },
+    {
+      "id": "sp-08",
+      "text": "The opposition leader called the policy \"a recipe for higher emissions\".",
+      "speakership": "quoted-actor",
+      "content": "opinion"
+    },
+    {
+      "id": "sp-09",
+      "text": "Treasury officials advised the minister that the scheme would cost $1.2 billion.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-10",
+      "text": "\"I have confidence in the Commissioner,\" the minister said.",
+      "speakership": "quoted-actor",
+      "content": "opinion"
+    },
+    {
+      "id": "sp-11",
+      "text": "The Health Minister said waiting lists had fallen for a third consecutive quarter.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-12",
+      "text": "\"Nobody is above the law,\" the Police Commissioner told the select committee.",
+      "speakership": "quoted-actor",
+      "content": "rhetoric",
+      "arguable": true
+    },
+    {
+      "id": "sp-13",
+      "text": "The Prime Minister told the House that the treaty principles bill would not proceed.",
+      "speakership": "quoted-actor",
+      "content": "procedure"
+    },
+    {
+      "id": "sp-14",
+      "text": "A spokesperson for the council said the road would reopen by Friday.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-15",
+      "text": "\"We inherited a mess,\" the minister claimed.",
+      "speakership": "quoted-actor",
+      "content": "rhetoric"
+    },
+    {
+      "id": "sp-16",
+      "text": "The Reserve Bank Governor said the committee considered a 50 basis point rise.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-17",
+      "text": "\"That figure is simply wrong,\" the spokesperson responded.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-18",
+      "text": "The chair of the select committee said submissions would close on 14 March.",
+      "speakership": "quoted-actor",
+      "content": "procedure"
+    },
+    {
+      "id": "sp-19",
+      "text": "Officials told the committee that the backlog would take two years to clear.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-20",
+      "text": "\"We are on track,\" the minister insisted, \"to meet the target.\"",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+    {
+      "id": "sp-21",
+      "text": "The report says the agency failed to keep adequate records.",
+      "speakership": "quoted-actor",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "sp-22",
+      "text": "The Mayor told RNZ the water reforms would cost ratepayers more.",
+      "speakership": "quoted-actor",
+      "content": "checkable"
+    },
+
+    {
+      "id": "au-01",
+      "text": "New Zealand's unemployment rate fell to 3.2 percent in the June quarter.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-02",
+      "text": "The government's books show a deficit of $11.1 billion for the year.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-03",
+      "text": "Violent crime recorded by police rose 51 percent between 2018 and 2023.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-04",
+      "text": "The bill passed its third reading by 63 votes to 57.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-05",
+      "text": "Auckland's average house price fell 2.4 percent in the year to June.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-06",
+      "text": "The council voted 12 to 7 to adopt the long-term plan.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-07",
+      "text": "Inflation was 2.2 percent in the year to September.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-08",
+      "text": "The review found the agency had failed to keep adequate records.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-09",
+      "text": "Net migration was 73,000 in the year to June.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-10",
+      "text": "The ferry was cancelled for a third day because of the swell.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-11",
+      "text": "Treasury forecasts growth of 2.1 percent next year.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-12",
+      "text": "The tribunal ordered the department to release the documents.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-13",
+      "text": "The dam reached 92 percent of its capacity on Tuesday.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-14",
+      "text": "The report recommends a single regulator for the sector.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-15",
+      "text": "The Ministry recorded 1,204 serious injuries on farms last year.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-16",
+      "text": "The court found the search warrant was unlawfully executed.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-17",
+      "text": "The scheme has cost $430 million since it began.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-18",
+      "text": "The audit identified $87 million in unspent funds.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-19",
+      "text": "The number of people on the social housing register rose to 25,000.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-20",
+      "text": "The commission's findings were released on Monday.",
+      "speakership": "author-claim",
+      "content": "checkable"
+    },
+    {
+      "id": "au-21",
+      "text": "RNZ understands the decision was made last week.",
+      "speakership": "author-claim",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "au-22",
+      "text": "The figures are published each quarter.",
+      "speakership": "author-claim",
+      "content": "procedure"
+    },
+
+    {
+      "id": "op-01",
+      "text": "The announcement came after months of speculation.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-02",
+      "text": "Here is what you need to know.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-03",
+      "text": "The Prime Minister walked into the room a few minutes after three.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-04",
+      "text": "This is the third time the issue has come before the House.",
+      "speakership": "outlet-prose",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "op-05",
+      "text": "The committee will report back next month.",
+      "speakership": "outlet-prose",
+      "content": "procedure"
+    },
+    {
+      "id": "op-06",
+      "text": "A brief history of the dispute follows.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-07",
+      "text": "The vote was closer than expected.",
+      "speakership": "outlet-prose",
+      "content": "opinion",
+      "arguable": true
+    },
+    {
+      "id": "op-08",
+      "text": "Outside, a small group of protesters had gathered.",
+      "speakership": "outlet-prose",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "op-09",
+      "text": "The hearing continues tomorrow.",
+      "speakership": "outlet-prose",
+      "content": "procedure"
+    },
+    {
+      "id": "op-10",
+      "text": "It has been a long year in Wellington.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-11",
+      "text": "The mood in the room was tense.",
+      "speakership": "outlet-prose",
+      "content": "opinion"
+    },
+    {
+      "id": "op-12",
+      "text": "That brings us to the end of the briefing.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-13",
+      "text": "The minister's office did not respond before deadline.",
+      "speakership": "outlet-prose",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "op-14",
+      "text": "The bill now goes to the Governor-General for assent.",
+      "speakership": "outlet-prose",
+      "content": "procedure"
+    },
+    {
+      "id": "op-15",
+      "text": "This article was updated to include the minister's response.",
+      "speakership": "outlet-prose",
+      "content": "procedure"
+    },
+    {
+      "id": "op-16",
+      "text": "The following is a transcript of the interview.",
+      "speakership": "outlet-prose",
+      "content": "procedure"
+    },
+    {
+      "id": "op-17",
+      "text": "As the sun set over the harbour, the debate continued.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-18",
+      "text": "There is more to come on this story.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-19",
+      "text": "The two leaders met for the first time since the election.",
+      "speakership": "outlet-prose",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "op-20",
+      "text": "Parliament rose for the winter recess on Thursday.",
+      "speakership": "outlet-prose",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "op-21",
+      "text": "The press gallery was unusually full.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+    {
+      "id": "op-22",
+      "text": "We will return to the studio after the break.",
+      "speakership": "outlet-prose",
+      "content": "rhetoric"
+    },
+
+    {
+      "id": "un-01",
+      "text": "The policy will cost the country dearly.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    },
+    {
+      "id": "un-02",
+      "text": "It is understood the talks broke down overnight.",
+      "speakership": "unresolved",
+      "content": "checkable"
+    },
+    {
+      "id": "un-03",
+      "text": "Everyone agrees the system is broken.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-04",
+      "text": "The government's approach has been criticised.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-05",
+      "text": "Critics say the plan is unworkable.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    },
+    {
+      "id": "un-06",
+      "text": "There are concerns about the timeline.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-07",
+      "text": "The issue has divided the caucus.",
+      "speakership": "unresolved",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "un-08",
+      "text": "Sources say the deal is close.",
+      "speakership": "unresolved",
+      "content": "checkable"
+    },
+    {
+      "id": "un-09",
+      "text": "It remains unclear who authorised the payment.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-10",
+      "text": "The decision has been described as surprising.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    },
+    {
+      "id": "un-11",
+      "text": "Questions remain about the funding.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-12",
+      "text": "The proposal has support across the House.",
+      "speakership": "unresolved",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "un-13",
+      "text": "Observers expect a close vote.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    },
+    {
+      "id": "un-14",
+      "text": "The announcement was welcomed by industry.",
+      "speakership": "unresolved",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "un-15",
+      "text": "Not everyone is convinced.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-16",
+      "text": "The matter is now with the minister.",
+      "speakership": "unresolved",
+      "content": "procedure"
+    },
+    {
+      "id": "un-17",
+      "text": "There is disagreement about the numbers.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-18",
+      "text": "The public has been told to expect delays.",
+      "speakership": "unresolved",
+      "content": "checkable",
+      "arguable": true
+    },
+    {
+      "id": "un-19",
+      "text": "It is not yet known when the report will be released.",
+      "speakership": "unresolved",
+      "content": "procedure"
+    },
+    {
+      "id": "un-20",
+      "text": "The move has been called a u-turn.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    },
+    {
+      "id": "un-21",
+      "text": "There is a growing sense that the plan will fail.",
+      "speakership": "unresolved",
+      "content": "rhetoric"
+    },
+    {
+      "id": "un-22",
+      "text": "It has been suggested the review was too narrow.",
+      "speakership": "unresolved",
+      "content": "opinion"
+    }
+  ]
+}

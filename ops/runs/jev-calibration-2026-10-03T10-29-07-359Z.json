@@ -1,0 +1,268 @@
+{
+  "runId": "jev-calibration-2026-10-03T10-29-07-359Z",
+  "at": "2026-10-03T10:29:07.361Z",
+  "purpose": "ADR-0024: measure whether a decision model's probabilities are calibrated on our claims",
+  "model": {
+    "requested": "typesafe/jev-1.13",
+    "resolved": "typesafe/jev-1.13-20260917",
+    "provider": "TypeSafe"
+  },
+  "priceKey": "openrouter:typesafe/jev-1.13",
+  "priceMapVersion": "prices-2026-09",
+  "labelledSet": {
+    "annotator": "single annotator (project author)",
+    "sources": "Sentences drawn from the RNZ political article used in the live slice, the repo's triage fixtures, and NZ political reportage patterns.",
+    "note": "A labelled set is a published artefact: it is never hand-edited after a run, and a relabel is a new version with a new measurement behind it."
+  },
+  "itemCount": 88,
+  "arguableItemCount": 15,
+  "calls": {
+    "speakership": 5,
+    "checkability": 3
+  },
+  "failedCalls": 0,
+  "usage": {
+    "tokensIn": 28283,
+    "tokensOut": 8858,
+    "costUsd": 0.00118789
+  },
+  "report": {
+    "speakership": {
+      "n": 88,
+      "meanStated": 0.5481818181818181,
+      "accuracy": 0.5454545454545454,
+      "overconfidenceGap": 0.0027272727272726893,
+      "brier": 0.27596136363636353,
+      "expectedCalibrationError": 0.1709090909090909,
+      "bins": [
+        {
+          "from": 0.3,
+          "to": 0.4,
+          "n": 20,
+          "meanStated": 0.35300000000000004,
+          "observedAccuracy": 0.5,
+          "gap": -0.14699999999999996
+        },
+        {
+          "from": 0.4,
+          "to": 0.5,
+          "n": 16,
+          "meanStated": 0.4381250000000001,
+          "observedAccuracy": 0.6875,
+          "gap": -0.2493749999999999
+        },
+        {
+          "from": 0.5,
+          "to": 0.6,
+          "n": 21,
+          "meanStated": 0.5490476190476189,
+          "observedAccuracy": 0.5714285714285714,
+          "gap": -0.0223809523809525
+        },
+        {
+          "from": 0.6,
+          "to": 0.7,
+          "n": 14,
+          "meanStated": 0.6357142857142856,
+          "observedAccuracy": 0.5,
+          "gap": 0.13571428571428557
+        },
+        {
+          "from": 0.7,
+          "to": 0.8,
+          "n": 10,
+          "meanStated": 0.7420000000000001,
+          "observedAccuracy": 0.3,
+          "gap": 0.4420000000000001
+        },
+        {
+          "from": 0.8,
+          "to": 0.9,
+          "n": 2,
+          "meanStated": 0.835,
+          "observedAccuracy": 0.5,
+          "gap": 0.33499999999999996
+        },
+        {
+          "from": 0.9,
+          "to": 1,
+          "n": 5,
+          "meanStated": 0.93,
+          "observedAccuracy": 0.8,
+          "gap": 0.13
+        }
+      ],
+      "thresholds": [
+        {
+          "threshold": 0,
+          "settled": 88,
+          "settledShare": 1,
+          "settledAccuracy": 0.5454545454545454,
+          "escalated": 0
+        },
+        {
+          "threshold": 0.5,
+          "settled": 52,
+          "settledShare": 0.5909090909090909,
+          "settledAccuracy": 0.5192307692307693,
+          "escalated": 36
+        },
+        {
+          "threshold": 0.7,
+          "settled": 17,
+          "settledShare": 0.19318181818181818,
+          "settledAccuracy": 0.47058823529411764,
+          "escalated": 71
+        },
+        {
+          "threshold": 0.8,
+          "settled": 7,
+          "settledShare": 0.07954545454545454,
+          "settledAccuracy": 0.7142857142857143,
+          "escalated": 81
+        },
+        {
+          "threshold": 0.9,
+          "settled": 5,
+          "settledShare": 0.056818181818181816,
+          "settledAccuracy": 0.8,
+          "escalated": 83
+        },
+        {
+          "threshold": 0.95,
+          "settled": 1,
+          "settledShare": 0.011363636363636364,
+          "settledAccuracy": 1,
+          "escalated": 87
+        },
+        {
+          "threshold": 0.99,
+          "settled": 1,
+          "settledShare": 0.011363636363636364,
+          "settledAccuracy": 1,
+          "escalated": 87
+        }
+      ]
+    },
+    "checkability": {
+      "n": 44,
+      "meanStated": 0.7286363636363636,
+      "accuracy": 0.7727272727272727,
+      "overconfidenceGap": -0.04409090909090907,
+      "brier": 0.14010454545454548,
+      "expectedCalibrationError": 0.1886363636363636,
+      "bins": [
+        {
+          "from": 0.4,
+          "to": 0.5,
+          "n": 2,
+          "meanStated": 0.48,
+          "observedAccuracy": 1,
+          "gap": -0.52
+        },
+        {
+          "from": 0.5,
+          "to": 0.6,
+          "n": 12,
+          "meanStated": 0.5483333333333333,
+          "observedAccuracy": 0.3333333333333333,
+          "gap": 0.21500000000000002
+        },
+        {
+          "from": 0.6,
+          "to": 0.7,
+          "n": 5,
+          "meanStated": 0.628,
+          "observedAccuracy": 0.8,
+          "gap": -0.17200000000000004
+        },
+        {
+          "from": 0.7,
+          "to": 0.8,
+          "n": 5,
+          "meanStated": 0.772,
+          "observedAccuracy": 1,
+          "gap": -0.22799999999999998
+        },
+        {
+          "from": 0.8,
+          "to": 0.9,
+          "n": 14,
+          "meanStated": 0.8514285714285714,
+          "observedAccuracy": 1,
+          "gap": -0.14857142857142858
+        },
+        {
+          "from": 0.9,
+          "to": 1,
+          "n": 6,
+          "meanStated": 0.9333333333333332,
+          "observedAccuracy": 0.8333333333333334,
+          "gap": 0.09999999999999987
+        }
+      ],
+      "thresholds": [
+        {
+          "threshold": 0,
+          "settled": 44,
+          "settledShare": 1,
+          "settledAccuracy": 0.7727272727272727,
+          "escalated": 0
+        },
+        {
+          "threshold": 0.5,
+          "settled": 42,
+          "settledShare": 0.9545454545454546,
+          "settledAccuracy": 0.7619047619047619,
+          "escalated": 2
+        },
+        {
+          "threshold": 0.7,
+          "settled": 25,
+          "settledShare": 0.5681818181818182,
+          "settledAccuracy": 0.96,
+          "escalated": 19
+        },
+        {
+          "threshold": 0.8,
+          "settled": 20,
+          "settledShare": 0.45454545454545453,
+          "settledAccuracy": 0.95,
+          "escalated": 24
+        },
+        {
+          "threshold": 0.9,
+          "settled": 6,
+          "settledShare": 0.13636363636363635,
+          "settledAccuracy": 0.8333333333333334,
+          "escalated": 38
+        },
+        {
+          "threshold": 0.95,
+          "settled": 1,
+          "settledShare": 0.022727272727272728,
+          "settledAccuracy": 1,
+          "escalated": 43
+        },
+        {
+          "threshold": 0.99,
+          "settled": 1,
+          "settledShare": 0.022727272727272728,
+          "settledAccuracy": 1,
+          "escalated": 43
+        }
+      ]
+    }
+  },
+  "gate": {
+    "itemsPerClass": 20,
+    "accuracyFloor": 0.95,
+    "speakership": {
+      "cleared": false
+    },
+    "checkability": {
+      "cleared": false
+    },
+    "cleared": false
+  }
+}
