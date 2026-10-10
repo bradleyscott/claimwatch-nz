@@ -3,6 +3,11 @@ packages:
   - packages/*
   - tools/*
   - ops
+overrides:
+  # sharp <0.35.5 carries the librsvg advisory (GHSA-wq5f-xc86-pv6w). It arrives
+  # as an optional dependency of next, whose range already allows the fix, so this
+  # only stops the lockfile pinning the older one.
+  sharp: 0.35.5
 allowBuilds:
   esbuild: true
   '@biomejs/biome': true
