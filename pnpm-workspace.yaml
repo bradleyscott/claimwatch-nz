@@ -8,6 +8,10 @@ overrides:
   # as an optional dependency of next, whose range already allows the fix, so this
   # only stops the lockfile pinning the older one.
   sharp: 0.35.5
+  # source-map-js <1.2.2 carries an event-loop DoS (GHSA-68fv-2mgg-jv7q). It
+  # arrives via postcss, which next depends on, so the vulnerable copy is in the
+  # production tree and not only in the build tooling.
+  source-map-js: 1.2.2
 allowBuilds:
   esbuild: true
   '@biomejs/biome': true
