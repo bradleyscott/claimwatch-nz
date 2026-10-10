@@ -1,6 +1,6 @@
 # ADR-0004: Verdict schema, benchmark alignment, and honest abstention
 
-*Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted · Deciders: Dave*
 
 ## Context
 

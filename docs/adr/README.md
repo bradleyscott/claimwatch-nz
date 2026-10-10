@@ -1,8 +1,10 @@
 # Architecture Decision Records
 
-One file per decision, grouped by subject area. Statuses: Proposed → Accepted / Superseded. Renumbered 2026-09-08 for coherence — this set is the stable record; history is preserved in git.
+One file per decision, grouped by subject area. Statuses: Proposed → Accepted / Decided / Open.
 
-**Accepted means built.** An ADR is Accepted once its decision is implemented in code and covered by tests; the acceptance date records when that happened. An ADR stays Proposed while nothing implements it, Open while it is gated on a measurement, and Decided when the call is a direction rather than a buildable feature. Five ADRs remain Proposed because no code implements them: 0007 (no broadcast ingestion lane), 0009 (argument chains), 0012 (no OTel/Grafana wiring), 0013 (proposal templates exist, but the automated scope-check and public decision record do not), and 0018 (no institutional-source lane).
+**Accepted means built.** An ADR is Accepted once its decision is implemented in code and covered by tests. An ADR stays Proposed while nothing implements it, Open while it is gated on a measurement, and Decided when the call is a direction rather than a buildable feature. Five ADRs remain Proposed because no code implements them: 0007 (no broadcast ingestion lane), 0009 (argument chains), 0012 (no OTel/Grafana wiring), 0013 (proposal templates exist, but the automated scope-check and public decision record do not), and 0018 (no institutional-source lane).
+
+The ADRs describe the current design. A decision that no longer describes current state is removed rather than kept as history.
 
 ## Trust and publication model
 
@@ -17,16 +19,16 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 
 | ADR | Title | Status |
 |---|---|---|
-| [0005](0005-verification-layer.md) | The verification layer — multi-mode engine, sensitivity grid, evidence store | Accepted (§2.1 mode routing superseded by [0023](0023-verification-plans-and-the-procedure-library.md)) |
+| [0005](0005-verification-layer.md) | The claim-anchored evidence store | Accepted |
 | [0006](0006-ingestion-architecture.md) | Ingestion — six lanes, extraction ladder, health checking, dedupe, retrieval discipline | Accepted |
 | [0007](0007-broadcast-and-context-scope.md) | Broadcast/podcast interviews and the context scope boundary | Proposed |
 | [0008](0008-claim-context-and-document-hierarchy.md) | Claim context — discourse window, publication/segment hierarchy, on-demand depth | Accepted |
 | [0009](0009-argument-chains.md) | Argument chains — verdicts composed into the reasoning structure | Proposed |
-| [0019](0019-speakership-attribution-and-claim-scope.md) | Speakership attribution and claim scope — newsroom narration is not a claim | Accepted |
-| [0020](0020-research-strength-and-source-admissibility.md) | Research strength — research floor, source admissibility, corroboration | Proposed |
+| [0020](0020-research-strength-and-source-admissibility.md) | Research strength — source admissibility and corroboration | Accepted |
 | [0021](0021-a-claim-carries-its-document-referents-and-jurisdiction.md) | A claim carries its document, its referents and its jurisdiction | Proposed |
-| [0022](0022-materiality-worth-checking.md) | Materiality — a pre-declared test for whether a claim is worth checking | Proposed |
-| [0023](0023-verification-plans-and-the-procedure-library.md) | Verification plans and an emergent procedure library | Accepted |
+| [0024](0024-decision-models-and-calibration.md) | Decision models — a typed decision port, with calibration as the gate | Accepted |
+| [0025](0025-two-triage-arms.md) | Two triage arms — whose words, and what they are | Accepted |
+| [0026](0026-the-adversarial-research-loop.md) | The adversarial research loop | Accepted |
 
 ## Measurement and providers
 
@@ -48,12 +50,12 @@ One file per decision, grouped by subject area. Statuses: Proposed → Accepted 
 
 1. Anyone (maintainers or public) proposes an ADR via PR or issue.
 2. Discussion happens in the PR or linked issue, in the open.
-3. Maintainers set the status; superseded ADRs stay in place with a link to their successor.
-4. Competing ADRs are welcome — disagreements between ADRs are resolved by a new ADR, not by editing history.
+3. Maintainers set the status.
+4. Competing ADRs are welcome — disagreements between ADRs are resolved by a new ADR, not by editing an accepted one.
 
 ## Conventions
 
-- Numbering never reuses numbers within a generation of the ADR set; this set is numbered as consolidated records.
+- Numbering never reuses numbers within a generation of the ADR set.
 - "Deciders" lists the humans who made the call.
 - Every ADR carries a **Context → Decision → Alternatives → Consequences** structure.
-- When implementation contradicts an accepted ADR, the ADR is superseded first, in the open, before the code changes.
+- Every ADR describes the current design only. It does not narrate prior decisions, prior versions or changes.

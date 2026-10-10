@@ -45,9 +45,9 @@ flowchart TB
 
     subgraph CW["ClaimWatch (open source)"]
         INGEST["Claim-source ingestion<br/>6 lanes, health-checked (ADR-0006)"]
-        TRIAGE["Claim detection + typing<br/>+ discourse context (ADR-0008)"]
-        VERIFY["Verification engine<br/>plans over a procedure library<br/>(ADR-0023)"]
-        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)<br/>+ procedure library (ADR-0023)"]
+        TRIAGE["Claim detection + scope<br/>+ discourse context (ADR-0008/0025)"]
+        VERIFY["Verification engine<br/>adversarial research loop (ADR-0026)"]
+        STORE["Evidence + verdict store<br/>claim-anchored, append-only (ADR-0005)"]
         SITE["Public site<br/>ClaimReview markup"]
         CONTEST["Contestation intake<br/>+ evidence validation (ADR-0002)"]
     end
@@ -83,21 +83,25 @@ Verifier authorities are deliberately limited to public, structured, official da
 ```mermaid
 flowchart LR
     A["Raw document<br/>release / Hansard / article"] --> B["Sentence split<br/>+ metadata"]
-    B --> C{"LLM triage:<br/>checkable claim?"}
+    B --> C{"Triage:<br/>both arms pass?"}
     C -- "no" --> Z["dropped<br/>(logged for eval)"]
-    C -- "yes" --> D["Claim record:<br/>text + type<br/>+ discourse context (ADR-0008)<br/>+ publication/segment refs (ADR-0008)"]
-    D --> E["Plan the claim<br/>(ADR-0023)"]
-    E --> F["Procedure library<br/>suggests by category;<br/>required procedures cannot be dropped"]
-    F --> G["Sensitivity grid<br/>over official series"]
-    F --> H["Fetch cited doc<br/>claim-vs-source check"]
-    F --> I["Open-web research<br/>question decomposition,<br/>capped depth"]
-    G --> J["Evidence pack<br/>+ plan + verdict"]
-    H --> J
-    I --> J
+    C -- "yes" --> D["Claim record:<br/>text + discourse context (ADR-0008)<br/>+ publication/segment refs (ADR-0008)"]
+    D --> E["Adversarial research loop<br/>(ADR-0026)"]
+    E --> F["Assessor: evidence plan<br/>+ falsification questions"]
+    F --> G["Researcher: tool loop —<br/>search, read, extract (capped)"]
+    G --> H["Critiquer: sufficient?<br/>class + reason + gaps"]
+    H -- "insufficient, turns left" --> F
+    H -- "sufficient or capped" --> J["Evidence pack<br/>+ loop record + verdict"]
     J --> K["Verdict store<br/>versioned, labelled open-to-contest"]
 ```
 
-A claim gets a **plan**, not one of five modes (ADR-0023). The plan is an ordered list of steps, each invoking a **procedure**: the figures check over an official series, a bounded claim-vs-source comparison, the recording check, the context check, or open-web research with capped depth. A claim may need several — a sentence that quotes a person *and* asserts a number needs both answers. Procedures live in a versioned library that grows as claim traffic shows what is needed; the library suggests and never constrains, while a claim's own features set a floor so the check it needs cannot be silently omitted. AVeriTeC shows open-web research is the least reliable of these, so it is capped, labelled, and its verdicts are the most visibly "open to contest."
+Verification is one instrument (ADR-0026): a capped adversarial loop of three roles. The assessor
+writes an evidence plan naming what would prove or falsify the claim, the researcher searches and
+extracts passages within a per-turn budget, and the critiquer decides whether the evidence is
+sufficient and picks the class. A claim is researched the same way whatever kind of claim it is, and
+an official series is a possible evidence source for the researcher rather than a separate instrument.
+The loop is capped; when the cap binds, `not_enough_evidence` is published with the critiquer's stated
+reason, so a capped run is a finding about the record rather than a silent weak verdict.
 
 ## 3. Verdict lifecycle (the mutation model)
 
@@ -121,19 +125,15 @@ Every transition is logged; nothing is ever silently edited (ADR-0001, ADR-0002)
 
 ```mermaid
 flowchart TB
-    CLAIM["Quoted claim:<br/>'Crime up 30% since 2017'"] --> FP["Fingerprint extraction<br/>indicator × population × geography ×<br/>time window × baseline × unit"]
-    FP --> CTX["Discourse context (ADR-0008):<br/>policy proposal, argument direction —<br/>selects MATERIAL grid rows"]
-    FP --> MATCH{"Match in evidence store?"}
-    MATCH -- "yes" --> SERIES["Accumulated evidence<br/>(series already fetched,<br/>versioned)"]
-    MATCH -- "no" --> RETRIEVE["Retrieve series<br/>from verifier authorities"]
-    RETRIEVE --> SERIES
-    SERIES --> GRID["Sensitivity grid:<br/>window variants · per-capita ·<br/>denominator family · cohorts · seasonality"]
-    GRID --> CLASS{"Claim robust<br/>across grid?"}
-    CLASS -- "yes" --> V1["Verdict: accurate<br/>+ full field shown"]
-    CLASS -- "no" --> V2["Verdict: accurate but incomplete<br/>+ alternatives table + charts"]
-    V2 --> FIELD["Evidence field<br/>append-only, versioned"]
-    V1 --> FIELD
-    FIELD --> PUBLISH["Published verdict page:<br/>chart-first, ClaimReview markup,<br/>'as deployed' line (ADR-0008)"]
+    CLAIM["Claim:<br/>'Crime up 30% since 2017'"] --> CTX["Discourse context (ADR-0008):<br/>the passage, topic, venue,<br/>what the claim supports"]
+    CTX --> ASSESS["claim-assessor<br/>what evidence would prove<br/>or disprove it; the questions"]
+    ASSESS --> RESEARCH["researcher (tool loop)<br/>search, read, extract passages<br/>(bounded)"]
+    RESEARCH --> CRIT["evidence-critiquer<br/>sufficient? class + reason + gaps"]
+    CRIT -- "insufficient,<br/>turns left" --> ASSESS
+    CRIT -- "sufficient" --> FIELD["Evidence field<br/>append-only, versioned"]
+    CRIT -- "cap reached" --> NEI["not_enough_evidence<br/>+ the critiquer's reason"]
+    FIELD --> PUBLISH["Published verdict page:<br/>what was sought, what was found,<br/>why the class followed"]
+    NEI --> PUBLISH
 ```
 
 The claim is often true — the verdict is about the *representativeness of the framing*, assessed against the claim's discourse context: the proposal it supports and its argument direction determine which grid rows are material to the deployment, while the grid itself stays pre-declared and identical for every claimant (the defence against "you invented the standard to hurt us"; ADR-0005). Series accumulate from real claims, so repeat and adjacent claims resolve from stored evidence. Grading: `EVALUATION.md`.
@@ -174,7 +174,7 @@ The validation step is the anti-brigading mechanism in v1 (ADR-0002): submitted 
 - Bridging-weighted community rating (post-election, with data to justify it — ADR-0002)
 - Māori-language claim processing (acknowledged gap; roadmap item with iwi/kaupapa partners)
 - Auto-publishing verdicts without the contest pathway
-- Pre-computed topic packs (superseded by the claim-anchored evidence store — ADR-0005)
+- Pre-computed topic packs (rejected in favour of the claim-anchored evidence store — ADR-0005)
 
 ## 7. Hosting and operations
 

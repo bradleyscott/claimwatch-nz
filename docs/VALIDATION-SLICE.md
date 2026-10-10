@@ -49,10 +49,10 @@ simplicity.
 
 The human-labelling set (target **~100 claims**) mirrors the risk surface, not lane volumes:
 
-- **Stratified across the five lanes** and the procedures exercised (figures / document / recording / context) — a claim counts once per procedure its plan ran (ADR-0023)
+- **Stratified across the five lanes** and the claim shapes the harness labels (a quantitative claim, a quoted claim, a document-anchored claim) — every claim runs the same research loop (ADR-0026), so the stratum is the lane and the shape, not the check
 - **Verdict-mix targets** per the AVeriTeC lessons (ADR-0010): a Supported-heavy natural mix, plus deliberate oversampling of "Accurate but incomplete" (the hardest and most valuable class to label)
 - **Double-labelling on ~30%** for inter-annotator agreement
-- **Per-stratum accuracy reporting**: the deliverable is not one number but accuracy *per media type × procedure*, and for the mixture of plans actually run — "figures on official prose: X%; quote-fidelity on Tier-2 captions: Y%; citation-check on institutional claims: Z%". That table shows where the system is production-grade and where it needs hardening before the election, which is the entire point of validating early.
+- **Per-stratum accuracy reporting**: the deliverable is not one number but accuracy *per media type × claim shape* — "quantitative claims: X%; quoted claims: Y%; document-anchored claims: Z%", plus the cap-binding rate. That table shows where the system is production-grade and where it needs hardening before the election, which is the entire point of validating early.
 - Dataset A (labelling export) and Dataset B (AVeriTeC L1 harness) generated per the ADR-0010 design; Layer-2 NZ set construction continues from these labels.
 
 ### The website MVP — "sufficient to publicise and get feedback"

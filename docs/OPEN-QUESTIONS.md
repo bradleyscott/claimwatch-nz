@@ -16,8 +16,8 @@ question where it lives, then update its line here.
 6. NZIER entry criteria
 7. False-context set redistribution
 8. Embedding model for claim-level dedupe
-9. Opinion-piece political relevance (ADR-0019 §2)
-10. Attribution window (ADR-0019 §1)
+9. Opinion-piece political relevance (ADR-0025 §2)
+10. Attribution window (ADR-0025 §3)
 11. unresolved handling
 12. Existing mis-scoped verdicts
 13. Genre detection source
@@ -33,29 +33,32 @@ question where it lives, then update its line here.
 5. Pledge typing detail
 6. Caption sentence splitting
 7. Dedupe embedding model
-8. Determinism, given no usable sampling knob (Sept 2026)
+8. Determinism, given no usable sampling knob
 
 ## Verification
 
-[Full text](design/VERIFICATION.md#5-open-questions) · 7 open, 1 resolved
+[Full text](design/VERIFICATION.md#5-open-questions) · owned by [ADR-0026](adr/0026-the-adversarial-research-loop.md)
 
 1. Search-provider order — **resolved**
-2. Materiality-selection rubric sign-off
-3. Quote-fidelity tolerance policy
-4. Provenance-mode graduation criteria
-5. NLI-auditor calibration bar
-6. Depth-cap values per procedure
-7. Figures-procedure verdict for misquoted-but-real numbers (right indicator, wrong figure)
-8. Causal claims have no procedure (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Since ADR-0023 this is a *procedure* to add rather than a sixth mode: the plan can name one the library has never seen, so difference-in-differences can ship as a library row without a routing change
+2. **Reintroducing a deterministic series check** — a quantitative claim is researched like any other today (ADR-0026). Add a series check as an evidence *source* for the researcher, not as a separate procedure, so verification stays one loop
+3. Critiquer calibration bar — what false-pass rate disqualifies the critiquer model?
+4. Turn / search / tool-step cap values — calibrate against first L3 cost data
+5. Causation — no check tests it; the loop reports timing evidence and names the bound on the page
+6. Rounding tolerance for a misquoted-but-real number — the `refuted` vs `conflicting_cherry_picking` boundary
 
-## Verification plans and the procedure library
+## Decision models
 
-[Full text](design/VERIFICATION.md#5-open-questions) · owned by [ADR-0023](adr/0023-verification-plans-and-the-procedure-library.md)
+Owned by [ADR-0024](adr/0024-decision-models-and-calibration.md).
 
-1. **Novel-method stratum** — the L3 stratum of claims whose correct procedure is not in the library, so a library that has closed into a rut shows up as measurable recall failure. Must exist before the library has anything in it, or the guard is added after the fact
-2. **Plan agreement** — should the class-agreement gate (VERIFICATION §2.7a) extend to the plan itself, so two runs of one claim cannot choose different procedures, or is a visible plan diff enough?
-3. **Library growth policy** — who promotes a procedure the planner proposed into a library row, and what evidence justifies it
-4. **Suggestion weighting** — frequency of use is the current signal. What, if anything, may be added without learning from outcomes (which ADR-0023 rejects)?
+1. **A labelled triage set at n≥20 per class** — the calibration gate cannot be satisfied from
+   hand-written smoke-test items (the first run had 13). This is the real blocker to rerouting
+   `triage-checkability`, and it is a labelling task, not a code task
+2. **Which role moves next** — `triage-checkability` and `evidence-critiquer` are the closed-vocabulary
+   roles; `evidence-critiquer` is the publication gate and needs the strictest floor
+3. **Ollama as the primary transport** — the local path is free and exempt from the foreign-operator
+   rule, but adds a GPU availability dependency the pipeline has no failure discipline for yet
+4. **Whether to bundle roles into one decision request** — the obvious latency win, blocked on a
+   `role_bundle` concept so per-role provenance survives
 
 ## Store
 

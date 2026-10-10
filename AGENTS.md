@@ -41,9 +41,10 @@ Breaking one of these is a bug regardless of test results.
    published criterion.
 6. **No secrets in the repo.** Keys come from `.env` (gitignored) or CI secrets. Never commit keys,
    tokens, passwords, `.env`, or key material in fixtures/snapshots/prompts.
-7. **ADR before contradiction** (`docs/adr/README.md`). If code must contradict an accepted ADR,
-   supersede the ADR first, in the open. New ADRs take the next number and are added to the
-   `docs/adr/README.md` table; every ADR is Context → Decision → Alternatives → Consequences.
+7. **ADRs describe current design only** (`docs/adr/README.md`). An ADR states the decision in force,
+   not how it got there — one that no longer describes current state is removed rather than kept as
+   history. New ADRs take the next number and are added to the `docs/adr/README.md` table; every ADR
+   is Context → Decision → Alternatives → Consequences.
 8. **No paid API calls by default.** L1 tests mock all LLM/search access; live smoke tests are gated
    behind `LIVE_EGRESS=1` (CRO-R6). CI must be green with no API keys present.
 9. **Two registers** (SITE-MVP §2.2). Public pages use layperson language; "sensitivity grid",

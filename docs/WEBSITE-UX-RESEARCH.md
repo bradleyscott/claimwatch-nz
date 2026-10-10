@@ -1,6 +1,6 @@
 # Website UX research — what famous fact-check sites do, and how ours should present the analysis
 
-*Companion research note for ADR-0008 (publication/segment context) and the site build. Sources: live pages of PolitiFact, Full Fact, Snopes, FactCheck.org, plus secondary coverage, September 2026.*
+*Companion research note for ADR-0008 (publication/segment context) and the site build. Sources: live pages of PolitiFact, Full Fact, Snopes, FactCheck.org, plus secondary coverage.*
 
 ## What the famous sites actually let users do
 

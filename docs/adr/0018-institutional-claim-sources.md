@@ -1,12 +1,12 @@
 # ADR-0018: Institutional claim sources — think tanks, lobby groups, and sector peak bodies
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Proposed · Deciders: Dave*
 
 ## Context
 
 A large share of the most consequential campaign claims originates not from politicians, parties, or media but from **advocacy institutions**: think tanks, business lobbies, union federations, sector peak bodies, and community-sector organisations. BusinessNZ and its members, the NZ Council of Trade Unions and its affiliates, The New Zealand Initiative, the Taxpayers' Union, NZIER, BERL, Federated Farmers, the Salvation Army's Social Policy Unit, the Child Poverty Action Group — these bodies produce reports, economic analysis, press releases, manifestos, and poll-based claims that politicians then quote and campaigns adopt. A fact-checking resource that covers parties and media but not this layer misses the *upstream supply* of campaign claims: think-tank reports become talking points within days.
 
-This ADR maps the institutional claim-source landscape (researched 2026-09-08, with live probes for machine access) and defines how these organisations are ingested.
+This ADR maps the institutional claim-source landscape and defines how these organisations are ingested.
 
 **A structural note first.** These bodies span a spectrum: research organisations (NZIER publishes
 forecasts and peer-reviewable economic analysis), advocacy groups (the Taxpayers' Union campaigns for
@@ -28,7 +28,7 @@ never by political-leaning labels.
 
 **Think tanks and research bodies** (reports, working papers, polls, media releases):
 
-| Organisation | Orientation (observable) | Output rhythm | Machine access (probed 2026-09-08) |
+| Organisation | Orientation (observable) | Output rhythm | Machine access |
 |---|---|---|---|
 | **The New Zealand Initiative** | Business-funded policy think tank; free-market; 3 of NZ's "big three" think tanks | Reports, media releases, weekly member newsletter; high media pickup | Site 200 (87KB) at `/reports-and-media`; no RSS found (404s) → headless listing scrape |
 | **NZIER** | NZ Institute of Economic Research; economic forecaster; publishes **Consensus Forecasts** (quarterly) and Quarterly Survey of Business Opinion — quoted weekly in coverage | Publications cadence ~weekly | Site 200 (174KB) at `/publications`; no RSS → scrape; note: NZIER *forecasts* are claims about the future (consistency-checkable only) |
@@ -71,7 +71,7 @@ never by political-leaning labels.
 
 ### Ingestion mechanics
 
-- **Volume profile is modest**: most of these organisations publish weekly-to-monthly; the whole institutional lane is expected at ~30–80 items/day across all bodies during campaign peak — far below the news lane, but each item is a *primary claim source* (press releases and reports are self-published packages pairing claims with their own evidence — exactly the pattern the citation-check and stat-engine modes are built for).
+- **Volume profile is modest**: most of these organisations publish weekly-to-monthly; the whole institutional lane is expected at ~30–80 items/day across all bodies during campaign peak — far below the news lane, but each item is a *primary claim source* (press releases and reports are self-published packages pairing claims with their own evidence — exactly the pattern the research loop is built for).
 - **No feeds found on the major bodies** (probed: NZ Initiative, Taxpayers' Union, NZCTU, BusinessNZ, NZIER all 404/403 on standard feed paths — BusinessNZ even 403s listing pages): the lane runs on **headless listing scrapes** per the ADR-0006 headless-render pattern (as the party lane does), plus **Substack RSS where available** (verified for The Kākā and Democracy Project).
 - **Parser-per-organisation** following the shared listing→item→clean-text contract; registered via config; publicly proposed via ADR-0013's source-proposal pathway — the register is published and party-blind, with organisations added by reach-in-their-sector criteria (the same criterion as the commentator watchlist, applied to institutions).
 - **Polls get special handling**: advocacy-owned polls (Taxpayers' Union–Curia) are claims about public opinion — verifiable as methodological claims (sample, weighting, margin of error — against the declared methodology and other polls), not as evidence of party support. The provenance flag (who paid for the poll) rides on the record.

@@ -9,7 +9,7 @@ An open-source system for checking factual claims made during New Zealand politi
 Ahead of the 2026 NZ general election (7 November 2026):
 
 1. **Monitors** official sources — Beehive releases, party releases, Hansard, news RSS, broadcast captions (publisher-published text only), and institutional claim sources.
-2. **Detects and types** checkable factual claims, with a focus on statistics used to support policy propositions.
+2. **Detects** checkable factual claims — whose words they are and whether they can be checked — with a focus on statistics used to support policy propositions.
 3. **Verifies** claims against primary and official evidence. Each claim gets a **plan** — an ordered list of checks built from what the claim actually is, not one of a fixed set — and the flagship check targets the most common campaign pattern: a statistic quoted accurately but painting a selective picture. The checks themselves are a versioned library that grows as claim traffic shows what is needed.
 4. **Publishes** verdicts as automated assessments, open to contest — validated contest evidence mutates the verdict with a public diff and append-only audit log.
 5. **Measures itself** against a labelled set of NZ political claims and publishes the numbers.
@@ -33,7 +33,7 @@ Ahead of the 2026 NZ general election (7 November 2026):
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | The two-layer evaluation harness (AVeriTeC benchmark + NZ-labelled set). |
 | [`docs/COVERAGE.md`](docs/COVERAGE.md) | Live-probed access map for every cited source: feeds, bot protection, degradation, mitigations. |
 | [`docs/SOURCE-TAXONOMY.md`](docs/SOURCE-TAXONOMY.md) | Claim-source coverage matrix (anti-bias) and the evidence-authority map (T1–T6 tiers, per-domain, precedence rules). |
-| [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Misleading-information taxonomies (Wardle, DISARM/FIMI, EU-2024 distributions) mapped to verification modes. |
+| [`docs/MISINFO-TAXONOMY.md`](docs/MISINFO-TAXONOMY.md) | Misleading-information taxonomies (Wardle, DISARM/FIMI, EU-2024 distributions) mapped to the evidence each class needs. |
 | [`docs/WEBSITE-UX-RESEARCH.md`](docs/WEBSITE-UX-RESEARCH.md) | What PolitiFact/Full Fact/Snopes/FactCheck.org do, and our page set + differentiators. |
 | [`docs/DISCOVERY-MECHANISM.md`](docs/DISCOVERY-MECHANISM.md) | Findability: ClaimReview-marked SSR pages, faceted browse, hybrid search, feed + newsletter. |
 | [`docs/USER-SUBMISSIONS.md`](docs/USER-SUBMISSIONS.md) | Intake: source-URL vs claim submission, fuzzy match, public verification requests, never-trust rule. |

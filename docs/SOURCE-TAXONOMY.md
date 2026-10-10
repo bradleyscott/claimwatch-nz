@@ -76,7 +76,7 @@ Access statuses live-probed 2026-09-07 (method in `COVERAGE.md`); "⚠️ unprob
 
 - Social platforms (crawl): gap delegated to user submissions (ADR-0006)
 - Podcasts/talkback/broadcast beyond publisher-published text: deferred (ADR-0007); claims that live only on air are out of scope until post-election
-- Overseas media except when cited by NZ actors (then it's a citation-check case)
+- Overseas media except when cited by NZ actors (then it is evidence for the claim it is cited in)
 
 ---
 
@@ -90,8 +90,8 @@ prints (`1` official statistics · `2` academic research · `3` major outlet · 
 `6` unknown). Those codes come from the open-web source classifier
 (`packages/pipeline/src/search/vetting.ts`), a separate scale answering a different question — what
 kind of source is this? — and assigned per source rather than per domain. A page's `T1` is therefore
-not this table's `A1`. Renamed from `T1–T6` in Sept 2026 so the shared code space stops implying the
-two are the same thing.
+not this table's `A1`. Two separate code spaces, so a shared letter would imply the two are the same
+thing.
 
 | Level | Definition | Examples | Use |
 |---|---|---|---|
@@ -106,7 +106,7 @@ two are the same thing.
 
 ### 2.2 Authority map by election-relevant policy domain
 
-The v1 map; each row is retrieval guidance for the claim-anchored evidence store (ADR-0005). Domains are the ones where campaign claims concentrate (cross-checked against 2020/2023 campaign topic frequency). "Denominator family" lists the alternative framings the sensitivity grid must compute.
+Each row is retrieval guidance for the claim-anchored evidence store (ADR-0005). Domains are the ones where campaign claims concentrate (cross-checked against 2020/2023 campaign topic frequency). "Denominator family" lists the alternative framings the sensitivity grid must compute.
 
 | Policy domain | A1/A2 primary authorities | A3/A4 alternates | Key denominator family |
 |---|---|---|---|

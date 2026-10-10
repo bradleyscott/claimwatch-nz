@@ -1,6 +1,6 @@
 # ADR-0006: Ingestion — six lanes, extraction ladder, health checking, dedupe, and retrieval discipline
 
-*Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted · Deciders: Dave*
 
 *(Consolidates the 2026-cycle ingestion scope decision with the ingestion architecture; the broadcast-scope boundary is ADR-0007.)*
 
@@ -63,12 +63,7 @@ Per-source monitors: liveness (200-but-zero-items is a distinct alarm), structur
 
 ### Deduplication (by claim, not by document)
 
-**Note (Sept 2026):** the *fingerprint* half of the claim-level match was removed by
-[ADR-0023](0023-verification-plans-and-the-procedure-library.md). The embedding is what actually
-matched near-duplicates, and the rule stated here — a repeat gains a source-occurrence, never a new
-queue entry — is unchanged. Read "fingerprint + embedding" below as "claim key + embedding".
-
-Document-level dedupe only for identical syndicated copies. Claim-level: fingerprint + embedding match — a repeat claim gains a **source-occurrence** ("claimed by X in Hansard, repeated by Y on RNZ") rather than a new queue entry; occurrences strengthen the importance score. Cross-lane provenance preserved — "everyone was saying it" is auditable as fact.
+Document-level dedupe only for identical syndicated copies. Claim-level: the content key plus embedding match — a repeat claim gains a **source-occurrence** ("claimed by X in Hansard, repeated by Y on RNZ") rather than a new queue entry; occurrences strengthen the importance score. Cross-lane provenance preserved — "everyone was saying it" is auditable as fact.
 
 ### Fetch-from-source discipline
 
@@ -96,7 +91,7 @@ Ingestion resolves where the claim came from and passes claimant-entity candidat
 
 ## Evidence base
 
-AVeriTeC shared task (arXiv:2410.23850) — question generation, multi-hop retrieval, hybrid BM25+dense (gte-family), Trafilatura failure (297/500), Dunamu-ML's PDF/YouTube extraction; FIRE (NAACL 2025) — confidence-based depth; Full Fact production papers; CLEF CheckThat! 2025–2026; Fathom/HerO/AIC CTU (FEVER 2025); iCheck post-mortem. Full citations in the git history of this ADR's predecessors.
+AVeriTeC shared task (arXiv:2410.23850) — question generation, multi-hop retrieval, hybrid BM25+dense (gte-family), Trafilatura failure (297/500), Dunamu-ML's PDF/YouTube extraction; FIRE (NAACL 2025) — confidence-based depth; Full Fact production papers; CLEF CheckThat! 2025–2026; Fathom/HerO/AIC CTU (FEVER 2025); iCheck post-mortem.
 
 ## Consequences
 

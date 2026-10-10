@@ -13,17 +13,17 @@ The slice's headline deliverable is the **per-stratum accuracy table** — so th
 
 | Layer | What | Runs | Cost |
 |---|---|---|---|
-| **L1 deterministic** | Extraction ladder, caption parsing, `media_anchor`, stat-grid arithmetic, NLI gate — fixtures; LLM mocked | Every push | Free |
+| **L1 deterministic** | Extraction ladder, caption parsing, `media_anchor`, the research loop's control flow (sufficient / loop-back / cap / class disagreement), critiquer must-pass and must-fail packs — fixtures; LLM mocked | Every push | Free |
 | **L2 golden-set** | ~20 pinned claims × pinned prompts → snapshot verdict + evidence path | Every PR | Pennies |
 | **L3 accuracy harness** | AVeriTeC (Layer 1) + NZ n=100 stratified (Layer 2): per-stratum accuracy, calibration, cost | Weekly + pre-release | ~$10–20/run |
 | **L4 site** | ClaimReview JSON-LD validation (every push); Playwright smoke (pre-release); methodology table generated from harness output | Every push / pre-release | Free |
 
 - **L1** covers the large deterministic surface with conventional tests: per-lane extraction fixtures
   (including adversarial ones — `kind:"asr"` tracks, malformed feeds, empty transcripts, paywalled
-  pages), stat-grid arithmetic as pure logic (the highest-complexity procedure, and the cheapest to test
-  exhaustively), NLI must-pass and must-fail packs, and fallback-counter assertions. Everything that
+  pages), the research loop's control flow as pure logic (the highest-value surface, and the cheapest to test
+  exhaustively), critiquer must-pass and must-fail packs, and fallback-counter assertions. Everything that
   depends on an LLM is mocked.
-- **L2** snapshots verdict + confidence + evidence path + justifications for ~20 pinned claims spanning lanes and procedures. Any pipeline change produces a **visible behaviour diff**, not merely "tests pass" — the cheap smoke layer catching drift between full runs.
+- **L2** snapshots verdict + confidence + evidence path + justifications for ~20 pinned claims spanning lanes and verdict classes. Any pipeline change produces a **visible behaviour diff**, not merely "tests pass" — the cheap smoke layer catching drift between full runs.
 - **L3** is EVALUATION.md made operational: AVeriTeC with the public eval script from week 1, which
   regression-gates the generic loop, plus the NZ set of n=100 stratified per VALIDATION-SLICE, about 30%
   double-labelled. The **blind rule is enforced in code** — the pipeline process structurally cannot read
@@ -36,7 +36,7 @@ The slice's headline deliverable is the **per-stratum accuracy table** — so th
 
 EVALUATION §4 commits to "a change that reduces accuracy does not ship." Concretely:
 
-- Any stratum regressing beyond **−5 points (n≥20 in that stratum) blocks the PR** — not just overall accuracy. The per-stratum table is the deliverable; a change that wins +1% overall by sacrificing quote-fidelity is a bad trade only stratum gating catches.
+- Any stratum regressing beyond **−5 points (n≥20 in that stratum) blocks the PR** — not just overall accuracy. The per-stratum table is the deliverable; a change that wins +1% overall by sacrificing a stratum is a bad trade only stratum gating catches.
 - n<20 strata: single label flips move >5 points — gate those **advisory only**, and keep label-mix targets at the ≥20 floor where possible.
 - Overall: reported always; block threshold proposed at **−3 points**.
 

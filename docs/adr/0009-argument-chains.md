@@ -1,6 +1,6 @@
 # ADR-0009: Argument chains — showing whether claim verdicts are fatal to a proposition
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Proposed · Deciders: Dave*
 
 ## Context
 

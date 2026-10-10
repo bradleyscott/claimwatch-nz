@@ -1,12 +1,12 @@
 # ADR-0007: Broadcast and podcast interviews — the context-scope boundary
 
-*Status: Proposed · Date: 2026-09-08 · Deciders: Dave*
+*Status: Proposed · Deciders: Dave*
 
 *(Consolidates the broadcast/podcast ingestion decision with the self-generated-transcription scope boundary.)*
 
 ## Context
 
-A large share of campaign claims is made in spoken interviews — TV, radio, and podcasts — not in releases or news text: the weekly leader-interview circuit on radio, daily talkback panels ("The Huddle", "Perspective"), podcast interviews, and the five scheduled 2026 debates (1 Oct Stuff multi-party; 6 Oct TVNZ leaders; 13 Oct TVNZ multi-party; 14 Oct NZH/ZB/Three leaders; 20 Oct Stuff leaders). The ingestion ADR (ADR-0006) initially deferred broadcast transcription wholesale. Two questions precede any decision to transcribe: **how much claim-bearing speech is there, and are published transcripts already available?** This ADR answers both with live probes (2026-09-08) and sets the access strategy.
+A large share of campaign claims is made in spoken interviews — TV, radio, and podcasts — not in releases or news text: the weekly leader-interview circuit on radio, daily talkback panels ("The Huddle", "Perspective"), podcast interviews, and the five scheduled 2026 debates (1 Oct Stuff multi-party; 6 Oct TVNZ leaders; 13 Oct TVNZ multi-party; 14 Oct NZH/ZB/Three leaders; 20 Oct Stuff leaders). Two questions precede any decision to transcribe: **how much claim-bearing speech is there, and are published transcripts already available?** This ADR answers both and sets the access strategy.
 
 **The probe result: transcripts already exist.** The intuition that we need to transcribe turns out to be
 mostly wrong. The interview circuit already produces published text through three overlapping channels,
@@ -46,7 +46,7 @@ Caption provenance is checked, not assumed: the harvest records from the track's
 
 Caveats, honestly stated:
 
-- **Auto-generated caption accuracy is ~85–95%** (clean studio audio) — good enough for **claim detection and retrieval**, not sufficient to assert a *quoted figure* is wrong because the caption misquotes it. Design response: **tier-2 captions are a claim pointer, never the evidence for a number** — numerical claims sourced from them are verified against official series anyway (the stat engine doesn't need the transcript to be the evidence), and citation-checks re-fetch the underlying source. A caption-quality flag rides on every tier-2 caption-derived claim, and claims whose *quoted text itself* matters get the conservative "verification limited to the quoted claim" treatment.
+- **Auto-generated caption accuracy is ~85–95%** (clean studio audio) — good enough for **claim detection and retrieval**, not sufficient to assert a *quoted figure* is wrong because the caption misquotes it. Design response: **tier-2 captions are a claim pointer, never the evidence for a number** — numerical claims sourced from them are researched against the official series anyway (the caption need not be the evidence), and the underlying source is re-fetched. A caption-quality flag rides on every tier-2 caption-derived claim, and claims whose *quoted text itself* matters get the conservative "verification limited to the quoted claim" treatment.
 - **Timestamp anchoring is mandatory for every caption/video-derived claim.** Because we rely on third-party captions rather than our own transcription, the reader must be able to verify the wording against the actual audio/video in one click. The claim record stores: **utterance start and end times** (from the caption track's own timestamps, plus/minus a small context pad), the **source video/audio URL**, and a deep link resolving to those times (YouTube `t=`/`end=` parameters; native player deep-links for others). The verdict page renders the claim alongside a **"hear it / watch it"** control for the exact utterance — this is what keeps a caption-derived claim from being a dead-end assertion. Extraction treats caption timestamps as first-class metadata (VTT/SRT cues carry them natively), and the claim record's provenance includes the cue span so reprocessing can re-pull the same cue after caption revisions.
 - **Where the source is a written article covering a broadcast item**, the link goes to the item page containing the audio/video embed, with the segment identified by the item's own segmentation (RNZ publishes segments individually; ZB items are per-segment) — every claim points to playable media at (or near) the utterance.
 - **YouTube ToS prohibits bulk automated access** outside official APIs. Posture: low-volume, read-only, public-page access of caption tracks for specific broadcast items (single-digit requests/day), following robots.txt posture, no redistribution of caption files — consistent with how we treat publisher sites. If challenged, the fallback is the same content via self-hosted ASR of the same public audio.
@@ -63,7 +63,7 @@ Caveats, honestly stated:
 
 ### Amendment to ADR-0006
 
-The blanket broadcast deferral is replaced with: **broadcast/podcast interview lane (transcripts-first, published-text-only)** — YouTube caption harvest for 1News/Q+A/ZB/RNZ clips + ZB page text + RNZ written items; self-generated transcription excluded from v1 scope; debate events handled explicitly (captions if uploaded, else manual labelling). Parliament TV bulk transcription stays deferred (Hansard covers chamber proceedings).
+**Broadcast/podcast interview lane (transcripts-first, published-text-only):** YouTube caption harvest for 1News/Q+A/ZB/RNZ clips + ZB page text + RNZ written items; self-generated transcription excluded from v1 scope; debate events handled explicitly (captions if uploaded, else manual labelling). Parliament TV bulk transcription stays deferred (Hansard covers chamber proceedings).
 
 ## Alternatives considered
 
@@ -76,7 +76,7 @@ The blanket broadcast deferral is replaced with: **broadcast/podcast interview l
 
 At the deferred volume (~4–6 audio-hours/day ≈ 300 hours through the election window): self-hosted Whisper ≈ **$0** (electricity only); AssemblyAI Universal-2 ≈ **$45** total; gpt-4o-mini-transcribe ≈ **$54**; Google Chirp 2 dynamic-batch ≈ **$72** (24-hour turnaround); Deepgram Nova-3 ≈ **$78**; gpt-4o-transcribe ≈ **$108**. Paid-services ceiling for the whole window: **$45–108** — affordable, but self-hosting is free, keeps audio on our hardware (no egress), and adds speaker diarization via pyannote at no extra charge (AssemblyAI charges extra for its diarization tier; per-hour rates above are transcription-only).
 
-### Accuracy for the NZ accent — what the evidence says (reviewed 2026-09-08)
+### Accuracy for the NZ accent — what the evidence says
 
 - **NZ English is not separately benchmarked in any public leaderboard** — no vendor (Deepgram, AssemblyAI, OpenAI) publishes a NZ-specific WER, and the standard suites (LibriSpeech, Earnings22, GigaSpeech) are American-heavy. NZ-accented performance must be inferred from adjacent evidence.
 - **Adjacent-accent evidence (Cambridge study, JASA 2024)**: across four native accents, Whisper performed best on American English, with statistically significant error-rate increases for British (β = 0.031, p < 0.001) and Australian English (β = 0.013, p = 0.016) relative to American; Canadian showed no significant difference. NZ English sits linguistically closer to Australian than American — expect a **modest degradation of the same order as Australia's**, implying an NZ-broadcast expectation of roughly **8–15% WER** for Whisper large-v3-class models (real-world English runs 8–12% generally; conversational multi-speaker interview audio sits at the upper end).

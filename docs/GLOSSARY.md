@@ -17,16 +17,12 @@ everyday meaning beside it — never as the explanation itself.
 | official source | verifier authority | A public, structured source we trust for one domain (Stats NZ, police data). Consulted as evidence, never checked as a claim. |
 | the evidence behind the verdict | evidence pack | The frozen record of the sources and figures a verdict used. |
 | added to, never edited | append-only | A verdict changes by writing a new version. Old versions stay. |
-| the full field / the other ways to count it | sensitivity grid | The fixed set of alternative framings we test every claim against. Same set for every speaker. |
-| re-check of the reasoning | NLI audit | A second pass that checks the written justification actually follows from the evidence. |
 | who said it | speakership | Which sentence belongs to which actor — a quoted minister, the outlet's own prose, or nobody we can name. |
 | reading the page | extraction ladder | How we get text out of a page: direct, then a fallback reader. |
 | group | stratum | One slice of the labelled set — a source kind, a claim type. |
-| what the claim was arguing for | discourse context | The proposal a claim was deployed in support of. Absent stays absent. |
-| the check / the pipeline | (formerly "adjudicator") | The automated step that produced a verdict. Not a person. Prefer "the check". |
-| the plan for a claim | verification plan | The ordered list of checks built for one claim. A claim can need several — a quoted number needs the quotation checked *and* the figure checked. |
-| a kind of check we can run | procedure | One auditable, versioned way of deciding something (the figures check, the recording check). Stored as a record, so the set of them grows; the plan picks which to use. |
-| which procedures we know about | procedure library | The stored set of procedures, with a stated limit and reason for each. It suggests; it never decides what a plan must contain. |
+| what the claim was arguing for | discourse context | The argumentative point the claim supports, read over the whole document (`supports`). Absent stays absent. |
+| the check / the pipeline | adjudicator | The automated step that produced a verdict. Not a person. Prefer "the check". |
+| how a claim is checked | research loop | The capped adversarial loop: an assessor says what evidence would settle the claim, a researcher finds it, and a critiquer decides whether it is enough. |
 | we couldn't reach a verdict | abstention | The honest outcome when the evidence does not decide. |
 | verdict | verdict class | The published word: supported, refuted, and so on. |
 | a second source | corroboration | Independent agreement from another source. |
@@ -44,8 +40,8 @@ one, name the everyday meaning first and give the internal name in parentheses.
 
 ## Terms that are fine as identifiers, never as explanation
 
-`provenance` · `materiality` · `canonical` · `idempotent` · `vintage` · `source-occurrence`
+`provenance` · `canonical` · `idempotent` · `vintage` · `source-occurrence`
 
-Each has a plain equivalent ("where this came from", "which comparisons matter", "the standard
+Each has a plain equivalent ("where this came from", "the standard
 one", "safe to run twice", "the date the data was published", "another time the same claim was
 said"). Use the plain equivalent in sentences. Keep the precise word in field names.

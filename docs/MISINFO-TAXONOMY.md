@@ -17,16 +17,17 @@ Election-period claims mislead through distinct mechanisms; no single verificati
 Why the distributions matter: **true-but-decontextualised content dominates** what fact-checkers verify
 (59%), and **technically true but selective claims** are the shared failure class across the academic
 taxonomies and the argumentation literature (KnOD 2021: false narratives work by omitting crucial
-argument components and cherry-picking atypical-but-accurate instances). Statistical selectivity — what
-the ADR-0005 stat engine targets — is one important member of that family, not the whole of it.
+argument components and cherry-picking atypical-but-accurate instances). Statistical selectivity — a
+true number quoted to paint an incomplete picture — is one important member of that family, not the
+whole of it.
 
 ## 2. The class-by-class map
 
 | Class (Wardle type) | NZ election relevance | Verification approach | Machine tractability |
 |---|---|---|---|
-| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) | **ADR-0005 stat engine**: official series + evidence store + sensitivity grid (procedure `stat-grid`, ADR-0023) | **High** (claim-vs-official-series) |
+| **3. Misleading content / selective statistics** | Core campaign practice (both blocs, every cycle) | **Adversarial research loop** (ADR-0026): official series as a preferred evidence source, plus the claim-anchored evidence store (ADR-0005) | **High** (claim-vs-official-series) |
 | **4. False context / decontextualisation** | Dominant EU-2024 technique; cheap: old footage re-dated, other-country incidents framed as NZ, ex-MP statements re-attributed | **Provenance matching**: retrieve original context (date, source, place), compare to claimed context; image/date search; archived-source tracing | Medium-high for text; medium for media |
-| **7. Fabricated content** | Second in EU: pure falsehoods, invented quotes, fabricated statistics | **Open-web verification loop** (capped FIRE-style mode) | Medium-low (AVeriTeC ceiling applies) — hence capped, confidence-labelled |
+| **7. Fabricated content** | Second in EU: pure falsehoods, invented quotes, fabricated statistics | **Adversarial research loop** (capped) | Medium-low (AVeriTeC ceiling applies) — hence capped, confidence-labelled |
 | **6. Manipulated media / deepfakes** | Candidate-impersonation audio/video | **Provenance-first**: C2PA/Content Credentials where present; reverse search for originals; detection models unreliable — never verdict on "is this AI" alone | **Out of scope v1**; partner-referral path; methodology states the limit honestly |
 | **5. Imposter content** | Fake Electoral Commission notices, fake newsroom branding | **Brand/source verification**: authoritative-source registry (we know what real Commission/1News/RNZ URLs look like); report + escalate | High (domain/brand mismatch); an incident-report problem, not a claim-check problem |
 | **2. False connection** | Headline vs body mismatches in social shares | Cross-modal consistency check | Medium; low v1 priority |
@@ -40,11 +41,11 @@ because **s 199A criminalises knowing falsehoods about voting in the final 72 ho
 trivial to verify: the Electoral Commission is the single authoritative source. So the Commission is
 retrieved first and these claims have the lowest freeze threshold.
 
-## 3. What this means for the verification layer (detail in ADR-0005)
+## 3. What this means for the verification layer (detail in ADR-0026)
 
-1. **Multi-mode by design** — one mode per tractable class: stat engine (statistical claims), citation-check (claim-vs-cited-source), false-context/provenance (decontextualisation), capped open-web loop (fabricated and everything else).
-2. **Triage is technique-aware** — the triage pass classifies suspected misleading-*technique* alongside check-worthiness, routing each claim to the mode built for it.
-3. **Verdict vocabulary is class-aware** — "false context" is a first-class verdict (genuine content, wrong when/where/who — with the true context shown); "accurate but incomplete" for selective statistics; "disinformation" never appears (intent is not adjudicable by us).
+1. **One loop, not one mode per class (ADR-0026)** — every claim gets the same capped adversarial research loop. The taxonomy still shapes *what evidence the assessor is told to look for* (official series for selective statistics, the cited document for claim-vs-source, the original context for decontextualisation, the open web for fabrications), but it does not select a different engine.
+2. **Triage is technique-aware only through the class** — triage decides whose words a sentence is and whether it is checkable (ADR-0025); the misleading *technique* is read at research time, not routed at triage time.
+3. **Verdict vocabulary is class-aware** — "false context" is a first-class finding (genuine content, wrong when/where/who — with the true context shown); "accurate but incomplete" for selective statistics; "disinformation" never appears (intent is not adjudicable by us).
 
 ## 4. Sources (primary)
 

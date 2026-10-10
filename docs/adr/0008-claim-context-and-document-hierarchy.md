@@ -1,6 +1,6 @@
 # ADR-0008: Claim context — discourse window, publication/segment hierarchy, and on-demand depth
 
-*Status: Accepted (2026-09-26) · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted · Deciders: Dave*
 
 *(Consolidates the claim-contextualisation design with the publication/segment document hierarchy; both are context, at different levels.)*
 
@@ -79,7 +79,7 @@ All fields are **extracted-if-present, never assumed**; the classification promp
 ## Alternatives considered
 
 - **Verify the sentence in isolation.** Rejected: structurally unable to catch deployment-level misleadingness; and per the decomposition literature, isolation is itself a known extraction error source.
-- **The earlier fixed taxonomy** (interview-shaped, always-for-a-proposal, closed role set). Rejected: over-committed assumptions the evidence doesn't support; replaced by optional typed fields with conservative detection.
+- **A fixed taxonomy** (interview-shaped, always-for-a-proposal, closed role set). Rejected: over-committed assumptions the evidence doesn't support; optional typed fields with conservative detection are used instead.
 - **Full-argument reconstruction** (parse the whole speech into an argument graph). Rejected for v1: hallucinated "context" could fabricate positions the speaker didn't hold — ADR-0009's never-infer principle applied to context. Bounded field extraction over the stored window keeps the interpretive step auditable. (Argument chains, where built, assemble from verified artefacts per ADR-0009.)
 - **Context classification as a hard pipeline gate** (verification blocks until context resolves). Rejected: context is input enrichment; a claim with null context fields still verifies — the page simply shows no "as deployed" line. Blocking biases toward confidently-classified (simple) claims.
 - **Publication-level context only.** Rejected: too coarse — the relevant portion of a 40-minute interview is not the whole episode.

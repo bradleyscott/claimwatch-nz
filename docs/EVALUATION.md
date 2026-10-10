@@ -1,7 +1,7 @@
 # Evaluation: measuring the pipeline and the community layer
 
 *Defines the two-layer harness the project treats as its core trust asset. ADRs: 0010 (ground-truth
-evaluation), 0001 (automation posture), 0005 (verification), 0023 (plans and the procedure library).*
+evaluation), 0001 (automation posture), 0005 (verification), 0026 (the adversarial research loop).*
 
 ## 1. Why this is the core asset
 
@@ -66,7 +66,7 @@ This produces the dataset that answers the question the sector is actively argui
 | Is the generic verification loop competent? | ✅ primary measure | — |
 | Are verdicts calibrated (abstention quality)? | ✅ comparable to published field | ✅ on NZ material |
 | Does the NZ source ecosystem work (retrieval, reading, the evidence store)? | ❌ blind to it | ✅ primary measure |
-| Is the sensitivity grid / stat engine sound? | ❌ not exercised | ✅ (stratified by claim type) |
+| Is the research loop sound on a quantitative claim? | ❌ not exercised | ✅ (stratified by claim shape) |
 
 ## 7. Temporal leakage controls
 

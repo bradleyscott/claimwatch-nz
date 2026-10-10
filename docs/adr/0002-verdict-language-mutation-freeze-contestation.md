@@ -1,6 +1,6 @@
 # ADR-0002: Contestation, mutation, verdict language, and the election-window freeze
 
-*Status: Accepted (2026-09-26; freeze, append-only versions and the language check built) · Date: 2026-09-08 · Deciders: Dave*
+*Status: Accepted (freeze, append-only versions and the language check built) · Deciders: Dave*
 
 ## Context
 
@@ -45,7 +45,7 @@ first publication.
 
 - **Full Community Notes model from day one.** Rejected: cold start makes the bridging maths inert at NZ scale — theatre, not governance.
 - **No contestation until post-election.** Rejected: contestation data is itself the research/trust asset; two months of contest logs (even thin) seeds the post-election design.
-- **Human-in-the-loop mutation review (pre-publication gate).** Considered and superseded: validated evidence mutates automatically; quality is checked by sampled retrospective audit. Residual risk accepted deliberately: a single adversarial evidence pack that fools the validator would mutate a verdict unattended until caught by audit. Mitigations: audit sampling weighted toward high-impact verdicts, immediate re-mutation capability, the append-only audit log making any bad mutation publicly reversible within hours. The freeze window bounds the worst case.
+- **Human-in-the-loop mutation review (pre-publication gate).** Considered and rejected: validated evidence mutates automatically; quality is checked by sampled retrospective audit. Residual risk accepted deliberately: a single adversarial evidence pack that fools the validator would mutate a verdict unattended until caught by audit. Mitigations: audit sampling weighted toward high-impact verdicts, immediate re-mutation capability, the append-only audit log making any bad mutation publicly reversible within hours. The freeze window bounds the worst case.
 - **Soft freeze** (mutations allowed with human sign-off during the window). Rejected for v1: the freeze is nearly free to build, and human sign-off under campaign pressure is a worse failure mode than no mutations.
 - **Softer language throughout** ("this framing may not reflect the full picture"). Rejected: vague verdicts are useless to readers; the standard is *specific about claims, silent about persons*.
 
