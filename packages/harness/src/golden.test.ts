@@ -29,7 +29,6 @@ const goldenFixture = JSON.parse(readFixture("golden-set.json")) as {
   claims: Array<{
     id: string;
     lane: string;
-    mode: string;
     claim: string;
     expectedVerdictClass: string;
   }>;
@@ -38,7 +37,6 @@ const goldenFixture = JSON.parse(readFixture("golden-set.json")) as {
 const snapshotFor = (over: Partial<GoldenSnapshot>): GoldenSnapshot => ({
   claimId: "gold-01",
   lane: "beehive-rss",
-  mode: "stat-grid",
   verdictClass: "conflicting_cherry_picking",
   confidence: 0.72,
   evidencePath: ["policedata.nz/victimisations@2026-06-30"],
@@ -50,27 +48,23 @@ const snapshotFor = (over: Partial<GoldenSnapshot>): GoldenSnapshot => ({
 });
 
 describe("golden-set corpus integrity", () => {
-  it("carries 20 pinned claims spanning all five lanes and every mode", () => {
+  it("carries 20 pinned claims spanning all five lanes", () => {
     expect(goldenFixture.claims).toHaveLength(20);
     const lanes = new Set(goldenFixture.claims.map((c) => c.lane));
-    const modes = new Set(goldenFixture.claims.map((c) => c.mode));
     expect(lanes).toEqual(
       new Set(["beehive-rss", "rnz-politics", "youtube-captions", "institution", "false-context"]),
     );
-    expect(modes).toEqual(
-      new Set(["stat-grid", "open-web", "citation-check", "quote-fidelity", "provenance"]),
-    );
   });
 
-  it("every mode has at least one pinned claim (VERIFICATION §5 behavioural row)", () => {
-    for (const mode of [
-      "stat-grid",
-      "open-web",
-      "citation-check",
-      "quote-fidelity",
-      "provenance",
+  it("every verdict class has at least one pinned claim (VERIFICATION §5 behavioural row)", () => {
+    const classes = new Set(goldenFixture.claims.map((c) => c.expectedVerdictClass));
+    for (const cls of [
+      "supported",
+      "refuted",
+      "not_enough_evidence",
+      "conflicting_cherry_picking",
     ]) {
-      expect(goldenFixture.claims.filter((c) => c.mode === mode).length).toBeGreaterThanOrEqual(1);
+      expect(classes.has(cls), cls).toBe(true);
     }
   });
 });
@@ -112,21 +106,19 @@ describe("snapshot capture + compare", () => {
 });
 
 describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
-  it("pins everything we control: models, prompts, grid axes, fingerprint version, search config", () => {
+  it("pins everything we control: models, prompts, search config", () => {
     const manifest = buildRunManifest(goldenFixture.pinnedVersions as never, {
       runId: "run-1",
       layer: 2,
     });
     expect(manifest.modelVersions).toBeTruthy();
     expect(manifest.promptVersions).toBeTruthy();
-    expect(manifest.gridAxesVersion).toBe("grid-axes-2026-09");
-    expect(manifest.procedureLibraryVersion).toBe("proc-lib-2026-09");
     expect(manifest.searchConfig).toBe("brave-primary");
     expect(manifest.storeSchemaVersion).toBe(STORE_SCHEMA_VERSION);
     // Sampling is part of the tuple, not a detail of the call site: the same
-    // document triaged twice at the provider's default returned 31 claims and
-    // then 42, so two runs differing only in temperature are not comparable —
-    // and before this they produced identical manifests (Sept 2026).
+    // document triaged twice at the provider's default can return 31 claims and
+    // then 42, so two runs differing only in temperature are not comparable, and
+    // without this pin they would produce identical manifests.
     expect(manifest.sampling.temperature).toBe(SAMPLING.temperature);
     expect(manifest.sampling.temperature).toBe(0);
     expect(manifest.sampling.seed).toBe(SAMPLING.seed);
@@ -158,9 +150,8 @@ describe("run manifest (HARNESS §2.8 — reproducibility)", () => {
     expect(() => assertManifestCompleteness(tampered)).toThrow(/hash/);
   });
 
-  // Sept 2026: a manifest recorded `adjudication@1` for a prompt role that does
-  // not exist anywhere in the pipeline — provenance for a step that never ran.
-  // The role vocabulary is now closed, so it cannot recur silently.
+  // The role vocabulary is closed, so a manifest cannot record provenance for a
+  // prompt role the pipeline does not have.
   it("rejects provenance for a prompt role the pipeline does not have (HAR-R7)", () => {
     expect(() =>
       buildRunManifest(

@@ -1,207 +1,158 @@
 # Verification engine design
 
-*ADRs: 0001, 0005, 0008, 0011, 0018, 0023. Companions: `ARCHITECTURE.md`, `VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
+*ADRs: 0001, 0004, 0005, 0008, 0011, 0018, 0020, 0021, 0026. Companions: `ARCHITECTURE.md`,
+`VALIDATION-SLICE.md`, `TEST-STRATEGY.md`, `CROSS-CUTTING.md`.*
 
 ## 1. Purpose and slice scope
 
-The verification engine turns triaged claims into a verdict, a **plan**, an evidence pack, and an audit
-result, and appends them to the store (ADR-0005, ADR-0023). It runs several kinds of check because
-misleading-information classes differ in mechanism (`MISINFO-TAXONOMY.md`). Two findings from the
-research shape it.
+The verification engine turns a triaged claim into a verdict, an evidence pack, and an audit result, and
+appends them to the store (ADR-0005, ADR-0026). It does this with **one instrument**: a capped
+adversarial research loop of three roles.
 
-First, **retrieval is the main bottleneck** — gold evidence lifts accuracy by 14 to 22 points — so
-every check that can anchor to a specific source does. Second, **claim against a specific source beats
-claim against the open web**, so the open-web research pass is the capped catch-all rather than the
-default.
-
-| Procedure | Used for | Slice exercise |
+| Role | Input | Output |
 |---|---|---|
-| Figures (`stat-grid`) | claims stating a number (R2) | sensitivity grid over official series |
-| Document (`citation-check`) | institution claims, and any claim citing a source (R6) | fetch cited doc, claim-vs-source |
-| Recording (`quote-fidelity`) | broadcast claims (R3) | claim text vs Tier-2 caption text |
-| Context (`provenance`) | false-context samples (R5) | curated ~10-item set only — demonstrate, never production-ready |
-| Research (`open-web-research`) | everything else | capped, labelled, most visibly open to contest |
+| `claim-assessor` | the claim, its context, and (from turn 2) the previous critique | an evidence plan: what would prove or disprove the claim, and the questions to answer |
+| `researcher` | the plan and the evidence so far | a bounded tool-loop agent: it plans queries, runs them in parallel, reads pages, extracts passages and decides the next step |
+| `evidence-critiquer` | the claim, the plan, and **all** evidence across turns | sufficiency: is the evidence enough to settle it; the verdict class, confidence, reason, gaps and justifications |
 
-These five are the **library's seeded population, not the set of available checks** (§2.1a). Every
-procedure shares the same spine: question decomposition, retrieval depth capped by confidence (the FIRE
-pattern, which cut LLM cost 7.6× and search cost 16.5×), per-lane fallback logging from the extraction
-ladder, evidence packs with vintages and Internet Archive snapshots, and the **NLI audit as the
-publication gate** — it runs before publication, not after.
+The assessor is adversarial by construction: it is asked what would **falsify** as well as confirm, and
+its plan names the questions that would disprove the claim. It does not write search queries; the
+researcher chooses those, and its prompt requires at least one search aimed at refuting the claim
+(ADR-0020 rule 3). Retrieval is still the bottleneck — gold evidence lifts accuracy by 14 to 22 points —
+so the researcher works a bounded tool loop rather than one search.
 
-Other components own extraction (ingestion), claim detection and typing (triage), post-publication
-mutation (contestation), and the harness.
+**One instrument, and what it costs.** Verification is this loop and nothing else: there is no
+per-claim plan, no separate entailment gate, and no per-claim-type check. The claim-anchored evidence
+store, the A1–A6 authority map, source admissibility and corroboration remain and are applied by the
+critiquer. **The loss is real and named:** a quantitative claim is researched like any other rather
+than computed against a pre-declared grid, and the page says so. A deterministic series check can
+return as an evidence *source* for the researcher (OPEN-QUESTIONS).
 
 ## 2. Design
 
-### 2.1 Planning a claim — plans and the procedure library
+### 2.1 The loop
 
-**This section replaces mode routing (ADR-0023, Sept 2026).** A claim is not routed to one of five
-modes. It gets a **plan**: an ordered list of steps, each invoking a **procedure**. The previous rule —
-`claimType → mode`, a pure function of the claim record — is superseded, and the five modes survive as
-the library's first five procedure records.
+```
+claim + context
+   → claim-assessor → plan { evidencePlan, questions }
+   → researcher (tool loop) → evidence + strategy + queries + tool calls
+   → evidence-critiquer
+        ├─ sufficient                  → finding (class + reason + justifications)
+        └─ insufficient, budget left    → back to claim-assessor with the critique
+        └─ insufficient, budget spent   → not_enough_evidence, with the critiquer's reason
+```
 
-**Why the change.** Three problems, each visible in the code before the change.
+**The loop runs against a USD research budget, not a turn count** (`DEFAULT_RESEARCH_BUDGET_USD`, 0.25,
+overridable with `RESEARCH_BUDGET_USD`). Spend is priced from the versioned price map (ADR-0012) and
+checked between turns, so a claim that settles early stops early and a hard claim gets more looking.
+`MAX_RESEARCH_TURNS` (20) is a hard backstop for a run that cannot read its own spend, not the policy;
+`MAX_SEARCHES_PER_TURN` and `MAX_RESEARCH_STEPS_PER_TURN` still bound each researcher turn. A stopped run
+is a **finding about the record**, named as one: the conclusion is `not_enough_evidence`, the critiquer's
+stated reason is published, and `stopReason` records which bound bit.
 
-1. **Real claims are compound, and the data model could not record that.** ADR-0021 rule 5 requires
-   *was it said* and *is it true* to be answered separately: the first by the claim's own document, the
-   second by research. `claim.verification_mode` held exactly one of five values, so a sentence that
-   quotes a person *and* asserts a number had one slot for two answers.
-2. **The taxonomy was written before any claim arrived.** ADR-0005 rejected pre-computed topic packs
-   because "precomputation bets on a prediction that cannot be checked in advance"; the five modes were
-   that same bet applied to methods.
-3. **The mode was not even what decided the check.** A statistical claim reached the figures grid only
-   on an authority-registry hit, so the same claim routed differently before and after discovery found
-   an authority — a fuzzy text match plus campaign timing deciding rigour, rather than the type.
+The loop record is stored on the evidence pack (`evidence_pack.research`): each turn's plan, strategy,
+queries, tool calls and critique, the evidence found, the turns used, the budget and spend, why the loop
+stopped, and the
+class-agreement state. The verdict page renders the plan, the searches and tool calls the researcher
+made, the evidence found, and the critiquer's finding.
 
-**A procedure is a record, not a branch.** Fixed schema, append-only, retired by status change. Fields:
-`procedure_ref`, `version`, `kind` (`deterministic` | `research`), `title`, `consumes`, `produces`,
-`cannot_establish`, `rationale`, `provenance`, `status`. A procedure may compute anything; it may
-**not** define its own thresholds — tolerances and admissibility tiers are published criteria that live
-in code (ADR-0004, ADR-0020) and are referenced, never owned.
+### 2.2 The researcher is a tool-loop agent
 
-**The library suggests; it never constrains.** `suggestProcedures` ranks procedures by how often past
-plans in the **same canonical category** used them. Frequency of use only, never outcomes: learning from
-outcomes would optimise selection toward agreeing with the pipeline's own past verdicts and turn its
-blind spots into conventions. A planner may always add a procedure the library has never seen, which is
-the seam that keeps the library from becoming the old taxonomy under a new name.
+The researcher runs on the AI SDK's `generateText` with tools, behind a typed `AgentPort` so the blind
+rule holds and L1 can mock the model. Its tools are the action space:
 
-**The suggestion key carries no speaker.** `PlanFeatures` is `{category, assertsNumber, quotesPerson,
-citesDocument, attachesToProposal}` — no speaker, no party, structurally, in the shape of ADR-0022 rule
-1 and for the same reason: a selection function that can see who said something can give one claim a
-different method from another. Pinned by test.
-
-**A minimum plan, not a fixed one.** A claim's own features impose a floor, so a plan can never
-silently omit the check a claim needed:
-
-| Claim feature | Procedure that must be decided on |
+| Tool | What it does |
 |---|---|
-| asserts a number | figures (`stat-grid`) |
-| quotes a person | recording (`quote-fidelity`) |
-| cites a document | document (`citation-check`) |
+| `search` | a web search; several may run in parallel in one step |
+| `readPage` | fetch the full text of a page |
+| `extractEvidence` | for a set of urls and a question, return the shortest **verbatim** passages that speak to the claim |
+| `finish` | no execute — calling it ends the loop |
 
-The planner may add anything, including procedures absent from the library, and may always include a
-research pass. It may not drop a requirement without recording a reason: a dropped requirement **with** a
-reason is an auditable decision, one **without** a reason is a defect, and `planDefects` is the single
-place that distinction lives.
+The assessor's plan names where the evidence would live — for a New Zealand data claim, the primary
+agency (`stats.govt.nz`, `policedata.nz`, the Ministry of Justice NZCVS) and figure.nz, which curates
+official NZ series and links each to its source — and the researcher targets those domains rather than
+the claim's wording. The loop is bounded by `stopWhen: [stepCountIs(maxSteps), hasToolCall('finish')]`,
+and each tool enforces a budget (searches, reads), telling the model when a budget is spent so it can
+finish. Every tool call is
+recorded from the SDK's per-step results, so the run's actions are auditable and the public trail can
+show exactly what the researcher did.
 
-**Plans are stored and published.** The plan is its own append-only row (`verification_plan`, keyed to
-the evidence pack — not a column on `evidence_pack`, which is append-only and would have had history
-backfilled into it). Each step carries the procedure, its version, the reason it is in the plan, whether
-it ran or was declined, and its outcome. The verdict page renders one block per step that ran, with
-**one bound per check**, and lists the declined steps with their reasons. A single bound printed for a
-multi-check verification would attach to the wrong finding.
+### 2.3 The critiquer is the publication gate
 
-**Measured as a mixture.** Per-procedure accuracy is reported where the sample is large enough; the
-headline figure is for the mixture of plans actually run, and is described that way. `PROCEDURE_LIBRARY_VERSION`
-joins the run provenance tuple, so a scoring run pins the library it scored against.
+The critiquer decides sufficiency. Its finding must cite evidence for **every** justification; a
+conclusion the evidence does not support is a failed call, not an implicit pass. This replaces the NLI
+audit (ADR-0005 §2.7): the entailment question is asked where the class is chosen, so a claim whose
+evidence does not support its class cannot publish. The critiquer also states the loop's own bound —
+what the evidence cannot establish — in plain words.
 
-**No procedure tests causation.** Of the 500 AVeriTeC dev claims, 54 (11%) are causal, and the five modes
-above test numbers, documents, quotations, and context attachments. None establishes that one thing
-caused another. We publish that gap rather than paper over it: every check's block on the verdict page
-states what it cannot establish, and the research bound names causation explicitly, so a causal claim
-graded on timing evidence says so on the page instead of being silently over-read.
+The critiquer is itself a model, so it is calibrated by the harness: must-conclude / must-not-conclude
+packs at L1, and critiquer-vs-human agreement on labels at L3.
 
-A purely causal claim is currently typed `other` and planned onto the research procedure, where its
-timing evidence is reported as timing and the causal claim inside it is left unassessed. Closing the gap
-is now **adding a procedure** rather than adding a sixth mode: pre-trend tests against an unaffected
-comparison group, or difference-in-differences against a series the intervention did not touch, ship as
-a library row that a plan can name. Until then the gap is stated on the page and on `/methodology`, and
-it is not treated as covered.
+### 2.4 Verdict classes
 
-### 2.2 Figures procedure — the sensitivity grid (flagship)
+`supported` · `refuted` · `not_enough_evidence` · `conflicting_cherry_picking` (ADR-0004). `pledge` /
+`conditional` are store statuses for held commitments, not classes the loop returns.
 
-1. **Fingerprint match** — against the claim-anchored evidence store; hit → resolve from accumulated versioned series; miss → retrieve from verifier authorities per the domain's authority map. Retrieval resumes from stored evidence; it does not restart.
-2. **Series retrieval** — official series only (Stats NZ SDMX/JSON, policedata.nz, MoJ, Treasury…), stored as `evidence_item` rows with `vintage_date` + `archive_snapshot_url`. The release's own cited numbers are never the evidence — we reconstruct the field.
-3. **Sensitivity grid** — pre-declared axes (`grid_axes_version`), computed on demand: window variants with endpoint-trick detection, raw vs per-capita, denominator family, comparison cohorts, seasonality. The LLM selects which rows are **material** to the claim's deployment; it never authors the grid. Identical axes for every claimant — the anti-invented-standard defence.
-4. **Verdict.** Robust across the grid → Supported. Material alternatives contradict the impression →
-   Conflicting Evidence–Cherry-picking ("accurate but incomplete"). No canonical series → Not Enough
-   Evidence, which we treat as visibly lower-reliability. A number that matches *no* grid row is Refuted,
-   not cherry-picked: the boundary between classes is arithmetic. A true but selective number is never
-   called "false". The "as deployed" line renders only when `attached_proposal` exists; absent stays
-   absent rather than defaulting.
-5. Presentation: chart-first, alternatives table, grid axes shown on the verdict page.
+**Class-agreement gate (VER-R16).** The class-deciding call runs **twice** and only an
+agreed class is published; a disagreement publishes `not_enough_evidence` and is counted. This exists
+because the configured models discard the sampling settings, so identical input moved a class between
+runs. A failed call is not a disagreement: provider errors propagate.
 
-### 2.3 Document procedure — claim against its own source
+### 2.5 Source admissibility, authority and corroboration (ADR-0020)
 
-For claims paired with their own evidence (institution lane; also any claim citing a source):
+The critiquer applies the published criteria; they are not owned by any role:
 
-1. **Fetch the cited document** server-side (fetch-from-source; paywalled cited sources degrade to quoted-claim-only, never circumvention).
-2. **A bounded claim-against-source comparison.** Does the document say what the claim says it says —
-   the numbers, period, population, direction? This is an extraction-precision task (Sonnet-class
-   routing, harness-gated), not open-web reasoning. Whether the citation does real argumentative work or
-   is decorative sets how strictly the check binds.
-3. **Authority discipline**: the cited document is the *object of the check*, never evidence. An NZ Initiative statistic that is statistical checks against Stats NZ via 2.2. Advocacy data is at best A6, never a verdict basis (ADR-0018).
-4. Verdict: Supported/Refuted against the source's actual content; a mismatch is the finding, stated claim-vs-source, never as characterisation of the claimant.
-
-### 2.4 Recording procedure — claim against the stored caption
-
-For caption-sourced broadcast claims (ADR-0007):
-
-1. **Input posture**: claim record carries `media_anchor`, `transcript_tier`, stored cue span.
-2. **Comparison**: claim wording against stored caption text — fidelity to *the record we hold*, never to the audio (no self-generated transcription exists). Known ASR hazard classes: homophones, punctuation/segmentation, number formatting, te reo passages.
-3. **Guardrails carried into the verdict**: caption text is a claim pointer, never evidence for a quoted number — numerical claims route to 2.2 regardless; wording-critical claims get "verification limited to the quoted claim"; verdict pages state wording rests on unreviewed ASR and link the video + timestamp.
-4. **media_anchor generation** for claims arriving without one: built only from stored cue timestamps. A claim that cannot be anchored publishes as an open question, not a verdict with a dead-end quote.
-5. Tier-2 fallback rate for caption parsing logged per lane; quote-fidelity verdicts carry the `caption_quality_flag`.
-
-### 2.5 Context procedure (curated set only)
-
-Instrument: stored discourse window (ADR-0008) + retrieval of the original context (date, source, place), compared to claimed context (the dominant EU-2024 class — decontextualisation, 59.3%). Verdict vocabulary: "false context" as first-class finding — genuine content, wrong when/where/who, true context shown.
-
-**Posture**: least mature procedure. Runs on the curated fixture set only (`is_curated_fixture=true`); no lane health, no scheduler, no alerting; produces per-stratum numbers and a demonstration path; the methodology page says exactly that. No live false-context detection is claimed.
-
-### 2.5a Research procedure (the capped catch-all)
-
-FIRE-style per ADR-0006: question generation beats claim-string search (decompose the *argument* where one exists, conditioned on the context pack); multi-hop conditional retrieval; hybrid store search (pgvector + FTS) then search APIs; **confidence-capped dynamic depth**. Least reliable procedure (AVeriTeC ceiling applies) — capped, labelled, most visibly open to contest; the AVeriTeC regression target from week 1.
+- **Some sources can never be the record** (`admissibility.ts`): encyclopaedia pages, social posts,
+  aggregators, self-publishing platforms. A low grade is not an exclusion; these are.
+- **The authority floor for a decisive verdict** is tier 5 or better. Below the floor, or on an
+  inadmissible source, the honest class is `not_enough_evidence`.
+- **Corroboration**: one official record for the claim's own jurisdiction, or at least two independent
+  sources from different domains. Media commentary about related facts is not enough.
+- **Refutation**: at least one search aimed at refuting the claim. A search that only confirms is not
+  verification.
+- **Authority map** (A1 > A2 > … > A6): the conflict is often the finding. Advocacy data is at best A6,
+  never a verdict basis (ADR-0018). The authority registry (`authority` table) accumulates discovered
+  authorities from claim traffic.
 
 ### 2.6 Shared spine
 
 | Element | Behaviour |
 |---|---|
-| Context pack | claim + window + segment/publication summaries + metadata (ADR-0008 default pack); on-demand expansion logged with structured reason. Claimant identity never enters. |
-| Question decomposition | per-procedure seeds; the research procedure decomposes the argument |
-| Confidence-capped depth | cap config per procedure; cap binding stored on the pack (a capped run is visible, not silent) |
+| Context pack | claim + `supports` + topic + venue + document text + jurisdiction (ADR-0008, ADR-0021, ADR-0026). Claimant identity never enters. |
+| Question decomposition | the assessor decomposes the argument where one exists, conditioned on the context |
+| Refusals are refusals | a bot-protection or interstitial page (which arrives with a 200 and text) is treated as a failed fetch, never extracted as evidence; a host that can never be the record (ADR-0020) is refused before it becomes evidence |
+| Bounded calls | every model call and search carries a wall-clock timeout, so a stalled provider degrades to a recorded failure instead of holding the run open |
+| Bounded depth | a USD research budget (the policy) plus per-turn caps on searches and steps, with a hard turn backstop; the budget, spend and stop reason are stored on the pack (a stopped run is visible, not silent) |
 | Extraction-ladder fallback logging | every evidence fetch runs the ladder; Tier-2 events land in `fallback_log` per lane |
-| Evidence-pack assembly | items with vintage + archive snapshot, grid result, justifications, NLI outcome; append-only, pinned by the verdict version |
-| Abstention | below-threshold claims publish as open questions (ADR-0001/0004) — a measured capability, not a failure |
+| Evidence-pack assembly | items with vintage + archive snapshot, the loop record, justifications; append-only, pinned by the verdict version |
+| Abstention | below-threshold or budget-stopped claims publish as open questions (ADR-0001/0004) — a measured capability, not a failure |
 
-### 2.7 NLI publication gate
-
-Every justification sentence must be entailed by its cited evidence before publication — not a sampled retrospective check (that exists separately for mutations, ADR-0002).
-
-- NLI pass over (sentence, cited-span) pairs, schema-constrained; non-entailed sentences block publication and route to the review queue.
-- **One call per pack, not per sentence** (Sept 2026): the gate previously cost one sequential call per justification for one gate decision. A batched response that does not carry a verdict for every sentence is treated as a gate failure, never as an implicit pass; a single-justification pack keeps the single-pair call and prompt shape unchanged.
-- Also enforces attribution discipline: no unattributed synthesis; arithmetic stated explicitly (AVeriTeC annotation protocol).
-- Audit failure rate is a page-level Grafana metric.
-- Stated honestly: the auditor is itself an LLM. The harness calibrates it (must-pass/must-fail packs at L1; audit-agreement on labels at L3) — a gate on the worst hallucinations, not proof of entailment.
-- Models per ADR-0011 routing, harness-gated; prompts versioned files; adjudication batch-routed with realtime escalation for publish-day verdicts. The **verdict tier and this gate run on the mid-tier model, not the research tier's cheap model** — a gate is exactly where a cheap model is expensive.
-
-### 2.7a Class-agreement gate (Sept 2026, VER-R16)
-
-The verdict class is decided **twice**, and only a class both runs produce is published. A
-disagreement publishes nothing, and is counted.
-
-This exists because the obvious alternative does not work. The configured models discard the sampling
-settings — the SDK warns that `claude-sonnet-5` ignores `temperature` and that the OpenRouter research
-model ignores `seed` — so identical input moved a class between runs: `not_enough_evidence` once,
-`supported` twice, with the NLI gate passing every time. When no knob can pin the sampler, the thing to
-pin is the decision. A class two independent runs agree on is a class the pipeline can defend, and a
-disagreement measures how unstable that decision is rather than producing a class to publish.
-
-- **Where it applies**: the class-deciding step — the low-volume call that produces what a reader sees. Deliberately **not** triage, which runs once per sentence per document and would multiply the dominant cost; the triage boundary is measured and disclosed instead (TRIAGE open question 9, and the page states that what-can-be-checked is a model's judgement).
-- **The first run's outcome is the published one**, so the published reason comes from a run whose class agreed, and the choice is predictable rather than "whichever agreed".
-- **A failed call is not a disagreement.** Provider errors propagate; counting them as instability would inflate the signal with outages and hide the real failures.
-- **Two runs is a floor, not a default**: a one-run gate would agree with itself by construction.
-- Disagreement rate is the calibration signal for whether a decision is trustworthy enough to publish, and belongs beside the audit failure rate on the same page-level metric.
-
-### 2.8 Model tiers (ADR-0011 provisional routing, Sept 2026)
+### 2.7 Model tiers (ADR-0011 provisional routing)
 
 The routing table is tiered by *what the output is used for*, not by how hard the task looks:
 
-- **Research tier** (`claim-decompose`, `research-assess`, `authority-classify`, `open-web` depth control) — ~80% of the calls per claim. Its output is a control signal: which questions to search, whether the evidence meets the sufficiency bar, which gaps remain. Its `confidence` is neither published (SIT-R6 withholds confidence entirely) nor written to a verdict, and its `verdictSignal` is not consumed. A weaker model here costs rounds and searches, bounded by `MAX_SEARCHES`/depth cap, and degrades to *not enough evidence* — an honest abstention rather than a fabricated verdict.
-- **Verdict tier** (`citation-compare`, `quote-fidelity`, `grid-materiality`) and the **publication gate** (`nli-audit`) stay on the mid-tier model. `grid-materiality` never authors the grid (VER-R11) but selects which rows count as material, and `quote-fidelity` produces a published verdict.
-- **Evidence-fetch fan-outs are bounded for the same reason the tiers are split:** one search query is one set of organic results, and one classification call covers the whole surviving set (`vetting.ts`), with the result count requested from the provider capped (`SERPER_RESULTS`). Authority discovery is skipped entirely for claim types that can never route to the stat-grid.
+- **Verdict tier** (`claim-assessor`, `evidence-critiquer`) — the plan and the sufficiency decision are
+  what a reader sees, so they stay on the strong model. `evidence-critiquer` is the publication gate
+  and is deliberately **not** the cheap tier.
+- **Research tier** (`researcher`, `researcher-extract`, `authority-classify`) — the tool loop, the
+  passage extractor and source classification, the bulk of the calls per claim; their output is
+  evidence the critiquer judges rather than a published finding. A weaker model here costs rounds and
+  searches, bounded by the caps, and degrades to *not enough evidence* — an honest abstention rather
+  than a fabricated verdict.
+- **Decision transport (ADR-0024).** Classification-shaped roles may run on a System One decision model
+  instead of a generative one, settling confident answers and escalating the rest. `triage-checkability`
+  is routed (threshold 0.70, measured at 96.0% on the settled subset); `triage-speakership` is not,
+  because the same measurement puts it at 55.7% accuracy. The routing default is overridable with
+  `DECISION_ROLES`; `ops/calibrate-decisions.ts` re-measures it against the labelled set.
 
-Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 → $0.014 per claim, −68%**, with the verdict tier unchanged. These are code-shape estimates from the call fan-out, not harness numbers — the harness run that confirms accuracy parity per role is still outstanding (ADR-0011 rule 3 of its decision rule), and is an L3 gate before launch.
+### 2.8 Search APIs (ADR-0011)
+
+- **Brave primary** (Goggles map onto A1–A6 authority restriction), **Serper fallback/bulk**. Which is
+  primary is routing config, not code.
+- Query-level control is the requirement: evidence-pack reproducibility needs it.
+- Every call token/latency-telemetered via gen_ai spans (cost applied at aggregation from the price map
+  — CROSS-CUTTING §5.3); queries + result URLs recorded on the pack so the retrieval path is auditable
+  and re-runnable.
 
 ## 3. Interfaces
 
@@ -209,75 +160,58 @@ Measured effect at the September-2026 volumes (~15 calls/claim → 7): **$0.043 
 
 | Field | Contract |
 |---|---|
-| claim record | text, type, embedding, FKs (no mode, no fingerprint — ADR-0023) |
-| discourse context | window (verbatim) + optional typed fields — all nullable, never defaulted; the engine treats absent as absent |
+| claim record | text, `speakership_class`, discourse context, FKs (no type, no mode — ADR-0025/0026) |
+| discourse context | `window` (verbatim) + `supports`, `policyTopic`, `speechContext`, `contextQualifiers` — all nullable, never defaulted |
 | media fields | `media_anchor`, `transcript_tier`, `caption_quality_flag`, cue span |
-| dedupe inputs | fingerprint matches into the evidence store (resume fast path) |
-| explicitly absent | claimant identity, reliability profile (firewall), label data (blind rule) |
+| explicitly absent | claimant identity as a decision input, reliability profile (firewall), label data (blind rule) |
 
 ### 3.2 Outputs to the store
 
 | Object | Contract |
 |---|---|
 | `verdict_version` (v1) | four classes + pledge/conditional, confidence, status; below-threshold → open questions |
-| `evidence_pack` | items + grid result + justifications + NLI outcome; append-only, pinned by the verdict version |
-| `evidence_item` | authority ref, series/document identity, `vintage_date`, URL, `archive_snapshot_url`, hash, version — one row per fetched version |
-| `verdict_provenance` | pipeline/prompt/model versions, search refs, token/latency spans (cost via price map) — rendered as the site's provenance block |
+| `evidence_pack` | items + justifications + the research-loop record; append-only, pinned by the verdict version |
+| `evidence_item` | authority ref, source identity, `vintage_date`, URL, `archive_snapshot_url`, hash, version — one row per fetched version |
+| `verdict_provenance` | pipeline/prompt/model versions, search refs, token/latency spans — rendered as the site's provenance block |
 | `fallback_log` | per-lane Tier-2 events |
 | open-question record | below-threshold claims with the pack attached, inviting contest |
 
-### 3.3 Search APIs (ADR-0011)
-
-- **Brave primary** (Goggles map onto A1–A6 authority restriction), **Serper fallback/bulk**. Which is primary is routing config, not code.
-- Query-level control is the requirement: black-box grounding rejected because evidence-pack reproducibility needs it for the grid and authority restriction.
-- Every call token/latency-telemetered via gen_ai spans (cost applied at aggregation from the price map — CROSS-CUTTING §5.3); queries + result URLs recorded on the pack so the retrieval path is auditable and re-runnable.
-
-### 3.4 Official series (authority map)
-
-- Series fetched per SOURCE-TAXONOMY Part 2 with declared primary authority, alternates, denominator family.
-- **Precedence**: A1 > A2 > … > A6 — but the conflict is often the finding: verdicts cite the claim's own tier first, then the higher authority; the verdict is about the gap. Advocacy data never enters as evidence.
-- Vintage discipline: every row carries `vintage_date`; verdicts note "as measured at publication" — recorded provenance, not an ongoing re-verification commitment (CROSS-CUTTING §10).
-- Claims citing sources outside the map → open-web loop + explicit no-pre-vetted-authority note.
-
 ## 4. Tests
-
-Every risk maps to a layer in `TEST-STRATEGY.md`: **L1** every push, **L2** every PR, **L3** weekly and pre-release, **L4a** every push, **L4b** pre-release.
-
-The deterministic surface is large and cheap; the LLM surface is gated by golden snapshots and the harness. Highlights:
 
 | ID | Risk | Consequence if untested | Test | Signal | Layer |
 |---|---|---|---|---|---|
-| VER-R1 | Grid arithmetic errors — wrong denominator, stale vintage, wrong baseline | Confidently wrong arithmetic in the flagship procedure | **Stat-grid arithmetic is pure logic — exhaustive L1 coverage.** Fixture series with pinned vintages per domain; golden expected grid per fixture (every axis × every outcome); vintage-selection failure cases; independent SQL recomputation cross-check | L1 exhaustive fixture grids; vintage ≠ retrieved_at assertion; SQL recomputation cross-check | L1 |
-| VER-R2 | NLI audit false-passes | The accuracy gate is theatre; hallucinations publish | Must-pass/must-fail packs (unattributed synthesis, unstated arithmetic, authority-by-citation, hallucinated sentence); audit agreement measured at L3; failure-rate alert | Must-pass/must-fail packs at L1; audit-vs-human agreement at L3; implausibly-zero failure rate | L1 + L3 |
-| VER-R3 | Retrieval failure/quality (the AVeriTeC bottleneck) | The least-reliable procedure silently sets the accuracy ceiling | AVeriTeC as the generic-loop gate from week 1; open-web stratum gated; retrieval telemetry trended; retrieval-failure fixtures assert capped-degraded, never silent weak verdicts | L3 open-web stratum; EV2R trend; depth-cap-binding rate; AVeriTeC position | L1 + L3 |
-| VER-R4 | Citation comparison errors — extraction misses number/period/population, or over-binds decorative citations | False Supported/Refuted against sources that don't say what was extracted | Fixture corpus: exact match, number/period/population mismatch, decorative citation, paywalled — each asserts verdict class + binding strictness | L1 claim/source pair fixtures (match, mismatches, decorative, paywalled); L3 citation stratum | L1 + L3 |
-| VER-R5 | Quote fidelity mis-reads ASR artefacts as quote errors (or passes misquotes) | Verdicts assert wording differences that are caption artefacts | Caption-artefact fixtures (homophones, punctuation, number formats, te reo) with expected treatments; anchor construction tests; L3 quote stratum | L1 caption-artefact fixtures; L3 quote stratum | L1 + L3 |
-| VER-R6 | Context procedure over-trusted | Slice overclaims the least mature procedure on live material | The context procedure runs only on fixture-gated records; methodology page asserts the demonstration-only posture | Fixture-gate assertions; methodology posture text asserted at L4 | L1 + L4a |
-| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable; numbers unreproducible | Golden set (~20 claims, every procedure, pinned versions) per PR — visible diff; manifest completeness at L1 | L2 golden diff per PR; manifest completeness; residual-nondeterminism probe | L2 (+L1) |
-| VER-R8 | Cost blowout toward naive $10+/claim | Cost deliverable fails; weekly runs unaffordable, gate goes stale | Depth-cap bounds tests; pre-run cost projection blocks over-budget runs; cost/claim per stratum per run | Cost/claim vs $25 envelope; depth-cap-binding rate; anomaly alert | L1 + L3 |
-| VER-R9 | Evidence-fetch failures degrade verdicts silently | Verdicts publish on weaker grounding, no visible flag; contestation exposes it | Fetch-failure fixtures assert flagged degradation (no silent fallback); pack schema forbids unflagged missing items | Pack schema: resolved or flagged-degraded; degraded-grounds metric; L4 rendering | L1 + L4a |
-| VER-R10 | Materiality-selection drift — wrong grid rows foregrounded | Cherry-picking missed, or omissions asserted where unsupported | Golden fixtures carry hand-labelled material-row expectations; L3 cherry-picking oversample (≥12 labels) is the measured check | L2 golden fixtures with hand-labelled material rows; L3 cherry-picking oversample | L2 + L3 |
-| VER-R11 | Verdict-class boundary errors — true-but-selective labelled Refuted, or selective framing as Supported | Flagship class mis-fires both directions; calibration breaks | Boundary fixtures (selective → Conflicting; no-row-match → Refuted; thin → NEI); L3 verdict-mix vs targets catches over-refutation | L3 verdict-mix vs targets + calibration; L1 boundary fixtures | L1 + L3 |
-| VER-R12 | Confidence miscalibration | Open-question posture hollows out; abstention unmeasured | Threshold fixtures (below-threshold → open question); L3 calibration table per run | L3 calibration table; threshold fixtures; L4 open-question rendering | L1 + L3 |
-| VER-R13 | Fingerprint misread at verification time | Grid computed on the wrong window — verdict answers a question nobody asked | Fingerprint→grid-parameter round-trip fixtures; L2 claims span endpoint/unit edge cases | Fingerprint→grid-parameter round-trip fixtures; L2 edge-case claims | L1 + L2 |
-| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken in code | Authority resolution per seeded domain; advocacy-source rejection asserted | Authority-resolution tests per domain; A6 rejection asserted | L1 |
-| VER-R16 | Verdict class moves between runs of identical input — no usable sampling knob to pin it | A published class flips on a re-check with nothing in the way, and the verdict reads as a finding rather than a draw | Agreement gate unit-tested both directions (agree → first outcome; disagree → no outcome, both classes carried; a thrown call propagates rather than counting as disagreement); disagreement rate reported per L3 run | Class-agreement gate before publication; disagreement publishes nothing, is counted, and is reported as instability | L1 + L3 |
-| VER-R15 | Plan misclassification | A required procedure is dropped, or a claim lands on the research procedure by accident; failures attributed to wrong machinery | Plan fixtures over claim features; `planDefects` refuses a dropped requirement; the plan is stored and published so a misplan is attributablecision stored for L3 cross-tabbing | Router fixtures; L3 lane×mode cross-tab | L1 + L3 |
-| Behavioural | — | — | ≥1 pinned claim per procedure in the golden set, plus a novel-method stratum (a claim whose correct procedure is not in the library) |  | L2/L3 |
+| VER-R1 | *(retired)* Grid arithmetic. The grid is removed (ADR-0026) | — | — | — | — |
+| VER-R2 | The critiquer false-passes — hallucinated or unsupported findings publish | The accuracy gate is theatre | Must-conclude / must-not-conclude packs at L1; critiquer-vs-human agreement at L3; failure-rate alert | Must-pass/must-fail packs; agreement at L3 | L1 + L3 |
+| VER-R3 | Retrieval failure/quality (the bottleneck) | The loop silently sets the accuracy ceiling | AVeriTeC as the generic-loop gate; retrieval telemetry; capped-degraded fixtures | L3 stratum; depth-cap-binding rate | L1 + L3 |
+| VER-R4 | *(retired)* Citation comparison | — | — | — | — |
+| VER-R5 | *(retired)* Quote fidelity | — | — | — | — |
+| VER-R6 | *(retired)* Context procedure | — | — | — | — |
+| VER-R7 | Prompt/model drift between runs | Every accuracy delta arguable | Golden set per PR with pinned versions — visible diff; manifest completeness at L1 | L2 golden diff; manifest completeness | L2 (+L1) |
+| VER-R8 | Cost blowout | Weekly runs unaffordable, gate goes stale | Turn/search/tool-step cap bounds tests; pre-run cost projection; cost/claim per stratum | Cost/claim vs envelope; cap-binding rate | L1 + L3 |
+| VER-R9 | Evidence-fetch failures degrade verdicts silently | Verdicts publish on weaker grounding, no flag | Fetch-failure fixtures assert flagged degradation | Pack schema: resolved or flagged-degraded | L1 + L4a |
+| VER-R10 | *(retired)* Materiality-selection drift | — | — | — | — |
+| VER-R11 | *(retired)* Grid verdict boundary | — | — | — | — |
+| VER-R12 | Confidence miscalibration | Open-question posture hollows out | Threshold fixtures; L3 calibration table per run | L3 calibration table | L1 + L3 |
+| VER-R13 | *(retired)* Fingerprint misread | — | — | — | — |
+| VER-R14 | Authority-map misuse — wrong tier's series, or advocacy data as evidence | Verification bias; ADR-0018 guardrail broken | Authority resolution per domain; advocacy rejection asserted | L1 | L1 |
+| VER-R15 | *(retired)* Plan misclassification. There is no plan | — | — | — | — |
+| VER-R16 | Verdict class moves between runs of identical input | A published class flips on a re-check | Agreement gate unit-tested both directions; disagreement publishes nothing and is counted | Class-agreement gate; disagreement rate per L3 run | L1 + L3 |
+| VER-R17 | **A stopped loop silently truncates a real finding** | A stopped run reads as "no evidence" rather than "we stopped" | Stopped-run fixtures assert `not_enough_evidence` + the critiquer's reason + `stopReason`; budget-exhaustion rate reported | Budget-exhaustion rate; reason present on stopped runs | L1 + L3 |
+| Behavioural | — | — | ≥1 pinned claim per verdict class in the golden set |  | L2/L3 |
 | Deliverable | — | — | Per-stratum accuracy + calibration + cost/claim table; gate per HARNESS §2.6 |  | L3 |
-| Site | — | — | "As deployed", alternatives table, hear-it anchors, degraded-evidence flags, generated methodology table |  | L4 |
+| Site | — | — | research plan/trail rendering, degraded-evidence flags, generated methodology table |  | L4 |
 
-**L1 fixture set**: fixture series with pinned vintages; golden expected grids; class-boundary claims; cited-document corpus; caption-artefact fixtures; authority-map resolutions; fetch-failure modes; NLI must-pass/must-fail packs; plan fixtures (required-procedure floor, decline-with-reason, novel procedure); depth-cap bounds. All LLM calls mocked.
+**L1 fixture list**: authority-map resolutions; fetch-failure modes; critiquer must-pass/must-fail packs;
+loop control (sufficient / loop-back / cap / disagreement); researcher budget bounds. All LLM calls
+mocked.
 
 ## 5. Open questions
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | ~~Search-provider order~~ **Resolved**: Brave primary, Serper fallback/bulk (ADR-0011 governs; confirmed 10 Sep 2026). Per-query nuance (authority-restricted → Brave, bulk → Serper) is `search_config` | — |
-| 2 | Materiality-selection rubric sign-off — what artefact, who signs off, does the signed rubric join `grid_axes_version` (forcing an L3 re-run on change)? | The anti-invented-standard defence depends on this being pre-declared and auditable |
-| 3 | Quote-fidelity tolerance policy — what delta flips the verdict vs triggers the caption-quality note? Needs a listen-test policy, not a guessed threshold | Conditions VER-R5 fixture expectations |
-| 4 | Context-procedure graduation criteria — what measured result justifies live false-context handling, and who decides? | Pairs with HARNESS Q7 |
-| 5 | NLI-auditor calibration bar — what false-pass rate disqualifies the auditor model? | Deferred until two L3 runs produce audit-agreement data |
-| 6 | Depth-cap values per procedure — the FIRE pattern fixes the mechanism, not our numbers; calibrate against first L3 cost data | The $25/run envelope bounds the search space |
-| 7 | Figures-procedure verdict for misquoted-but-real numbers (right indicator, wrong figure) — the no-row-match rule says Refuted; confirm the boundary holds for rounding variants ("about 30%" vs 27.3%) or whether a tolerance band is needed | Interacts with VER-R11 fixtures |
-| 8 | **Causal claims have no procedure** (VERIFICATION §2.1). 11% of the corpus is causal; timing evidence is currently reported under the open-web bound. Since ADR-0023 this is a *procedure* to add rather than a sixth mode: the plan can name a procedure the library has never seen, so `difference-in-differences` (pre-trend tests against an unaffected comparison group) can ship as a library row without changing the routing, and the plan records it as a step with its own bound | Publishes a bound per check on every trail section meanwhile; the gap is named on the page and on `/methodology`, not assumed covered |
+| 1 | ~~Search-provider order~~ **Resolved**: Brave primary, Serper fallback/bulk (ADR-0011). | — |
+| 2 | **Reintroducing a deterministic series check** — a quantitative claim is researched like any other today (ADR-0026). Add it as an evidence source for the researcher, not as a procedure, so the plan stays a single loop | Tracked; the capability loss is named in ADR-0026's consequences |
+| 3 | Critiquer calibration bar — what false-pass rate disqualifies the critiquer model? | Deferred until two L3 runs produce agreement data |
+| 4 | Turn/search/tool-step cap values — calibrate against first L3 cost data | The $25/run envelope bounds the search space |
+| 5 | Causation — no check tests it; the loop reports timing evidence and says so on the page | Publish a bound on every trail section; named on `/methodology` |
+| 6 | Rounding tolerance for a "misquoted but real" number — confirm the boundary between `refuted` and `conflicting_cherry_picking` | Interacts with VER-R16 fixtures |

@@ -1,55 +1,86 @@
-// Triage: document records → claim records (TRIAGE.md §2). LLM stages run
-// through the injectable TriageLlm port (ADR-0011); L1 mocks the LLM, so the
-// deterministic surface — splitting, claim typing, discourse context,
-// drop-log assembly, idempotency — is what these bodies implement. Every
-// output carries provenance; every rejection is logged, never silent.
+// Triage: document records → claim records (TRIAGE.md, ADR-0025). Two independent
+// per-sentence decisions:
+//
+//   1. triage-speakership  — whose words is the sentence?
+//   2. triage-checkability — is it a checkable factual assertion, or why not?
+//
+// A sentence is checkable only when BOTH arms pass. One context pass per
+// checkable claim then reads the WHOLE document to say what argumentative point
+// the claim supports (ADR-0026).
+//
+// LLM stages run through the injectable TriageLlm port (ADR-0011); L1 mocks the
+// LLM, so the deterministic surface — splitting, arm evaluation, drop-log
+// assembly, context mapping, idempotency — is what these bodies implement.
 
 import { createHash } from "node:crypto";
-// The published shape of triage's own output lives in @cw/store, which the
-// pipeline may import and the site may too (AGENTS.md boundaries) — so the
-// record written here and the record rendered there are one definition.
-import type { RejectionClass, StoredDiscourseContext, TriageRecord } from "@cw/store";
+import {
+  ELIGIBLE_SPEAKERSHIP_CLASSES,
+  REJECTION_CLASSES,
+  type RejectionClass,
+  type SpeakershipClass,
+  type StoredDiscourseContext,
+  type TriageRecord,
+} from "@cw/store";
 import { z } from "zod";
-import type {
-  CheckabilityDecision,
-  ClaimType,
-  DiscourseContext,
-  DropRecord,
-  Sentence,
-  TriageDocumentInput,
-  TriageFailureRecord,
-  TriageProvenance,
-  TriageResult,
-  TypedClaim,
+import type { DecisionPort, DecisionRole } from "./decision-port.ts";
+import { checkabilityQuestion, speakershipQuestion } from "./decision-questions.ts";
+import { runDecisionStage } from "./decision-stage.ts";
+import {
+  type ClaimRecord,
+  CONTENT_CLASSES,
+  type ContentClass,
+  type DiscourseContext,
+  type DropRecord,
+  type Sentence,
+  type SentenceCheckability,
+  type SentenceSpeakership,
+  type TriageDocumentInput,
+  type TriageFailureRecord,
+  type TriageProvenance,
 } from "./triage-api.ts";
 import type { TriageLlm } from "./triage-llm.ts";
 
 export type {
-  CheckabilityDecision,
-  ClaimType,
+  ClaimRecord,
+  ContentClass,
   DiscourseContext,
   DropRecord,
   Sentence,
+  SentenceCheckability,
+  SentenceSpeakership,
   TriageDocumentInput,
   TriageFailureRecord,
   TriageProvenance,
-  TriageResult,
-  TypedClaim,
 } from "./triage-api.ts";
+export { CONTENT_CLASSES } from "./triage-api.ts";
 
-// ---------- versioned normalisation config (TRIAG open Q3) ----------
+// ---------- the two axes (ADR-0025) ----------
 
-// `FINGERPRINT_NORMALISATION_VERSION` and `normaliseCore` were removed with the
-// fingerprint (ADR-0023). The normalisation existed to make two claims about the
-// same number produce the same canonical key; with the key gone, its only
-// remaining consumer was the key itself.
+const SPEAKERSHIP_CLASSES = ["quoted-actor", "author-claim", "outlet-prose", "unresolved"] as const;
 
-const SENTENCE_END = /([^.!?]+[.!?]+)(\s|$)/g;
+/** Axis 1 passes when the sentence is someone's words we may check. */
+export function isEligibleSpeakershipClass(value: string): value is SpeakershipClass {
+  return (ELIGIBLE_SPEAKERSHIP_CLASSES as readonly string[]).includes(value);
+}
+
+/** Axis 2 passes when the sentence is a factual assertion. */
+export function isCheckableContent(value: string): boolean {
+  return value === "checkable";
+}
+
+/** Both arms pass. */
+export function isCheckable(speakership: string, content: string): boolean {
+  return isEligibleSpeakershipClass(speakership) && isCheckableContent(content);
+}
+
+function isRejectionClass(value: string): value is RejectionClass {
+  return (REJECTION_CLASSES as readonly string[]).includes(value);
+}
+
+// ---------- sentence splitting ----------
 
 export function splitSentences(text: string, opts?: { cueSpanPreserving?: boolean }): Sentence[] {
   if (opts?.cueSpanPreserving) {
-    // ASR cues carry no reliable punctuation; the cue IS the segmentation unit.
-    // Splitting mid-cue would break media_anchor anchoring (TRIAG open Q7).
     return [
       {
         id: sentenceId(text, 0),
@@ -60,11 +91,7 @@ export function splitSentences(text: string, opts?: { cueSpanPreserving?: boolea
     ];
   }
   const sentences: Sentence[] = [];
-  const regex = /[^.!?]+[.!?]+(\s|$)/g;
-  // Assign-then-test rather than an assignment inside the condition, which the
-  // linter objects to. The inner variable is named `sentence` and not `text`
-  // because the loop must keep matching against the DOCUMENT: shadowing `text`
-  // here would silently advance the regex over the trimmed sentence instead.
+  const regex = /([^.!?]+[.!?]+)(\s|$)/g;
   let match = regex.exec(text);
   let cursor = 0;
   while (match !== null) {
@@ -99,271 +126,151 @@ function sentenceId(text: string, offset: number): string {
   return `s-${createHash("sha256").update(`${offset}:${text}`).digest("hex").slice(0, 12)}`;
 }
 
-// ---------- LLM stage wrappers ----------
+// ---------- prompts ----------
 
-const CheckabilityOutput = z.object({
-  checkable: z.boolean(),
-  rejectionClass: z
-    .enum([
-      "opinion",
-      "rhetoric",
-      "procedure",
-      "satire",
-      "pledge-conditional",
-      "question",
-      "off-domain",
-    ])
-    .optional(),
-  sentence: z.string().optional(),
+export const TRIAGE_PROMPT_VERSIONS = {
+  "triage-speakership": "triage-speakership@1",
+  "triage-checkability": "triage-checkability@1",
+  "triage-context": "triage-context@1",
+} as const;
+
+export const TRIAGE_SPEAKERSHIP_PROMPT = `You decide, for each sentence of a document, WHOSE WORDS IT IS. This is conservative by design: when the speaker is not clear from the text, the answer is "unresolved", never a guess.
+
+You are given the whole document and its sentences in order. USE THE WHOLE DOCUMENT to resolve who is speaking: a reference like "the Minister" or "Mr Mitchell" in one sentence is named elsewhere in the document. Give the speaker's name, and their role or portfolio where the document states it ("Mark Mitchell, Police Minister"). Return exactly one class per sentence, in the order given, plus the speaker when the class is "quoted-actor" and null otherwise.
+
+Classes:
+- "quoted-actor": reported speech. The sentence is inside quotation marks, or its words are attributed to someone ("Macpherson says", "Hipkins told RNZ", "the report said"). A quotation may open in one sentence with the attribution verb in an adjacent one: read the neighbours and attribute to the speaker it is attributed to.
+- "author-claim": the AUTHOR of an opinion or analysis piece asserting in their own voice. Only available when the genre is "opinion-analysis". Never for a news report: there the author is a journalist reporting, not claiming.
+- "outlet-prose": the journalist or outlet narrating, summarising, setting the scene, or describing background. No speaker.
+- "unresolved": a quotation with no resolvable speaker — an unattributed pull-quote, or one whose attribution is genuinely ambiguous.
+
+Rules:
+- A person merely mentioned in a sentence is NOT its speaker.
+- Do not treat the document's headline or standfirst as a claim.
+- The genre decides which rules apply: for "news-report", "author-claim" is not available.`;
+
+export const TRIAGE_CHECKABILITY_PROMPT = `You decide, for each sentence, WHAT IT IS: a factual assertion that evidence could settle, or something else.
+
+You are given the document's genre and the sentences that are someone's words (each with the class the speakership pass gave it). Return exactly one class per sentence, in the order given.
+
+Classes:
+- "checkable": a factual assertion about the world that evidence could prove or disprove. A quotation of a factual claim is checkable; the fact that it is someone's opinion is not the same as the sentence BEING an opinion.
+- "opinion": an evaluation, value judgement, or prediction that no evidence can settle as stated.
+- "rhetoric": persuasive framing with no factual content.
+- "procedure": a statement about proceedings rather than a factual claim.
+- "satire": satire is set aside, never checked.
+- "question": a question, not an assertion.
+- "off-domain": outside the project's policy remit.
+- "pledge-conditional": a commitment about what will happen; gradable only once its deadline passes.
+
+A sentence can be someone's words AND an opinion: judge what the sentence asserts, not who said it.`;
+
+export const TRIAGE_CONTEXT_PROMPT = `You are given a document and one claim made in it. Say what the claim is doing in the document's argument.
+
+Answer four things:
+- venue: where or on what occasion the words were said ("in the House", "at a post-Cabinet press conference", "on RNZ Morning Report"). Null when the document does not say. NEVER the speaker's name.
+- topic: the policy topic the claim is about. Null when unclear.
+- supports: the specific point the claim is used to support — why it matters to the argument being made. Read the WHOLE document to answer this, not just the sentence. Null when the document does not make the point.
+- qualifiers: the speaker's own qualifications, verbatim where present.
+
+All fields null (or empty) if absent. Never infer from who is speaking.`;
+
+// ---------- schemas ----------
+
+const SpeakershipOutput = z.object({
+  sentences: z
+    .array(
+      z.object({
+        sentenceId: z.string(),
+        speakershipClass: z.enum(SPEAKERSHIP_CLASSES),
+        speaker: z.string().nullable().default(null),
+      }),
+    )
+    .min(1),
 });
 
-const TypingOutput = z.object({
-  claimType: z.enum([
-    "statistical",
-    "citation-backed",
-    "broadcast-quote",
-    "institution-citation",
-    "false-context",
-    "other",
-  ]),
-  sentence: z.string(),
+const CheckabilityOutput = z.object({
+  sentences: z
+    .array(z.object({ sentenceId: z.string(), contentClass: z.enum(CONTENT_CLASSES) }))
+    .min(1),
 });
 
 const ContextOutput = z.object({
-  speaker: z.string().nullable(),
-  // The VENUE: where, or on what occasion, the words were said — "in the House",
-  // "at a post-Cabinet press conference", "on RNZ Morning Report". Optional with
-  // a null default, because a window that does not say where must not have a
-  // venue guessed for it (ADR-0008: absent is data). This is what
-  // `speechContext` stores; it must never be the speaker.
   venue: z.string().nullable().default(null),
-  topic: z.string().nullable(),
-  proposal: z.string().nullable(),
-  attachedProposal: z.string().nullable(),
+  topic: z.string().nullable().default(null),
+  supports: z.string().nullable().default(null),
   qualifiers: z.array(z.string()).default([]),
-  // TRIAGE §3.2 has always listed `argument_direction` ("stance over window;
-  // null when not confident") and the stored shape has always had a field for
-  // it — but the extraction schema never asked for it, so it could only ever be
-  // null. Added Sept 2026 with the prompt change; hence the version bump.
-  argumentDirection: z.enum(["problem", "success"]).nullable().default(null),
 });
 
 export type ContextOutputShape = z.infer<typeof ContextOutput>;
 
+function claimIdFor(text: string, window: string | undefined, speakershipClass: string): string {
+  return createHash("sha256")
+    .update(`claim:${speakershipClass}:${window ?? ""}:${text}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
 /**
- * Triage's discourse context → the shape the store holds (ADR-0008).
- *
- * Two contracts, different field names, and nothing mapped between them: that
- * is why `contextFromLlm` had no caller for so long. The stored shape is the
- * published one (the verdict page reads `attachedProposal` for its "as
- * deployed" line, and `speechContext` for the venue beside the who-line), so the
- * mapping lives here at the boundary rather than either side being renamed.
- *
- * The window is carried through verbatim — it is the auditable artefact the
- * context was read from (TRIAGE §3.2), not a derived value.
+ * The claim as made, not the sentence it was embedded in. A quoted claim is the
+ * quoted content; a trailing attribution (`, he said in a statement`) is not part
+ * of what was claimed. The verbatim sentence is kept separately
+ * (`utteranceText`) so nothing is lost.
  */
+export function normaliseClaimText(sentence: string): string {
+  // A directly quoted claim: the content inside the quotation marks.
+  const quoted = sentence.match(/["“]([^"”]+)["”]/);
+  if (quoted?.[1] != null && quoted[1].trim().length > 0) {
+    return quoted[1].trim().replace(/[,;:]+$/, "");
+  }
+  // Reported speech without quotation marks: drop a trailing attribution clause.
+  return sentence
+    .replace(
+      /,\s*(?:he|she|they|the\s+[A-Za-z][A-Za-z .'-]*|Mr|Ms|Mrs|[A-Z][a-z]+)\s+(?:said|says|stated|told|added|wrote|claimed|confirmed)\b[\s\S]*$/i,
+      "",
+    )
+    .trim();
+}
+
 export function toStoredDiscourseContext(
   context: ContextOutputShape,
   window: string,
 ): StoredDiscourseContext {
   return {
     window,
-    // `speechContext` is the VENUE — where, or on what occasion, the words were
-    // said — read from the window by the context pass (`triage-context@3`). It
-    // must NOT hold the speaker: attribution is the `attribute` stage's job and
-    // already rides on the claim (`attribution_candidates`), so writing the
-    // speaker here printed the same name twice, side by side.
     speechContext: context.venue,
     policyTopic: context.topic,
-    attachedProposal: context.attachedProposal,
-    argumentDirection: context.argumentDirection,
+    supports: context.supports,
     contextQualifiers: context.qualifiers.length > 0 ? context.qualifiers.join("; ") : null,
   };
 }
 
-/**
- * The stored context for a sentence that had NO window to read. Every field null
- * rather than omitted, on ADR-0008's rule that absent is data: the page then
- * shows no "as deployed" line, which is the truth, rather than a line derived
- * from the claim itself.
- */
 export function emptyDiscourseContext(window = ""): StoredDiscourseContext {
   return {
     window,
     speechContext: null,
     policyTopic: null,
-    attachedProposal: null,
-    argumentDirection: null,
+    supports: null,
     contextQualifiers: null,
   };
 }
 
-// MODE_BY_TYPE lived here: a claim type mapped to one of five modes. ADR-0023
-// removed it — a claim now gets a PLAN (`plan.ts`), built from its features and
-// the procedure library, and a compound claim can carry several checks. The
-// mapping was also not the real decision even before the change: whether a
-// statistical claim reached the figures procedure depended on an
-// authority-registry hit, not on the type.
-
-const PROMPT_VERSIONS = {
-  "triage-checkability": "triage-checkability@1",
-  "triage-typing": "triage-typing@1",
-  // @2: the extraction asks for `argumentDirection`. @3: it asks for `venue`
-  // (the occasion/where), the field `speechContext` is meant to hold. A prompt
-  // edit is a model-equivalent behaviour change, so the version moves with it.
-  "triage-context": "triage-context@3",
-} as const;
-
-/**
- * The `triage-context` prompt (@3). House convention: a prompt lives in the
- * module that uses it (like `search/decompose.ts`), so this is the one
- * definition the live scripts read rather than each carrying its own copy — two
- * of them had none at all and fell back to a generic "match the schema" string.
- *
- * `venue` is asked for here because `speechContext` stores it, and the prompt
- * must say what it is: where or on what occasion the words were said, never the
- * speaker (whose name is attribution, not venue).
- */
-export const TRIAGE_CONTEXT_PROMPT = `Extract discourse context from a window of text. Reply with ONLY JSON:
-{"speaker": string|null, "venue": string|null, "topic": string|null, "proposal": string|null, "attachedProposal": string|null, "qualifiers": string[], "argumentDirection": "problem"|"success"|null}.
-All fields null if absent — never infer from speaker identity alone.
-- speaker: who the words are attributed to.
-- venue: where or on what occasion the words were said ("in the House", "at a post-Cabinet press conference", "on RNZ Morning Report"). Null when the window does not say, and NEVER just the speaker's name.
-- argumentDirection: the stance the window takes (problem = a fault to fix, success = a result being claimed), null when not clear.`;
-
-function claimIdFor(text: string, window: string | undefined, claimType: string): string {
-  return createHash("sha256")
-    .update(`claim:${claimType}:${window ?? ""}:${text}`)
-    .digest("hex")
-    .slice(0, 32);
-}
-
-export async function checkabilityFromLlm(
-  llm: TriageLlm,
-  input: { sentence: string; window: string },
-): Promise<CheckabilityDecision> {
-  const promptVersion = PROMPT_VERSIONS["triage-checkability"];
-  const call = await llm.generateObject(
-    "triage-checkability",
-    { sentence: input.sentence, window: input.window },
-    { parse: (raw: unknown) => CheckabilityOutput.parse(raw) },
-  );
-  const baseProvenance: TriageProvenance = {
-    promptVersion,
-    model: call.ok ? call.model : "unknown",
-    tokensIn: call.ok ? call.usage.tokensIn : 0,
-    tokensOut: call.ok ? call.usage.tokensOut : 0,
-  };
-  if (!call.ok) {
-    const failureRecord: TriageFailureRecord = {
-      failureClass: call.failureClass,
-      ...(call.rawOutput !== undefined ? { rawOutput: call.rawOutput } : {}),
-    };
-    return { decision: "schema-failure", failureRecord, provenance: baseProvenance };
-  }
-  const value = call.value;
-  if (value.checkable) {
-    return {
-      decision: "checkable",
-      provenance: {
-        promptVersion,
-        model: call.model,
-        tokensIn: call.usage.tokensIn,
-        tokensOut: call.usage.tokensOut,
-      },
-    };
-  }
-  const dropRecord: DropRecord = {
-    sentenceId: input.sentence,
-    sentenceText: input.sentence,
-    rejectionClass: value.rejectionClass ?? "opinion",
-    windowText: input.window,
-    provenance: {
-      promptVersion,
-      model: call.model,
-      tokensIn: call.usage.tokensIn,
-      tokensOut: call.usage.tokensOut,
-    },
-  };
-  return {
-    decision: value.rejectionClass === "pledge-conditional" ? "pledge" : "not-checkable",
-    dropRecord,
-    provenance: {
-      promptVersion,
-      model: call.model,
-      tokensIn: call.usage.tokensIn,
-      tokensOut: call.usage.tokensOut,
-    },
-  };
-}
-
-export async function typeClaimFromLlm(
-  llm: TriageLlm,
-  input: { sentence: string; isCuratedFixture?: boolean },
-): Promise<TypedClaim> {
-  const call = await llm.generateObject(
-    "triage-typing",
-    { sentence: input.sentence },
-    { parse: (raw: unknown) => TypingOutput.parse(raw) },
-  );
-  if (!call.ok) {
-    throw new Error(`triage typing failed: ${call.failureClass}`);
-  }
-  const value = call.value;
-  const provenance: TriageProvenance = {
-    promptVersion: PROMPT_VERSIONS["triage-typing"],
-    model: call.model,
-    tokensIn: call.usage.tokensIn,
-    tokensOut: call.usage.tokensOut,
-  };
-
-  // ADR-0023: `mode` and the fingerprint degrade both used to be decided here.
-  // removed them: triage answers whether a sentence is a checkable claim and what
-  // kind it is, and the PLAN (`plan.ts`) decides which procedures that kind needs.
-  // Leaving a mode here would be a second, competing answer to the same question —
-  // and the one it gave was the taxonomy the plan replaced.
-  return {
-    claimId: claimIdFor(input.sentence, undefined, value.claimType),
-    sourceSentenceId: input.sentence,
-    claimType: value.claimType,
-    text: input.sentence,
-    ...(input.isCuratedFixture ? { isCuratedFixture: true } : {}),
-    provenance,
-  };
-}
-
-// `stripMarker`, `fingerprintFromLlm` and `canonicalFingerprintKey` were removed
-// whole (ADR-0023). The fingerprint was a six-part identity object built here,
-// before any evidence was fetched, and consumed downstream by the figures
-// procedure — which read its window out of free text with
-// `/(?:since|from)\s+(\d{4})/i` and its magnitude out of "the first number in the
-// string". See `claim-parameters.ts`: the parse now happens at the point of use,
-// as a typed step inside the procedure that needs it.
-
 export async function contextFromLlm(
   llm: TriageLlm,
-  input: { window: string },
+  input: { claim: string; document: string },
 ): Promise<DiscourseContext> {
-  const call = await llm.generateObject(
-    "triage-context",
-    { window: input.window },
-    { parse: (raw: unknown) => ContextOutput.parse(raw) },
-  );
+  const call = await llm.generateObject("triage-context", input, ContextOutput);
   if (!call.ok) {
     throw new Error(`context extraction failed: ${call.failureClass}`);
   }
   const value = call.value;
-  // Absent is data (ADR-0008): every field null-if-absent, never defaulted.
   return {
-    speaker: value.speaker,
     venue: value.venue,
     topic: value.topic,
-    proposal: value.proposal,
-    attachedProposal: value.attachedProposal,
+    supports: value.supports,
     qualifiers: value.qualifiers,
-    argumentDirection: value.argumentDirection,
     provenance: {
-      promptVersion: PROMPT_VERSIONS["triage-context"],
+      promptVersion: TRIAGE_PROMPT_VERSIONS["triage-context"],
       model: call.model,
       tokensIn: call.usage.tokensIn,
       tokensOut: call.usage.tokensOut,
@@ -371,61 +278,25 @@ export async function contextFromLlm(
   };
 }
 
-// ---------- document-level triage (idempotent, TRI-R13) ----------
+// ---------- document-level triage ----------
 
-const DocumentLlmOutput = z.object({
-  results: z.array(
-    z.union([
-      z.object({
-        sentenceId: z.string(),
-        checkable: z.literal(true),
-        claimType: z.string(),
-        mode: z.string(),
-      }),
-      z.object({ sentenceId: z.string(), checkable: z.literal(false), rejectionClass: z.string() }),
-    ]),
-  ),
-});
-
-/** The real Zod schemas per triage role — the live adapter generates with
- * these directly; the port's {parse} wrapper exists for mock injection. */
-export const TRIAGE_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  "triage-checkability": DocumentLlmOutput,
-  "triage-typing": TypingOutput,
-  "triage-context": ContextOutput,
-};
-
-type CheckabilityResult = z.infer<typeof DocumentLlmOutput>["results"][number];
 type TriageSentence = TriageDocumentInput["sentences"][number];
 
 /**
- * Bounds on the checkability fan-out (TRI-R12). The call returns ONE result per
- * sentence, so the response grows with the document while the adapter's output
- * budget is fixed — a real 47-sentence news article (~8.5 KB of results)
- * truncated at the 2048-token default and surfaced as `schema-validation — the
- * model did not return a response`, naming the symptom and not the cause
- * (Sept 2026). Both the sentence count and the input characters are bounded:
- * one very long sentence is still one result but unbounded prompt text.
+ * Bounds on the per-sentence fan-out (TRI-R12): one result per sentence against a
+ * fixed output budget. A chunk whose response fails schema validation is retried
+ * at half size before the document is failed.
  */
-const CHECKABILITY_CHUNK_SENTENCES = 20;
-const CHECKABILITY_CHUNK_CHARS = 6000;
+const CHUNK_SENTENCES = 20;
+const CHUNK_CHARS = 6000;
 
-/**
- * Split the document into calls small enough to answer in one response. A
- * document that fits is one chunk, so the single-chunk path issues exactly the
- * call it issued before this existed — which is what keeps the L2 goldens and
- * the ops slices unchanged.
- */
-function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
-  const chunks: TriageSentence[][] = [];
-  let current: TriageSentence[] = [];
+function chunksOf<T extends { text: string }>(sentences: T[]): T[][] {
+  const chunks: T[][] = [];
+  let current: T[] = [];
   let chars = 0;
   for (const sentence of sentences) {
-    const size = sentence.text.length + (sentence.window?.length ?? 0);
-    if (
-      current.length > 0 &&
-      (current.length >= CHECKABILITY_CHUNK_SENTENCES || chars + size > CHECKABILITY_CHUNK_CHARS)
-    ) {
+    const size = sentence.text.length;
+    if (current.length > 0 && (current.length >= CHUNK_SENTENCES || chars + size > CHUNK_CHARS)) {
       chunks.push(current);
       current = [];
       chars = 0;
@@ -437,195 +308,426 @@ function checkabilityChunks(sentences: TriageSentence[]): TriageSentence[][] {
   return chunks;
 }
 
-/**
- * What document triage produces: the triage result, plus the per-claim discourse
- * context it read (ADR-0008) and the record the verdict page publishes
- * (SITE-MVP §2.3). Declared as a named type so a consumer cannot hold the result
- * typed as `TriageResult` and miss the fields the store write needs — which is
- * how `attached_proposal` stayed null for so long.
- *
- * `Omit<…, "claims">` rather than intersecting `TriageResult` directly: an
- * intersection of two array types (`Array<A> & Array<B>`) does not propagate the
- * narrowed element type through `.find()`. TypeScript infers the BASE element
- * type there, so a consumer that selects a claim the natural way —
- * `claims.find(c => c.claimType === …)` — cannot see `discourseContext` and fails
- * to compile, while index access works. Verified against tsc (Sept 2026), and it
- * bit the first consumer, which is the whole reason this type exists.
- */
-export type TriageDocumentResult = Omit<TriageResult, "claims"> & {
-  claims: Array<
-    TypedClaim & {
-      sourceSentenceId: string;
-      discourseContext: StoredDiscourseContext;
-    }
-  >;
-  dropLog: Array<DropRecord & { sentenceId: string }>;
-  triageRecord: TriageRecord;
-};
+interface StageProvenance {
+  provenance: TriageProvenance;
+  failures: TriageFailureRecord[];
+}
 
-export async function triageDocument(
-  doc: TriageDocumentInput,
+/**
+ * Run one per-sentence stage across the document's chunks, returning a result per
+ * sentence and the stage's provenance. A sentence the model did not answer is
+ * left out of the map; the caller decides the fail-closed answer.
+ */
+async function runPerSentenceStage<
+  S extends { text: string; window?: string },
+  R extends { sentenceId: string },
+>(
   llm: TriageLlm,
-): Promise<TriageDocumentResult> {
-  const results: CheckabilityResult[] = [];
+  role: "triage-speakership" | "triage-checkability",
+  promptVersion: string,
+  input: { genre: string; sentences: S[]; user: (sentences: S[]) => unknown },
+  schema: z.ZodType<{ sentences: R[] }>,
+): Promise<{ byId: Map<string, R>; stage: StageProvenance }> {
+  const byId = new Map<string, R>();
   const models = new Set<string>();
   let tokensIn = 0;
   let tokensOut = 0;
+  const failures: TriageFailureRecord[] = [];
 
-  const runChunk = async (chunk: TriageSentence[]): Promise<void> => {
-    const call = await llm.generateObject(
-      "triage-checkability",
-      { sentences: chunk },
-      { parse: (raw: unknown) => DocumentLlmOutput.parse(raw) },
-    );
+  const runChunk = async (chunk: S[]): Promise<void> => {
+    const call = await llm.generateObject(role, input.user(chunk), schema);
     if (!call.ok) {
-      // A chunk that overflows the output budget is retried at half size rather
-      // than failing the document: a schema failure here IS the truncation
-      // signal, so the retry turns a hard failure into a slower success. Bounded
-      // by the halving — `chunk.length > 1` is what terminates it.
       if (call.failureClass === "schema-validation" && chunk.length > 1) {
         const mid = Math.ceil(chunk.length / 2);
         await runChunk(chunk.slice(0, mid));
         await runChunk(chunk.slice(mid));
         return;
       }
-      // Truncation is named where it happens: this message is what made a
-      // 2048-token cut look like a model that refused to answer.
       throw new Error(
-        `triage failed: ${call.failureClass}` +
+        `${role} failed: ${call.failureClass}` +
           `${call.finishReason ? ` (finish_reason: ${call.finishReason})` : ""} — raw: ${
             call.rawOutput?.slice(0, 400) ?? "none"
           }`,
       );
     }
-    results.push(...call.value.results);
+    for (const result of call.value.sentences) byId.set(result.sentenceId, result);
     models.add(call.model);
     tokensIn += call.usage.tokensIn;
     tokensOut += call.usage.tokensOut;
   };
 
-  for (const chunk of checkabilityChunks(doc.sentences)) {
+  for (const chunk of chunksOf(input.sentences)) {
     await runChunk(chunk);
   }
-
-  // One provenance record has to describe every chunk, so the chunks must agree
-  // on the model. ADR-0011's tiered routing makes a mid-document escalation
-  // possible, and recording the first chunk's model would name a model that
-  // produced only part of the triage — the same class of misattribution as the
-  // phantom `adjudication@1` role. Fail loudly; per-chunk provenance is a store
-  // shape change and wants its own decision (Sept 2026).
   if (models.size > 1) {
     throw new Error(
-      `triage spans ${models.size} models (${[...models].join(", ")}) — triage provenance records one model per document; per-chunk provenance is not modelled`,
+      `${role} spans ${models.size} models (${[...models].join(", ")}) — provenance records one model per stage per document`,
     );
   }
-  const provenance: TriageProvenance = {
-    promptVersion: PROMPT_VERSIONS["triage-checkability"],
-    model: [...models][0] ?? "unknown",
-    // Summed across chunks: ADR-0012 computes cost at aggregation from the price
-    // map, so the thing to accumulate is tokens, not money.
-    tokensIn,
-    tokensOut,
+  return {
+    byId,
+    stage: {
+      provenance: {
+        promptVersion,
+        model: [...models][0] ?? "unknown",
+        tokensIn,
+        tokensOut,
+      },
+      failures,
+    },
   };
-  const claims: Array<
-    TypedClaim & {
-      sourceSentenceId: string;
-      discourseContext: StoredDiscourseContext;
+}
+
+export type TriageDocumentResult = {
+  claims: Array<
+    ClaimRecord & { sourceSentenceId: string; discourseContext: StoredDiscourseContext }
+  >;
+  dropLog: Array<DropRecord & { sentenceId: string }>;
+  failures: TriageFailureRecord[];
+  provenance: TriageProvenance;
+  triageRecord: TriageRecord;
+};
+
+/**
+ * Optional decision-port configuration (ADR-0024). A role is routed to the
+ * decision model only when it is named in `decisionRoles`, so the default (no
+ * options) is exactly the all-generative path and a role moves only after a
+ * calibration run clears the accuracy floor.
+ */
+export interface TriageOptions {
+  decisions?: DecisionPort;
+  decisionRoles?: DecisionRole[];
+  decisionThreshold?: number;
+}
+
+function decisionEnabled(opts: TriageOptions, role: DecisionRole): boolean {
+  return opts.decisions != null && (opts.decisionRoles ?? []).includes(role);
+}
+
+/**
+ * Axis 1 through the decision port: the class is a closed choice, so the model
+ * cannot invent one, and a settled `quoted-actor` still escalates for the
+ * attribution NAME — no decision primitive produces free text.
+ */
+async function runSpeakershipDecisions(
+  doc: TriageDocumentInput,
+  llm: TriageLlm,
+  opts: TriageOptions,
+): Promise<{ byId: Map<string, SentenceSpeakership>; stage: StageProvenance }> {
+  const port = opts.decisions;
+  if (port == null) throw new Error("runSpeakershipDecisions called without a decision port");
+  const sentences = doc.sentences.map((sentence) => ({ id: sentence.id, text: sentence.text }));
+  let escalationTokensIn = 0;
+  let escalationTokensOut = 0;
+  let escalationModel = "not-called";
+  const result = await runDecisionStage({
+    port,
+    role: "triage-speakership",
+    items: sentences,
+    ...(opts.decisionThreshold != null ? { threshold: opts.decisionThreshold } : {}),
+    stateFor: (items) => ({
+      genre: doc.genre,
+      document: doc.documentText ?? null,
+      sentences: items,
+    }),
+    questionFor: (sentence) => ({ [sentence.id]: speakershipQuestion(sentence.id) }),
+    settle: (sentence, answers) => {
+      const answer = answers[sentence.id];
+      const cls = answer?.type === "choice" ? answer.choice : "unresolved";
+      return {
+        sentenceId: sentence.id,
+        speakershipClass: (SPEAKERSHIP_CLASSES as readonly string[]).includes(cls)
+          ? (cls as SpeakershipClass)
+          : "unresolved",
+        speaker: null,
+      };
+    },
+    needsEscalation: (sentence, answers) => {
+      const answer = answers[sentence.id];
+      return answer?.type === "choice" && answer.choice === "quoted-actor";
+    },
+    escalate: async (items) => {
+      const stage = await runPerSentenceStage<TriageSentence, SentenceSpeakership>(
+        llm,
+        "triage-speakership",
+        TRIAGE_PROMPT_VERSIONS["triage-speakership"],
+        {
+          genre: doc.genre,
+          sentences: items,
+          user: (chunk) => ({
+            genre: doc.genre,
+            document: doc.documentText ?? null,
+            sentences: chunk,
+          }),
+        },
+        SpeakershipOutput,
+      );
+      escalationTokensIn += stage.stage.provenance.tokensIn;
+      escalationTokensOut += stage.stage.provenance.tokensOut;
+      escalationModel = stage.stage.provenance.model;
+      return stage.byId;
+    },
+  });
+  return {
+    byId: result.byId,
+    stage: {
+      provenance: {
+        promptVersion: TRIAGE_PROMPT_VERSIONS["triage-speakership"],
+        // The generative model ran only for the escalated items; when nothing
+        // escalated the decision model is what produced the answers.
+        model: result.escalated > 0 ? escalationModel : (result.model ?? "unknown"),
+        tokensIn: result.tokensIn + escalationTokensIn,
+        tokensOut: result.tokensOut + escalationTokensOut,
+        decision: {
+          role: "triage-speakership",
+          model: result.model ?? "unknown",
+          provider: result.provider ?? "unknown",
+          settled: result.settled,
+          escalated: result.escalated,
+          degraded: result.degraded,
+        },
+      },
+      failures: [],
+    },
+  };
+}
+
+/** Axis 2 through the decision port: a pure closed choice, with no name to escalate for. */
+async function runCheckabilityDecisions(
+  doc: TriageDocumentInput,
+  eligible: Array<TriageSentence & { speakershipClass: SpeakershipClass }>,
+  llm: TriageLlm,
+  opts: TriageOptions,
+): Promise<{ byId: Map<string, SentenceCheckability>; stage: StageProvenance }> {
+  const port = opts.decisions;
+  if (port == null) throw new Error("runCheckabilityDecisions called without a decision port");
+  const sentences = eligible.map((s) => ({
+    id: s.id,
+    text: s.text,
+    speakershipClass: s.speakershipClass,
+  }));
+  let escalationTokensIn = 0;
+  let escalationTokensOut = 0;
+  let escalationModel = "not-called";
+  const result = await runDecisionStage({
+    port,
+    role: "triage-checkability",
+    items: sentences,
+    ...(opts.decisionThreshold != null ? { threshold: opts.decisionThreshold } : {}),
+    stateFor: (items) => ({ genre: doc.genre, sentences: items }),
+    questionFor: (sentence) => ({ [sentence.id]: checkabilityQuestion(sentence.id) }),
+    settle: (sentence, answers) => {
+      const answer = answers[sentence.id];
+      const cls = answer?.type === "choice" ? answer.choice : "off-domain";
+      return {
+        sentenceId: sentence.id,
+        contentClass: (CONTENT_CLASSES as readonly string[]).includes(cls)
+          ? (cls as ContentClass)
+          : "off-domain",
+      };
+    },
+    escalate: async (items) => {
+      const stage = await runPerSentenceStage<
+        { id: string; text: string; speakershipClass: SpeakershipClass },
+        SentenceCheckability
+      >(
+        llm,
+        "triage-checkability",
+        TRIAGE_PROMPT_VERSIONS["triage-checkability"],
+        {
+          genre: doc.genre,
+          sentences: items,
+          user: (chunk) => ({ genre: doc.genre, sentences: chunk }),
+        },
+        CheckabilityOutput,
+      );
+      escalationTokensIn += stage.stage.provenance.tokensIn;
+      escalationTokensOut += stage.stage.provenance.tokensOut;
+      escalationModel = stage.stage.provenance.model;
+      return stage.byId;
+    },
+  });
+  return {
+    byId: result.byId,
+    stage: {
+      provenance: {
+        promptVersion: TRIAGE_PROMPT_VERSIONS["triage-checkability"],
+        model: result.escalated > 0 ? escalationModel : (result.model ?? "unknown"),
+        tokensIn: result.tokensIn + escalationTokensIn,
+        tokensOut: result.tokensOut + escalationTokensOut,
+        decision: {
+          role: "triage-checkability",
+          model: result.model ?? "unknown",
+          provider: result.provider ?? "unknown",
+          settled: result.settled,
+          escalated: result.escalated,
+          degraded: result.degraded,
+        },
+      },
+      failures: [],
+    },
+  };
+}
+
+export async function triageDocument(
+  doc: TriageDocumentInput,
+  llm: TriageLlm,
+  opts: TriageOptions = {},
+): Promise<TriageDocumentResult> {
+  // Axis 1 — whose words, for every sentence. Through the decision port when the
+  // role is gated, otherwise the generative path (ADR-0024).
+  const speakership = decisionEnabled(opts, "triage-speakership")
+    ? await runSpeakershipDecisions(doc, llm, opts)
+    : await runPerSentenceStage<TriageSentence, SentenceSpeakership>(
+        llm,
+        "triage-speakership",
+        TRIAGE_PROMPT_VERSIONS["triage-speakership"],
+        {
+          genre: doc.genre,
+          // The model gets the sentence text; the stored window is an artefact for
+          // the page, not input to the decision, and re-sending it per sentence would
+          // multiply the prompt by the number of chunks.
+          sentences: doc.sentences.map((sentence) => ({ id: sentence.id, text: sentence.text })),
+          user: (sentences) => ({
+            genre: doc.genre,
+            document: doc.documentText ?? null,
+            sentences,
+          }),
+        },
+        SpeakershipOutput,
+      );
+
+  const speakershipFor = (sentence: TriageSentence): SentenceSpeakership => {
+    const answer = speakership.byId.get(sentence.id);
+    const cls = answer?.speakershipClass;
+    // Fail closed: an unanswered or unknown class is `unresolved`.
+    if (cls == null || !(SPEAKERSHIP_CLASSES as readonly string[]).includes(cls)) {
+      return { sentenceId: sentence.id, speakershipClass: "unresolved", speaker: null };
     }
-  > = [];
-  const dropLog: Array<DropRecord & { sentenceId: string }> = [];
-  const failures: TriageFailureRecord[] = [];
-  for (const result of results) {
-    const sentence = doc.sentences.find((s) => s.id === result.sentenceId);
-    if (!sentence) continue;
-    if (result.checkable) {
-      const claimType = (
-        [
-          "statistical",
-          "citation-backed",
-          "broadcast-quote",
-          "institution-citation",
-          "false-context",
-          "other",
-        ] as const
-      ).includes(result.claimType as ClaimType)
-        ? (result.claimType as ClaimType)
-        : "other";
-      // The discourse-context pass (TRIAGE §2.3, ADR-0008) runs HERE, per
-      // checkable claim, and only when there is a window to read. It had no
-      // caller at all until Sept 2026: `contextFromLlm` was exercised by its own
-      // tests and by nothing else, so every stored `attached_proposal` was null
-      // and the verdict page's "as deployed" line could never render on a real
-      // claim. A stage the orchestrator forgets is a stage that does not exist,
-      // however well covered in isolation.
-      //
-      // No window → no call, and an all-null context, because ADR-0008 forbids
-      // inferring deployment framing from anything but window text: the honest
-      // reading of a missing window is "absent", never "read it off the claim".
-      const window = sentence.window ?? "";
-      const discourseContext =
-        window.trim().length > 0
-          ? toStoredDiscourseContext(await contextFromLlm(llm, { window }), window)
-          : emptyDiscourseContext();
-      // The fingerprint stage ran HERE, and only for statistical claims: a
-      // six-part identity object extracted before any evidence was fetched, which
-      // the figures procedure then read its window and magnitude out of by regex,
-      // and which degraded the claim's TYPE to `other` when the parse failed —
-      // silently rerouting a claim to a different check. ADR-0023 removed it. The
-      // parse now happens inside the figures procedure, at the point of use, and
-      // its result is stored with the check that consumed it
-      // (`claim-parameters.ts`); a parse failure abstains instead of rerouting.
-      claims.push({
-        claimId: claimIdFor(sentence.text, sentence.window, result.claimType),
-        sourceSentenceId: sentence.id,
-        claimType: claimType as ClaimType,
-        text: sentence.text,
-        discourseContext,
-        provenance,
-      });
-    } else {
+    return {
+      sentenceId: sentence.id,
+      speakershipClass: cls,
+      speaker: cls === "quoted-actor" ? (answer?.speaker ?? null) : null,
+    };
+  };
+
+  const eligible = doc.sentences.filter((s) =>
+    isEligibleSpeakershipClass(speakershipFor(s).speakershipClass),
+  );
+
+  // Axis 2 — what the sentence is, for eligible sentences only. When none are
+  // eligible there is nothing to ask, and no call is made.
+  const checkability =
+    eligible.length > 0
+      ? decisionEnabled(opts, "triage-checkability")
+        ? await runCheckabilityDecisions(
+            doc,
+            eligible.map((s) => ({
+              id: s.id,
+              text: s.text,
+              speakershipClass: speakershipFor(s).speakershipClass,
+            })),
+            llm,
+            opts,
+          )
+        : await runPerSentenceStage<
+            TriageSentence & { speakershipClass: SpeakershipClass },
+            SentenceCheckability
+          >(
+            llm,
+            "triage-checkability",
+            TRIAGE_PROMPT_VERSIONS["triage-checkability"],
+            {
+              genre: doc.genre,
+              sentences: eligible.map((s) => ({
+                id: s.id,
+                text: s.text,
+                speakershipClass: speakershipFor(s).speakershipClass,
+              })),
+              user: (sentences) => ({ genre: doc.genre, sentences }),
+            },
+            CheckabilityOutput,
+          )
+      : {
+          byId: new Map<string, SentenceCheckability>(),
+          stage: {
+            provenance: {
+              promptVersion: TRIAGE_PROMPT_VERSIONS["triage-checkability"],
+              model: "not-called",
+              tokensIn: 0,
+              tokensOut: 0,
+            },
+            failures: [],
+          },
+        };
+
+  const documentText = doc.documentText ?? doc.sentences.map((s) => s.text).join(" ");
+  const claims: TriageDocumentResult["claims"] = [];
+  const dropLog: TriageDocumentResult["dropLog"] = [];
+
+  for (const sentence of doc.sentences) {
+    const spoken = speakershipFor(sentence);
+    if (!isEligibleSpeakershipClass(spoken.speakershipClass)) {
       dropLog.push({
         sentenceId: sentence.id,
         sentenceText: sentence.text,
-        rejectionClass: result.rejectionClass as DropRecord["rejectionClass"],
+        rejectionClass: spoken.speakershipClass as RejectionClass,
         windowText: sentence.window ?? sentence.text,
-        provenance,
+        provenance: speakership.stage.provenance,
       });
+      continue;
     }
+    const contentAnswer = checkability.byId.get(sentence.id);
+    const contentClass: ContentClass = contentAnswer?.contentClass ?? "off-domain";
+    if (contentClass !== "checkable") {
+      dropLog.push({
+        sentenceId: sentence.id,
+        sentenceText: sentence.text,
+        rejectionClass: isRejectionClass(contentClass) ? contentClass : "off-domain",
+        windowText: sentence.window ?? sentence.text,
+        provenance: checkability.stage.provenance,
+      });
+      continue;
+    }
+    const window = sentence.window ?? "";
+    const discourseContext =
+      documentText.trim().length > 0
+        ? toStoredDiscourseContext(
+            await contextFromLlm(llm, { claim: sentence.text, document: documentText }),
+            window,
+          )
+        : emptyDiscourseContext(window);
+    claims.push({
+      claimId: claimIdFor(sentence.text, sentence.window, spoken.speakershipClass),
+      sourceSentenceId: sentence.id,
+      text: normaliseClaimText(sentence.text),
+      utteranceText: sentence.text,
+      speakershipClass: spoken.speakershipClass,
+      speaker: spoken.speaker,
+      discourseContext,
+      provenance: checkability.stage.provenance,
+    });
   }
-  // Document order, not completion order: the verdict page renders the set-aside
-  // list in array order and invites the reader to judge the boundary themselves,
-  // which a chunk-ordered list quietly defeats.
+
   const index = new Map(doc.sentences.map((sentence, i) => [sentence.id, i]));
   dropLog.sort((a, b) => (index.get(a.sentenceId) ?? 0) - (index.get(b.sentenceId) ?? 0));
   return {
     claims,
     dropLog,
-    failures,
-    provenance,
+    failures: [...speakership.stage.failures, ...checkability.stage.failures],
+    provenance: speakership.stage.provenance,
     triageRecord: triageRecordFor(doc, claims, dropLog),
   };
 }
 
 /**
- * Fold the drop log into the record the verdict page publishes (SITE-MVP §2.3,
- * Sept 2026): how many sentences were read, how many became claims, which were
- * set aside and why, and which were held rather than dropped.
- *
- * `pledge-conditional` sentences are the held bucket, not a rejection. TRIAGE.md
- * §2.2 is explicit that they are "pledge — not yet checkable", checkable later
- * as consistency claims once a deadline passes — so they are a debt the project
- * owes a verdict on, and the page reports them separately from sentences no
- * evidence can ever settle. Every other rejection class is a permanent set-aside.
- *
- * Counts come from the document and the results rather than from
- * `setAside.length`, so a sentence whose id fails to match the document (skipped
- * in the loop above) can never silently shrink the denominator the page divides
- * by.
+ * Fold the drop log into the record the verdict page publishes: how many
+ * sentences were read, how many became claims, which were set aside and why, and
+ * which were held rather than dropped.
  */
 export function triageRecordFor(
   doc: TriageDocumentInput,
-  claims: readonly TypedClaim[],
+  claims: readonly ClaimRecord[],
   dropLog: readonly DropRecord[],
 ): TriageRecord {
   return {

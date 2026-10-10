@@ -2,21 +2,17 @@
 // place the adapter's `raw` failure field becomes the port's `rawOutput`, and
 // the adapter's loose `{ ok, value? }` becomes the discriminated `LlmCallResult`.
 //
-// Before this, each ops script hand-rolled the same bridge for triage and
-// verification — an inline object literal with `role as never` and
-// `return { ...call, rawOutput: call.raw } as never`, which spread the adapter
-// result and left scripts reading `.raw` off a `.rawOutput` contract. One bridge
-// removes the copies and the cast (Sept 2026).
+// The Zod schema is a first-class argument, passed straight to the AI SDK's
+// `generateObject`, which constrains the model with it (ADR-0026 §9).
 
 import type { z } from "zod";
+import type { AgentCall, AgentPort } from "../agent-port.ts";
 import type { LlmCallResult, LlmFailureClass, LlmPort } from "../llm-port.ts";
 import type { LiveAdapter, PortRole } from "./live-adapter.ts";
 
 export interface LivePortOptions<Role extends PortRole> {
   /** The system prompt for a role (ops-owned copy, versioned in provenance). */
   promptFor: (role: Role) => string;
-  /** The real Zod schema per role; the caller's schema is the fallback. */
-  schemas: Record<string, z.ZodTypeAny>;
 }
 
 /**
@@ -26,19 +22,19 @@ export interface LivePortOptions<Role extends PortRole> {
  */
 export function portFromAdapter<Role extends PortRole>(
   adapter: LiveAdapter,
-  { promptFor, schemas }: LivePortOptions<Role>,
+  { promptFor }: LivePortOptions<Role>,
 ): LlmPort<Role> {
   return {
     async generateObject<T>(
       role: Role,
       input: unknown,
-      schema: { parse(value: unknown): T },
+      schema: z.ZodType<T>,
     ): Promise<LlmCallResult<T>> {
       const call = await adapter.call<T>({
         role,
         system: promptFor(role),
         user: JSON.stringify(input, null, 2),
-        schema: schemas[role] ?? (schema as unknown as z.ZodTypeAny),
+        schema,
       });
       if (call.ok) {
         return {
@@ -56,5 +52,15 @@ export function portFromAdapter<Role extends PortRole>(
         ...(call.finishReason !== undefined ? { finishReason: call.finishReason } : {}),
       };
     },
+  };
+}
+
+/**
+ * The tool-loop port over the same adapter. The role still routes the model, so
+ * the researcher's loop is recorded like any other call (ADR-0011, HAR-R7).
+ */
+export function agentPortFromAdapter(adapter: LiveAdapter): AgentPort {
+  return {
+    runAgent: (call: AgentCall) => adapter.runAgent(call),
   };
 }

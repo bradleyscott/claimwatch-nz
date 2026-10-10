@@ -1,16 +1,15 @@
-// Live LLM provider adapter (ADR-0011 + ADR-0014): implements the TriageLlm and
-// VerificationLlm ports via the Vercel AI SDK — the adopted provider abstraction
+// Live LLM provider adapter (ADR-0011 + ADR-0014): implements the pipeline's
+// LLM ports via the Vercel AI SDK — the adopted provider abstraction
 // (generateObject per step; no raw HTTP). Routing is configuration (CROSS-CUTTING
 // §2); prompts stay vendor-neutral. Batch-routed per ADR-0011: latency_class:
 // batch for everything except publish-day verdicts.
 //
-// Tiered routing (Sept 2026 cost work): the RESEARCH tier (claim decomposition,
-// per-round evidence grading, authority tiering) runs on an extreme-value model —
-// it is ~80% of the calls per claim and its output is a control signal, not the
-// published verdict. The VERDICT tier (`citation-compare`) and the publication
-// gate (`nli-audit`) stay on the mid tier; `grid-materiality` touches published
-// class boundaries and also stays. Rationale and the harness gate live in
-// ADR-0011's provisional routing note.
+// Tiered routing: the RESEARCH tier (the researcher and source classification)
+// runs on an extreme-value model — it is the bulk of the calls per claim and its
+// output is evidence to be judged, not the published finding. The VERDICT tier
+// (`claim-assessor`, `evidence-critiquer`) stays on the mid tier, because the
+// plan and the sufficiency decision are what a reader sees. Rationale and the
+// harness gate live in ADR-0011's provisional routing note.
 //
 // Transport note: Node's Happy Eyeballs connects via an unreachable IPv6 path
 // to api.anthropic.com. The Anthropic provider factory therefore receives an
@@ -22,8 +21,9 @@ import { setDefaultResultOrder } from "node:dns";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { type PromptRole, SAMPLING, SEEDABLE_PROVIDERS } from "@cw/llm";
-import { generateObject } from "ai";
+import { generateObject, generateText, hasToolCall, stepCountIs, type ToolSet, tool } from "ai";
 import type { z } from "zod";
+import type { AgentCall, AgentCallResult, AgentStepRecord } from "../agent-port.ts";
 
 setDefaultResultOrder("ipv4first");
 
@@ -48,10 +48,9 @@ export interface ProviderResult<T> {
   usage?: { tokensIn: number; tokensOut: number };
   /**
    * The model that actually ran, as `provider:model` — the same key the price
-   * map and the harness `modelVersions` use. It used to carry the ROLE name, so
-   * every recorded run claimed the role had produced itself: with one model
-   * everywhere that was merely wrong, with a tiered table it would attribute the
-   * cheap tier's work to the expensive one (Sept 2026).
+   * map and the harness `modelVersions` use. It carries the provider:model, not
+   * the role name, so a tiered routing table attributes each call to the model
+   * that produced it.
    */
   model?: string;
   /** How the model was served (ADR-0011 rule 3) — recorded on every call. */
@@ -59,9 +58,8 @@ export interface ProviderResult<T> {
   /**
    * Why generation stopped. `length` means the response was cut at the output
    * budget, which is the difference between a truncated answer and a model that
-   * refused: the checkability fan-out truncated at the 2048-token default and
-   * the only signal was `schema-validation — the model did not return a
-   * response`, which names neither the cause nor the fix (Sept 2026).
+   * refused: a cut response otherwise arrives as `schema-validation — the model
+   * did not return a response`, which names neither the cause nor the fix.
    */
   finishReason?: string;
   failureClass?: "schema-validation" | "llm-refusal" | "timeout";
@@ -70,6 +68,8 @@ export interface ProviderResult<T> {
 
 export interface LiveAdapter {
   call<T>(providerCall: ProviderCall): Promise<ProviderResult<T>>;
+  /** Run a bounded tool loop for a role that plans, calls tools and decides. */
+  runAgent(agentCall: AgentCall): Promise<AgentCallResult>;
 }
 
 export type Provider = "anthropic" | "openai" | "openrouter";
@@ -95,12 +95,29 @@ export const SERVING_MODE: Record<Provider, ServingMode> = {
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 
 /**
+ * Wall-clock bounds on a model call, and the retry count.
+ *
+ * WHY THESE EXIST. Neither the SDK nor the provider factories bound a call by
+ * default: the AI SDK retries twice and the provider SDKs allow ~10 minutes an
+ * attempt, so ONE stalled request can hold a live run for half an hour before it
+ * surfaces as an error. A research run that hangs silently is worse than one that
+ * fails: it spends nothing and reports nothing. The bound makes a stall a
+ * recorded `timeout` failure the loop can degrade from.
+ *
+ * A single-object call is bounded tightly; the tool loop is given more room
+ * because it runs several steps, searches and page reads inside one call.
+ */
+export const LLM_CALL_TIMEOUT_MS = 180_000;
+export const LLM_AGENT_TIMEOUT_MS = 600_000;
+export const LLM_MAX_RETRIES = 1;
+
+/**
  * A role's routing entry. `maxOutputTokens` is part of the entry because the
  * response SHAPE is a property of the role, not of the provider: a role that
  * returns a single verdict object fits the default, and a role that returns
  * authored prose does not. A truncated response arrives as a schema failure, so
  * an under-sized budget reads as "the model returned something malformed"
- * rather than "the answer was cut in half" (Sept 2026).
+ * rather than "the answer was cut in half".
  */
 export interface RoutingEntry {
   provider: Provider;
@@ -111,60 +128,61 @@ export interface RoutingEntry {
 
 // Role → provider/model routing, per ADR-0011's table. Overridable via config
 // (the harness arbitrates per role on measured performance).
+//
+// The verdict tier carries triage, the assessor and the critiquer; the research
+// tier carries the researcher's tool loop, its passage extractor and source
+// classification.
 export const DEFAULT_ROUTING: Record<PortRole, RoutingEntry> = {
-  // Triage: high-volume structured extraction over mundane text.
-  "triage-checkability": { provider: "anthropic", model: "claude-sonnet-5" },
-  "triage-typing": { provider: "anthropic", model: "claude-sonnet-5" },
+  // Triage axis 1: whose words the sentence is. One result per sentence.
+  "triage-speakership": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    maxOutputTokens: 4096,
+  },
+  // Triage axis 2: what the sentence is. One result per eligible sentence.
+  "triage-checkability": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    maxOutputTokens: 4096,
+  },
+  // The context pass: what the claim is used to support, read over the WHOLE
+  // document (ADR-0026), not a moving window.
   "triage-context": { provider: "anthropic", model: "claude-sonnet-5" },
-  // The figures procedure's first step (ADR-0023): parse the claim's window and
-  // magnitude at the point of use. It replaces `triage-fingerprint`, and sits on
-  // the verdict tier rather than the triage tier because its output decides what
-  // the claim is compared against — a mis-parse is an abstention, and an
-  // abstention is a published outcome.
-  "claim-parameters": { provider: "anthropic", model: "claude-sonnet-5" },
-  // Choosing which procedures a claim needs. Verdict tier for the same reason:
-  // an omitted procedure is invisible in the output.
-  "plan-for-claim": { provider: "anthropic", model: "claude-sonnet-5" },
 
-  // Verdict tier: the published verdict and the publication gate. Deliberately
-  // NOT the cheap tier — a cheap adjudicator is cheap in the way that matters
-  // least (ADR-0011: calibration over benchmark score). `quote-fidelity` is here
-  // because it produces a published verdict (VERIFICATION §2.4), not a control
-  // signal: wording-critical claims turn on its reading of the caption.
-  "grid-materiality": { provider: "anthropic", model: "claude-sonnet-5" },
-  // The only role that returns authored prose: a lead, 2-4 paragraphs, a
-  // pull-quote and a finding per source. At the default the narrative was cut
-  // mid-sentence and the run blocked on `finish_reason: length` — twice on the
-  // first lane that reached publication (Sept 2026).
-  "citation-compare": {
+  // The verdict tier: the plan, the sufficiency decision and the verbatim
+  // extraction are what a reader sees, so they stay on the strong model. The
+  // assessor is adversarial by instruction and the critiquer is the publication
+  // gate (ADR-0026); `evidence-critiquer` is deliberately NOT the cheap tier.
+  "claim-assessor": {
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+    // The plan (evidence plan + questions + sources) can run long; the default
+    // single-object budget truncates it and surfaces as a schema failure.
+    maxOutputTokens: 4096,
+  },
+  // Extraction is a structured read of pages the researcher already fetched, and
+  // the critiquer judges what comes back, so it runs on the research tier: the
+  // strong model buys nothing here that the critiquer does not already gate.
+  "researcher-extract": {
+    provider: "openrouter",
+    model: "z-ai/glm-5.3-flash",
+    maxOutputTokens: 4096,
+  },
+  "evidence-critiquer": {
     provider: "anthropic",
     model: "claude-sonnet-5",
     maxOutputTokens: 4096,
   },
-  "quote-fidelity": { provider: "anthropic", model: "claude-sonnet-5" },
-  "nli-audit": { provider: "anthropic", model: "claude-sonnet-5" },
-  // Speakership attribution (ADR-0019) sits on the verdict tier even though it
-  // is not a verdict, because its errors do not degrade gracefully the way the
-  // research tier's do: a false `quoted-actor` publishes an outlet's own
-  // sentence, and a false `outlet-prose` silently drops a politician's claim.
-  // Both are public-quality failures, so "cheap here" is not cheap.
-  "speakership-classify": {
-    provider: "anthropic",
-    model: "claude-sonnet-5",
-    // One result per sentence, so the response grows with the document — the
-    // budget is explicit here rather than inherited, per the same lesson as
-    // `citation-compare` (Sept 2026).
+
+  // Research tier: the researcher's tool loop — the bulk of the calls per claim,
+  // and its output is evidence the critiquer judges rather than a published
+  // finding. The loop is bounded by the SDK's step limit and the tool budgets.
+  researcher: {
+    provider: "openrouter",
+    model: "z-ai/glm-5.3-flash",
     maxOutputTokens: 4096,
   },
-
-  // Research tier: ~80% of calls per claim, output is a control signal (rounds
-  // and gaps), and its confidence is neither published nor written to a verdict.
-  // `open-web` is the depth-loop control (done/confidence/nextRound), not the
-  // published open-web verdict — that comes from `citation-compare`.
-  "open-web": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
   "authority-classify": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
-  "claim-decompose": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
-  "research-assess": { provider: "openrouter", model: "z-ai/glm-5.3-flash" },
 };
 
 const PROVIDER_ENV: Record<Provider, string> = {
@@ -272,6 +290,9 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           // accepts no seed, so its determinism rests on temperature alone.
           temperature: SAMPLING.temperature,
           ...(SEEDABLE_PROVIDERS.includes(entry.provider as never) ? { seed: SAMPLING.seed } : {}),
+          // Bounds the whole call, retries included (see LLM_CALL_TIMEOUT_MS).
+          abortSignal: AbortSignal.timeout(LLM_CALL_TIMEOUT_MS),
+          maxRetries: LLM_MAX_RETRIES,
         });
         return {
           ok: true,
@@ -286,6 +307,10 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
         };
       } catch (e) {
         const err = e as { name?: string; message?: string };
+        const isTimeout =
+          err.name === "AbortError" ||
+          err.name === "TimeoutError" ||
+          /aborted|timed? ?out/i.test(err.message ?? "");
         const isSchema =
           err.name === "AI_NoObjectGeneratedError" || /schema|parse|json/i.test(err.message ?? "");
         const rawText =
@@ -294,7 +319,7 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
           "";
         return {
           ok: false,
-          failureClass: isSchema ? "schema-validation" : "llm-refusal",
+          failureClass: isTimeout ? "timeout" : isSchema ? "schema-validation" : "llm-refusal",
           model: modelKey,
           servingMode: SERVING_MODE[entry.provider],
           // Available on the SDK's no-object error; absent for a transport error.
@@ -302,6 +327,78 @@ export function createLiveAdapter(routing?: Partial<typeof DEFAULT_ROUTING>): Li
             ? { finishReason: String((e as { finishReason?: string }).finishReason) }
             : {}),
           raw: [err.message ?? "", rawText].filter(Boolean).join(" | ").slice(0, 1500),
+        };
+      }
+    },
+
+    async runAgent(agentCall: AgentCall): Promise<AgentCallResult> {
+      const entry = routingFor(agentCall.role as PortRole);
+      const modelKey = `${entry.provider}:${entry.model}`;
+      try {
+        const tools = Object.fromEntries(
+          Object.entries(agentCall.tools).map(([name, spec]) => {
+            const base = { description: spec.description, inputSchema: spec.inputSchema };
+            return [
+              name,
+              spec.execute
+                ? tool({ ...base, execute: (input: unknown) => spec.execute?.(input) })
+                : tool(base),
+            ];
+          }),
+        ) as ToolSet;
+        const result = await generateText({
+          model: modelFactoryFor(entry.provider)(entry.model),
+          system: agentCall.system,
+          prompt: agentCall.prompt,
+          tools,
+          // The loop is bounded by the SDK's step limit and by the stop tool the
+          // model calls when it judges the turn finished.
+          stopWhen: [stepCountIs(agentCall.maxSteps), hasToolCall(agentCall.stopTool)],
+          maxOutputTokens: entry.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+          temperature: SAMPLING.temperature,
+          ...(SEEDABLE_PROVIDERS.includes(entry.provider as never) ? { seed: SAMPLING.seed } : {}),
+          // Bounds the whole tool loop, retries included (see LLM_AGENT_TIMEOUT_MS).
+          abortSignal: AbortSignal.timeout(LLM_AGENT_TIMEOUT_MS),
+          maxRetries: LLM_MAX_RETRIES,
+        });
+        const steps: AgentStepRecord[] = result.steps.map((step) => ({
+          stepNumber: step.stepNumber,
+          toolCalls: step.toolCalls.map((call) => ({ toolName: call.toolName, input: call.input })),
+          toolResults: step.toolResults.map((res) => ({
+            toolName: res.toolName,
+            output: res.output,
+          })),
+          text: step.text,
+          tokensIn: step.usage.inputTokens ?? 0,
+          tokensOut: step.usage.outputTokens ?? 0,
+        }));
+        return {
+          ok: true,
+          steps,
+          usage: {
+            tokensIn: result.usage.inputTokens ?? 0,
+            tokensOut: result.usage.outputTokens ?? 0,
+          },
+          model: modelKey,
+          servingMode: SERVING_MODE[entry.provider],
+          finishReason: result.finishReason,
+        };
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        const isTimeout =
+          err.name === "AbortError" ||
+          err.name === "TimeoutError" ||
+          /aborted|timed? ?out/i.test(err.message ?? "");
+        const isSchema =
+          err.name === "AI_NoObjectGeneratedError" || /schema|parse|json/i.test(err.message ?? "");
+        return {
+          ok: false,
+          failureClass: isTimeout ? "timeout" : isSchema ? "schema-validation" : "llm-refusal",
+          model: modelKey,
+          ...((e as { finishReason?: string }).finishReason != null
+            ? { finishReason: String((e as { finishReason?: string }).finishReason) }
+            : {}),
+          rawOutput: (err.message ?? "").slice(0, 1500),
         };
       }
     },

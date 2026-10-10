@@ -13,11 +13,11 @@
 -- rewritten the grid an L3 run rested on, leaving no way to tell. Zero triggers
 -- existed on any labels table.
 --
--- ADR-0019 (speakership attribution and claim scope) makes this live rather than
+-- ADR-0025 (speakership and checkability) makes this live rather than
 -- theoretical: re-deriving the HARNESS §2.2 strata is exactly when a claim that
 -- was in scope becomes out of scope, and the cheap move is to "fix" the existing
 -- assignment in place. Versioned rows were always the design (STORE §2.5,
--- STO-R17); this makes the alternative actually blocked (Sept 2026).
+-- STO-R17); this makes the alternative actually blocked.
 CREATE OR REPLACE FUNCTION labels_append_only_guard() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION '% is append-only (STO-R17): write a new label / label set / assignment version instead of editing history', TG_TABLE_NAME;

@@ -94,7 +94,7 @@ describe("serper adapter (VER-R3 retrieval surface)", () => {
     expect(JSON.parse(String(request.init.body)).q).toBe("crime stats");
     // Bounded result count: every organic result that survives guardrails is a
     // candidate in the tier-classification call, so an unbounded result set is an
-    // unbounded fan-out (Sept 2026).
+    // unbounded fan-out.
     expect(JSON.parse(String(request.init.body)).num).toBe(SERPER_RESULTS);
   });
 

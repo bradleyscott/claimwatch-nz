@@ -178,6 +178,9 @@ importers:
 
   packages/store:
     dependencies:
+      drizzle-kit:
+        specifier: 0.31.10
+        version: 0.31.10
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
@@ -197,9 +200,6 @@ importers:
       '@types/pg':
         specifier: ^8.11.0
         version: 8.23.1
-      drizzle-kit:
-        specifier: 0.31.10
-        version: 0.31.10
       pgvector:
         specifier: 0.3.0
         version: 0.3.0

@@ -92,9 +92,9 @@ describe("evidence floor for a decisive verdict (ADR-0020 rule 3)", () => {
   });
 
   it("allows one official record, or two independent sources", () => {
-    expect(enforceEvidenceFloor({ verdictClass: "supported", evidence: [official] }).downgraded).toBe(
-      false,
-    );
+    expect(
+      enforceEvidenceFloor({ verdictClass: "supported", evidence: [official] }).downgraded,
+    ).toBe(false);
     expect(
       enforceEvidenceFloor({ verdictClass: "supported", evidence: [news, news2] }).downgraded,
     ).toBe(false);

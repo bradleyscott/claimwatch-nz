@@ -35,7 +35,6 @@ export interface LabelRecord {
   claim: {
     text: string;
     utteranceText: string;
-    claimType: string;
     claimDate: string;
     speaker: string | null;
   };
@@ -120,7 +119,7 @@ export interface RunManifest {
    * these files and two runs that differed only in temperature are not
    * comparable: without this, a run at the provider's default and a run at
    * temperature 0 produce the same manifest and different numbers, and nothing
-   * in the file says which is which (Sept 2026).
+   * in the file says which is which.
    *
    * The seed is the value passed to providers that ACCEPT one (OpenAI,
    * OpenRouter); Anthropic exposes no seed parameter, so a Claude-served run is

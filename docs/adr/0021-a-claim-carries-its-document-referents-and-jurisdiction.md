@@ -1,6 +1,6 @@
 # ADR-0021: A claim carries its document, its referents and its jurisdiction
 
-*Status: Proposed · Date: 2026-09-26 · Deciders: Dave*
+*Status: Proposed · Deciders: Dave*
 
 ## Context
 
@@ -50,8 +50,8 @@ appends a locale suffix) was not the path in use.
    shows the verbatim quote; the resolved form is what gets searched and adjudicated.
 
 3. **Its jurisdiction**, derived from the **document** — the publication's ccTLD or source id — and never
-   from the claim sentence. Queries are biased to it, and the decomposition prompt's instruction not to
-   bias by country is replaced by the opposite.
+   from the claim sentence. Queries are biased to it, and the decomposition prompt instructs the
+   opposite of country-neutral search.
 
 Two further rules follow:
 

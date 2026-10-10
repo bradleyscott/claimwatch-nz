@@ -4,19 +4,6 @@
 // and the harness load this surface; NEITHER imports the other (CRO-R1: one
 // tuple across dev/CI/slice; HARNESS §3.1 dependency direction).
 
-/** Pre-declared sensitivity-grid axes (ADR-0005). */
-export const GRID_AXES_VERSION = "grid-axes-2026-09";
-
-/**
- * The procedure library's version (ADR-0023 §6). Bumped when the library's
- * contents change materially — a procedure added, retired, or given a new
- * `version` — because a scoring run scores against a particular library state and
- * two runs that differed here are not comparable. It replaces
- * `FINGERPRINT_NORMALISATION_VERSION`: the fingerprint was removed entirely, and
- * this is the thing a run now actually depends on.
- */
-export const PROCEDURE_LIBRARY_VERSION = "proc-lib-2026-09";
-
 /**
  * Prompt/LLM role vocabulary — every step we hold a prompt for, and the only
  * keys a run manifest may record as `promptVersions` (HARNESS §2.8, HAR-R7).
@@ -24,47 +11,36 @@ export const PROCEDURE_LIBRARY_VERSION = "proc-lib-2026-09";
  * It lives on this surface because both sides load it and neither may import the
  * other (CRO-R1, CRO-R14): the pipeline calls the roles, the harness validates
  * the manifest. The point is that a manifest can never claim provenance for a
- * step that does not exist — the phantom `adjudication@1` role did exactly that
- * (Sept 2026), naming a prompt with no text anywhere in the pipeline.
+ * step that does not exist.
  *
  * Adding a role means adding it here *and* adding its prompt where it is used;
  * `PortRole` in `packages/pipeline/src/llm/live-adapter.ts` derives from this.
  */
 export const PROMPT_ROLES = [
-  // The `attribute` stage, which runs BEFORE triage: it decides whose words each
-  // sentence is, and therefore whether the sentence is ours to check at all
-  // (ADR-0019). Listed first because it is the first stage on the path.
-  "speakership-classify",
+  // Triage: two independent per-sentence arms — whose words the sentence is
+  // (`triage-speakership`) and what it is (`triage-checkability`) — plus one
+  // context pass per checkable claim (ADR-0025).
+  "triage-speakership",
   "triage-checkability",
-  "triage-typing",
   "triage-context",
-  "grid-materiality",
-  // The plan's first step, in the figures procedure: parse the claim's window and
-  // magnitude at the point of use (ADR-0023). It replaces the fingerprint stage,
-  // which extracted a six-part identity object at triage time that the grid then
-  // read its window and quantity out of by regex.
-  "claim-parameters",
-  "plan-for-claim",
-  "citation-compare",
-  "quote-fidelity",
-  "nli-audit",
-  "open-web",
+  // The adversarial research loop (ADR-0026): the assessor's plan, the tool-loop
+  // researcher, the researcher's passage extractor, and the critiquer.
+  "claim-assessor",
+  "researcher",
+  "researcher-extract",
+  "evidence-critiquer",
+  // Used by source vetting: what kind of source a page is (ADR-0020).
   "authority-classify",
-  "claim-decompose",
-  "research-assess",
 ] as const;
 
 /**
- * Sampling settings every live call REQUESTS (Sept 2026).
+ * Sampling settings every live call REQUESTS.
  *
  * **This is a request, not a control — and on the configured stack it is
- * currently ignored.** Measured against a live lane: the AI SDK warns
- * `temperature is not supported by claude-sonnet-5 and will be ignored`
- * (Anthropic serves every triage role, the verdict tier and the gate) and
- * `seed is not supported` on the OpenRouter path. So neither knob bites where
- * the variance was observed, and the same article still produced
- * `not_enough_evidence` once and `supported` twice, with the gate passing each
- * time.
+ * ignored.** The AI SDK warns `temperature is not supported by
+ * claude-sonnet-5 and will be ignored` (Anthropic serves triage, the verdict
+ * tier and the gate) and `seed is not supported` on the OpenRouter path, so
+ * neither knob bites. The same input can therefore move a class between runs.
  *
  * It stays on the surface because what a run REQUESTS belongs in the run file
  * (CRO-R1, and two runs that differed here are not comparable) — but a manifest

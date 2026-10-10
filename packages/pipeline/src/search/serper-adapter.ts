@@ -22,6 +22,13 @@ export interface SearchProvider {
  */
 export const SERPER_RESULTS = 8;
 
+/**
+ * Wall-clock bound on one search request. Without it a stalled connection rides
+ * undici's default (5 minutes) and, with several searches dispatched per step,
+ * a single dead host can hold a whole research turn open with nothing to show.
+ */
+export const SEARCH_TIMEOUT_MS = 20_000;
+
 export interface SerperOptions {
   /** Organic results to request. Defaults to {@link SERPER_RESULTS}. */
   num?: number;
@@ -47,6 +54,7 @@ export function createSerperSearch(
     async search(query: string): Promise<SearchResult[]> {
       const response = await fetchImpl("https://google.serper.dev/search", {
         method: "POST",
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
         headers: {
           "X-API-KEY": apiKey,
           "Content-Type": "application/json",

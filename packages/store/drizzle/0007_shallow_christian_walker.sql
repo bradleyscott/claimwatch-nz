@@ -1,2 +1,0 @@
-ALTER TABLE "claim" ADD COLUMN "speakership_class" text;--> statement-breakpoint
-ALTER TABLE "claim" ADD CONSTRAINT "speakership_class_valid" CHECK ("claim"."speakership_class" IS NULL OR "claim"."speakership_class" IN ('quoted-actor','author-claim','outlet-prose','unresolved'));

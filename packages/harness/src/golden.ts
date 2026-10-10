@@ -4,19 +4,11 @@
 // recomputed at assert time (HAR-R7) — never trusted from storage.
 
 import { createHash } from "node:crypto";
-import { GRID_AXES_VERSION, PROCEDURE_LIBRARY_VERSION, PROMPT_ROLES, SAMPLING } from "@cw/llm";
+import { PROMPT_ROLES, SAMPLING } from "@cw/llm";
 import { STORE_SCHEMA_VERSION } from "@cw/store";
 import type { GoldenSnapshot, RunManifest } from "./golden-api.ts";
 
 export type { GoldenSnapshot, RunManifest } from "./golden-api.ts";
-
-const SNAPSHOT_FIELDS = [
-  "verdictClass",
-  "confidence",
-  "evidencePath",
-  "justifications",
-  "schemaVersion",
-] as const;
 
 // A manifest may only record prompt versions for roles the pipeline actually
 // holds prompts for — provenance for a step that never ran is worse than no
@@ -103,8 +95,6 @@ export function buildRunManifest(
     modelVersions: (pinned.modelVersions ?? {}) as Record<string, string>,
     promptVersions,
     promptContentHashes,
-    gridAxesVersion: String(pinned.gridAxesVersion ?? ""),
-    procedureLibraryVersion: String(pinned.procedureLibraryVersion ?? PROCEDURE_LIBRARY_VERSION),
     searchConfig: String(pinned.searchConfig ?? ""),
     storeSchemaVersion: STORE_SCHEMA_VERSION,
     // Recorded from the pinned surface rather than from a call site, so a run
@@ -121,8 +111,6 @@ const REQUIRED_MANIFEST_FIELDS: Array<{ field: keyof RunManifest; label: string 
   { field: "pipelineVersion", label: "pipelineVersion" },
   { field: "modelVersions", label: "modelVersions" },
   { field: "promptVersions", label: "promptVersions" },
-  { field: "gridAxesVersion", label: "gridAxesVersion" },
-  { field: "procedureLibraryVersion", label: "procedureLibraryVersion" },
   { field: "searchConfig", label: "searchConfig" },
   { field: "storeSchemaVersion", label: "storeSchemaVersion" },
   { field: "sampling", label: "sampling" },
@@ -153,5 +141,3 @@ export function assertManifestCompleteness(manifest: RunManifest): void {
     }
   }
 }
-
-void GRID_AXES_VERSION;

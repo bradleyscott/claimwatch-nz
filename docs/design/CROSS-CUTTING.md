@@ -18,8 +18,8 @@ flowchart TB
 
     subgraph PIPE["packages/pipeline"]
         LADDER["Extraction ladder<br/>Tier 1 → 2 → 3 (ADR-0006)"]
-        TRIAGE["Claim detection + typing<br/>(LLM triage)"]
-        MODES["Verification modes<br/>stat-grid · citation · quote-fidelity ·<br/>provenance · open-web (ADR-0005)"]
+        TRIAGE["Triage<br/>two arms + context (ADR-0025)"]
+        MODES["Adversarial research loop<br/>assessor · researcher · critiquer (ADR-0026)"]
     end
 
     subgraph STORE["Postgres — packages/store (ADR-0014)"]
@@ -107,7 +107,44 @@ One typed config surface in-repo (loaded by `packages/llm` and the harness) carr
 
 ## 3. Prompt management
 
-Prompts are code (ADR-0012), **inline in the pipeline module that uses them** (the house convention — e.g. `packages/pipeline/src/search/decompose.ts`) and versioned by a `role@n` string; there is no `packages/llm/prompts/` directory. The role vocabulary is `PROMPT_ROLES` in `packages/llm/src/config.ts`, and it is **closed**: a run manifest recording a prompt version for any other role is rejected (HARNESS §2.8), so provenance can never name a step that does not exist. Adding a role means adding it to `PROMPT_ROLES` *and* writing its prompt — the `adjudication@1` role recorded throughout Sept-2026 slices named a prompt that was never written, which is how every verdict came to carry a fabricated confidence and a provenance line for a step that did not run.
+**Three ports, not one (ADR-0024, ADR-0026).** A stage reaches a model through one of three contracts:
+`LlmPort` asks for a **Zod schema** and gets an object the AI SDK constrained the model to produce;
+`AgentPort` runs a **bounded tool loop** (`generateText` with tools, `stopWhen`, and per-step tool-call
+audit) for a role that plans, calls tools and decides; `DecisionPort` asks for a **named set of questions**
+(`choice` / `score` / `noul`) and gets typed answers with probabilities. They are separate because the
+contracts are: a decision model cannot produce prose, a structured-output call cannot choose its next
+action, and a generative model cannot give a calibrated probability for a bare choice. A role's transport
+is therefore visible in its type rather than hidden in the routing table. A role that gates on a
+threshold must have a measured calibration curve behind that threshold
+(`packages/harness/src/calibration.ts`, ADR-0024) — "0.9 means 90% right" is a vendor claim until it is
+measured on our claims.
+
+**The tool loop is bounded and audited.** `AgentPort.runAgent` passes `stopWhen:
+[stepCountIs(maxSteps), hasToolCall(stopTool)]` to the SDK, and the tools themselves enforce their
+budgets. Every step's `toolCalls`/`toolResults`/`usage` is recorded, so the researcher's searches, page
+reads and extractions are part of the stored research record.
+
+**The schema is the output format.** `LlmPort.generateObject(role, input, schema)` takes a
+Zod schema as a first-class argument and passes it straight to the AI SDK's `generateObject`, which
+constrains generation with it. A prompt therefore **describes the task and the rules, never the JSON**;
+the `{ parse }` wrappers and the per-stage `*_SCHEMAS` registries that would otherwise restate the shape are
+gone, and a schema failure is the adapter's `schema-validation` failure class.
+
+Prompts are code (ADR-0012), **inline in the pipeline module that uses them** (the house convention —
+e.g. `packages/pipeline/src/triage.ts`, `packages/pipeline/src/research.ts`) and versioned by a
+`role@n` string; there is no `packages/llm/prompts/` directory. The role vocabulary is `PROMPT_ROLES` in
+`packages/llm/src/config.ts`, and it is **closed**: a run manifest recording a prompt version for any
+other role is rejected (HARNESS §2.8), so provenance can never name a step that does not exist. Adding a
+role means adding it to `PROMPT_ROLES` *and* writing its prompt — the `adjudication@1` role recorded
+throughout Sept-2026 slices named a prompt that was never written, which is how every verdict came to
+carry a fabricated confidence and a provenance line for a step that did not run.
+
+**Prompt versions stay at `@1` until a baseline is declared.** While the
+model is still moving there is nothing to compare against, so bumping `@n` per edit records churn, not
+provenance. Every prompt is `@1`; the version only moves once a run has been declared the baseline we
+measure against, and from then on a prompt edit is a model-equivalent behaviour change that moves it
+again. The `role@1` strings are still recorded on every artefact, so a version reset discards the
+than provenance.
 
 - **Change = PR.** Git history is the version record; no vendor prompt UI (prompt changes are model-equivalent changes per ADR-0011).
 - **Every stored artefact and harness output records the prompt versions used** — first-class provenance, and validated against `PROMPT_ROLES` at manifest build time.
@@ -117,14 +154,18 @@ Prompts are code (ADR-0012), **inline in the pipeline module that uses them** (t
 
 **Tests:**
 
-- prompt edited without a version bump → the manifest's recorded version no longer content-addresses the prompt text, and nothing harness-side can see that (the blind rule keeps the harness from reading pipeline source, so prompt-text hashing has to be produced by the pipeline at run time)
+- prompt edited without a version bump → the manifest's recorded version stops content-addressing the prompt text, and nothing harness-side can see that (the blind rule keeps the harness from reading pipeline source, so prompt-text hashing has to be produced by the pipeline at run time)
 - provenance for a role that does not exist → L1 rejects an unknown role in the manifest
 - prompt drift between what ran and what was scored → L2 uses the same config surface as production, one source
 - unreviewed tweak degrades a stratum → L3 gate.
 
 ## 4. Secrets & API access
 
-Env + `.env` (gitignored), no Vault (ADR-0014). Key surface: the ADR-0011 providers actually routed (Anthropic, OpenAI, Google, aggregators, Brave, Serper).
+Env + `.env` (gitignored), no Vault (ADR-0014). Key surface: the ADR-0011 providers actually routed
+(Anthropic, OpenRouter, Brave, Serper) plus `OPENROUTER_API_KEY` for the decisions endpoint (ADR-0024).
+A local decision model via Ollama needs no key at all, which is the transport to prefer when it is
+available: it is exempt from the foreign-operator rule (no operator in the loop, no egress) and costs
+nothing per call.
 
 | Concern | Rule |
 |---|---|
@@ -149,7 +190,7 @@ One platform (Grafana Cloud), instrumented once with OpenTelemetry (ADR-0012). A
 
 | Signal | Pipeline | Backing store | Notes |
 |---|---|---|---|
-| Traces + `gen_ai.*` spans | OTel SDK → collector → Tempo | nested verification-loop traces (question decomposition → retrieval rounds → grid computation → verdict → NLI audit) as one trace | one trace per verdict attempt |
+| Traces + `gen_ai.*` spans | OTel SDK → collector → Tempo | nested research-loop traces (evidence plan → search and fetch → critique → verdict) as one trace | one trace per verdict attempt |
 | Metrics | Prometheus-style via OTel | per-source rates queryable as "this week vs same week last month" | long retention, low cardinality |
 | Logs | structured JSON → Loki | provenance fields (pipeline version, model version, extraction tier, claim/source IDs) as first-class labels | 50 GB/month free tier |
 | Errors | exceptions as structured log events, grouped by claim key | stack trace + tags (lane/source/stage/pipeline-version); **no claim text in payloads** | log-based grouping accepted (ADR-0012) |
@@ -176,7 +217,7 @@ fetched → extracted (tier 1/2/3) → attributed (person/party/unattributed)
 | repeat-occurrence ratio | dedupe health; claim-traffic signal |
 | triage drop-rate shift | claim-detection drift |
 | verdict-class distribution shift | verification drift, visible before the harness catches it |
-| **NLI audit failure rate** | justification hallucination; above noise pages a human |
+| **Critiquer rejection rate** | the loop concludes on evidence that does not support the class; above noise pages a human |
 | contest + mutation rate | public-trust engagement; audit-sample denominator |
 
 Two sources, deliberately: OTel events give the live view for operational alerting; a store-SQL view gives reconcilable historical truth. A daily reconciliation job alerts on drift — dashboards disagreeing with the store means instrumentation bugs, which is itself monitored.
@@ -223,7 +264,7 @@ Per ADR-0006 the pipeline is idempotent at every stage boundary, raw inputs reta
 | Mechanism | Scope | Behaviour |
 |---|---|---|
 | Document content hash | ingestion | Identical re-fetch → no new row; provenance updated. Ingest re-runs produce no duplicates. |
-| Claim key + embedding | triage/store | The dedupe-by-claim contract: repeats gain a source-occurrence, never a new queue entry. The cross-component idempotency key — re-running any stage re-resolves to the same claim record. (This was the fingerprint until ADR-0023 removed it; the embedding is what actually matched near-duplicates.) |
+| Claim key + embedding | triage/store | The dedupe-by-claim contract: repeats gain a source-occurrence, never a new queue entry. The cross-component idempotency key — re-running any stage re-resolves to the same claim record. The **embedding** half is designed but **unwired** — `claim.embedding` exists and nothing writes it (no embedding provider is routed). So the only claim-level match actually running is the exact content key (`claim_key`), and the near-duplicate contract is unmet. The embedding model is INGESTION Q8 / TRIAGE Q8, still unpinned. |
 | Append-only verdicts | verification/store | Reprocessed verdicts append a version with provenance; never overwrite. |
 | Job idempotency keys | scheduler | Graphile Worker job keys — the same job re-enqueued with the same key updates rather than duplicates; `SKIP LOCKED` claiming — no double-verification. |
 | Fetch retry ladder | all lanes | retry → headless fallback → degraded → maintainer alert → public coverage page. |
@@ -356,7 +397,7 @@ Tiered routing (cheap bulk roles, premium verdict roles), batch APIs for ~80–9
 | CRO-R10 | Retry ladder misbehaves (infinite loop, double-fetch, silent degraded) | Sources silently degraded | L1 failure-class fixture tests |
 | CRO-R11 | Concurrent workers double-write verdicts | Append-only violated | L1 concurrency test + unique constraints |
 | CRO-R12 | Migration breaks append-only (mutates history) | Permanent record corrupted | L1 migration checklist (no DML on historical rows) |
-| CRO-R13 | Store and harness export schema drift | Harness scores shapes production no longer emits | L1 schema-version equality assertion |
+| CRO-R13 | Store and harness export schema drift | Harness scores shapes production does not emit | L1 schema-version equality assertion |
 | CRO-R14 | Blind-rule boundary eroded | Scoring tunable against labels — the harness stops measuring anything | L1 permission-denial test; dependency-direction test |
 | CRO-R15 | Environment parity drift (CI vs slice) | Migrations pass in CI, fail in production | Pinned CI Postgres; L4b deploy smoke |
 | CRO-R16 | Scoring run silently skipped or stale | Published accuracy goes stale unnoticed | Dead-man's-switch; L4 release-gate timestamp assertion |

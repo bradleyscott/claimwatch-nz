@@ -2,10 +2,9 @@
 // Drizzle schema, so it runs with no database — the drill's table set is
 // DERIVED, and these tests pin the derivation rather than a literal list.
 //
-// Regression: the drill previously carried hand-maintained arrays and they
-// drifted — `authority` was in neither the dump list nor the grant list. The
-// release-blocking drill therefore reported PASS while dropping the authority
-// registry, the one table that persists across live runs (Sept 2026).
+// A hand-maintained table array drifts: a table in neither the dump list nor the
+// grant list makes the release-blocking drill report PASS while dropping it. The
+// derivation is what these tests pin.
 
 import { is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
@@ -25,7 +24,7 @@ describe("restore drill table set", () => {
     expect([...drillTables()].sort()).toEqual(schemaTableNames().sort());
   });
 
-  it("includes the append-only authority registry the old literal lists dropped", () => {
+  it("includes the append-only authority registry", () => {
     // Losing `authority` in a restore is losing the amortised discoveries that
     // make repeat checks cheap — it is not reconstructible from the raw lanes.
     expect(drillTables()).toContain("authority");

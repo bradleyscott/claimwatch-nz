@@ -1,6 +1,6 @@
-// Triage's persisted output (SITE-MVP §2.3, Sept 2026): the two things the
-// verdict page needs to say *how* a claim was read and *which* check it got —
-// both decided before any evidence is fetched, and both discarded until now.
+// Triage's persisted output (SITE-MVP §2.3): the two things the verdict page
+// needs to say *how* a claim was read and *which* check it got — both decided
+// before any evidence is fetched.
 //
 // This module is the single definition of both shapes, and it lives in
 // `@cw/store` for a reason: pipeline may import store, the site may only import
@@ -12,12 +12,6 @@
 
 import { z } from "zod";
 
-// The five verification modes used to be declared here as VERIFICATION_MODES,
-// and the claim row stored exactly one of them. ADR-0023 replaced both: a claim
-// now carries a PLAN (`./procedure.ts`), and the five are the library's seeded
-// population rather than a closed set. Removed rather than aliased, because an
-// alias would keep the old concept load-bearing under a new name.
-
 /**
  * Why a sentence from the source document could not be graded (TRIAGE §2.2).
  * These are internal classes; the page renders each as a plain-language label
@@ -26,6 +20,11 @@ import { z } from "zod";
  * rule 4).
  */
 export const REJECTION_CLASSES = [
+  // Speakership classes that are not checkable (ADR-0025). Kept in one
+  // vocabulary with the others so the drop log is a single funnel: "not a claim"
+  // and "not ours to check" are different reasons, but the same list.
+  "outlet-prose",
+  "unresolved",
   "opinion",
   "rhetoric",
   "procedure",

@@ -5,10 +5,8 @@
 // Grants cannot carry this here: the `harness` role deliberately holds ALL
 // privileges on this database (it is the labeller's role; the blind rule
 // constrains `pipeline`, not `harness`), so the guard has to be a trigger.
-// Before migration 0001 there were zero triggers on any labels table.
-//
-// ADR-0019 is why this is tested now rather than later: re-deriving the HARNESS
-// §2.2 strata is exactly when a previously in-scope claim becomes out of scope,
+// ADR-0025 is why the guard is tested here: re-deriving the HARNESS §2.2 strata is
+// exactly when an in-scope claim becomes out of scope,
 // and `UPDATE stratum_assignment SET stratum = …` is the cheap move that would
 // silently rewrite the grid an L3 run rested on. Pinned in both directions —
 // the edit must fail AND the versioned-write it is supposed to force must work.
@@ -75,7 +73,7 @@ describe("labels append-only guards (STO-R17)", () => {
     );
     await pool.query(
       `INSERT INTO stratum_assignment (claim_id, stratum, assignment_version)
-       VALUES ($1, 'stat-grid/interview', 'assignment-1')`,
+       VALUES ($1, 'quantitative/interview', 'assignment-1')`,
       [claimId],
     );
 
@@ -114,7 +112,7 @@ describe("labels append-only guards (STO-R17)", () => {
     const claimId = "33333333-3333-3333-3333-333333333333";
     await pool.query(
       `INSERT INTO stratum_assignment (claim_id, stratum, assignment_version)
-       VALUES ($1, 'citation-check/hansard', 'assignment-1')`,
+       VALUES ($1, 'document-anchored/hansard', 'assignment-1')`,
       [claimId],
     );
     await expect(
@@ -122,10 +120,10 @@ describe("labels append-only guards (STO-R17)", () => {
     ).rejects.toThrow(/stratum_assignment is append-only/);
   });
 
-  it("still accepts a revision written as a new row — the re-derivation path (ADR-0019)", async () => {
+  it("still accepts a revision written as a new row — the re-derivation path (ADR-0025)", async () => {
     // The guard must force the versioned write, not block the correction. This is
     // the shape a scope re-derivation takes: the same claim, a new assignment
-    // version and a new label set, with the old rows intact and both readable.
+    // version and a new label set, with the earlier rows intact and both readable.
     const claimId = "44444444-4444-4444-4444-444444444444";
     await pool.query(
       `INSERT INTO stratum_assignment (claim_id, stratum, assignment_version)

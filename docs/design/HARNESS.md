@@ -51,26 +51,20 @@ statistically, and the gate would collapse to advisory everywhere.
 gated. That is honest about the deliverable: the slice's example rows are procedure-level, and the
 procedure is what exercises the machinery.
 
-**Procedures, not modes (ADR-0023).** The gate used to stratify by the single mode a claim was routed
-to. A claim now carries a **plan**, which may name several procedures, so a label can contribute to
-more than one procedure stratum. Two consequences, both deliberate:
-
-- **A label counts once per procedure it exercised**, not once in total. The totals below are
-  label-procedure pairs, so the gated count can exceed the label count — and the gate thresholds
-  (n≥20) apply to the pairs.
-- **Per-procedure accuracy is reported where n is large enough, and the headline figure is for the
-  mixture of plans actually run**, described that way. A claim checked two ways contributes to two
-  procedure numbers; it contributes to the mixture once. A fall in accuracy can then be traced either
-  to a procedure or to a shift in the mix of procedures being run, which is a distinction the old
-  per-procedure table could not make.
+**The gate axis is the stratum.** Verification is one research loop (ADR-0026), so there is no
+per-check axis to stratify on: every claim runs the same instrument. Strata are defined by the harness
+from the source lane and the claim's shape as labelled (a quantitative claim, a quoted claim, a
+document-anchored claim), and accuracy is reported per stratum with the headline figure for the whole
+labelled set, described that way. A change in accuracy can then be traced to a stratum, and a stratum
+whose evidence the loop finds badly is visible rather than averaged away.
 
 | Gate stratum | n | Lane feed | Verdict-mix emphasis | Gate |
 |---|---|---|---|---|
-| Figures (stat-grid) | 30 | Beehive 15, RNZ 8, institution 7 | ≥12 cherry-picking (oversampled), ≥5 NEI | Block at n≥20 |
-| Recording (quote-fidelity) | 25 | YouTube captions | Supported-heavy + NEI oversample | Block at n≥20 |
-| Document (citation-check) | 20 | Institution 15, RNZ 5 | Claims paired with own evidence | Block at n=20 |
-| Research (open-web-research) | 25 | Hansard/news 20, commentary 5 | Supported-heavy natural mix | Block at n≥20 |
-| Context (provenance) | 10 | Curated set only | By construction | **Advisory** (n<20) |
+| Quantitative claims | 30 | Beehive 15, RNZ 8, institution 7 | ≥12 cherry-picking (oversampled), ≥5 NEI | Block at n≥20 |
+| Quoted claims | 25 | YouTube captions | Supported-heavy + NEI oversample | Block at n≥20 |
+| Document-anchored claims | 20 | Institution 15, RNZ 5 | Claims paired with own evidence | Block at n=20 |
+| General open research | 25 | Hansard/news 20, commentary 5 | Supported-heavy natural mix | Block at n≥20 |
+| Context (curated set) | 10 | Curated set only | By construction | **Advisory** (n<20) |
 | **Total** | **110** | | | 95 gated |
 
 **Claim volume is not a constant.** The per-lane budgets above assumed every sentence of a document
@@ -81,14 +75,14 @@ measured live, 15 of 46 sentences were potential outlet prose. The budgets must 
 the natural pre-stratification distribution so the shrinkage is visible rather than absorbed. The gate
 axis — procedure, not lane — is unaffected.
 
-Verdict-mix targets across the gated labels: Supported ~40% (the corrective to AVeriTeC's 62%-Refuted skew) · Conflicting/Cherry-picking ~25% (the flagship class, deliberately oversampled) · NEI ~20% (abstention is a measured capability) · Refuted ~15%. If labelling yields fewer than 100 usable labels, provenance is cut first, then citation-check goes advisory — never the three core strata.
+Verdict-mix targets across the gated labels: Supported ~40% (the corrective to AVeriTeC's 62%-Refuted skew) · Conflicting/Cherry-picking ~25% (the flagship class, deliberately oversampled) · NEI ~20% (abstention is a measured capability) · Refuted ~15%. If labelling yields fewer than 100 usable labels, provenance is cut first, then the weakest stratum goes advisory — never the three core strata.
 
 **A re-derivation appends; it never edits or deletes.** `stratum_assignment` is keyed `(claim_id, assignment_version)` and `label.label_set_version` pairs with `label_set`, so a re-derived grid is a new `assignment_version` plus a new label set, with the prior rows untouched. That is already the shape the labels chain provides. Two consequences follow, and the cheap move is the wrong one in both cases:
 
-- A claim labelled under the previous grid **keeps its label** even when the new scope rule puts it out of scope. Deleting those labels mixes two grids inside a single recall number, exactly as a re-run that silently drops drop-log entries would (TRIAGE §2.5), and leaves the L3 history unreproducible. Labels are history (STO-R17); nothing in the schema prevents an in-place `UPDATE`/`DELETE`, so this is a discipline the guards now enforce rather than a convention.
-- The run must **pin which label set it scored against**. The provenance tuple carries `pipeline_version`, prompt/model versions, `grid_axes_version`, `procedure_library_version` (ADR-0023 §6 — the library a run scored against), `store_schema_version`, `dataset_version` and search config — but no field that names the label set or the assignment version. `dataset_version` is not a safe stand-in: it has to mean the AVeriTeC dev-set checkout for Layer 1 and the NZ label set for Layer 2, so overloading it would encode that ambiguity into the tuple whose job is to remove ambiguity. Add `label_set_version` and `assignment_version` explicitly, required for Layer 2 and absent for Layer 1 (`layer` is already a manifest field). Until that exists, two L3 runs against different stratum grids are indistinguishable in the published table's provenance — which is what makes "no hand-edited numbers" checkable at all (AGENTS 4). `grid_axes_version` is not a substitute either: it is the ADR-0005 sensitivity-grid axes (CROSS-CUTTING §2), so bumping it would change the tuple without making it mean the right thing.
+- A claim labelled under an earlier scope rule **keeps its label** even when the current rule puts it out of scope. Deleting those labels mixes two grids inside a single recall number, exactly as a re-run that silently drops drop-log entries would (TRIAGE §2.5), and leaves the L3 history unreproducible. Labels are history (STO-R17); nothing in the schema prevents an in-place `UPDATE`/`DELETE`, so this is a discipline the guards now enforce rather than a convention.
+- The run must **pin which label set it scored against**. The provenance tuple carries `pipeline_version`, prompt/model versions, `store_schema_version`, `dataset_version` and search config — but no field that names the label set or the assignment version. `dataset_version` is not a safe stand-in: it has to mean the AVeriTeC dev-set checkout for Layer 1 and the NZ label set for Layer 2, so overloading it would encode that ambiguity into the tuple whose job is to remove ambiguity. Add `label_set_version` and `assignment_version` explicitly, required for Layer 2 and absent for Layer 1 (`layer` is already a manifest field). Until that exists, two L3 runs against different stratum grids are indistinguishable in the published table's provenance — which is what makes "no hand-edited numbers" checkable at all (AGENTS 4). `grid_axes_version` is not a substitute either: it is the ADR-0005 sensitivity-grid axes (CROSS-CUTTING §2), so bumping it would change the tuple without making it mean the right thing.
 
-  **This requirement lands with the manifest implementation, not before it.** `buildRunManifest`, `assertManifestCompleteness`, `compareGoldenSnapshots` and `renderGoldenDiff` all still throw `NOT IMPLEMENTED`, so nothing enforces any of the above today — which is also why now is the cheapest moment to add the fields, with no legacy tuples to migrate. `assertManifestCompleteness` is the natural enforcement point, and `StratumResult` could carry the assignment version it was computed from so a run file is self-describing rather than requiring a lookup against the labels database.
+  **Current gap:** the manifest does not carry `label_set_version` or `assignment_version` yet. Until it does, two L3 runs against different stratum grids are indistinguishable in the published provenance. `assertManifestCompleteness` is the enforcement point, and `StratumResult` carries the assignment version it was computed from so a run file is self-describing rather than requiring a lookup against the labels database.
 
 ### 2.3 Labelling workflow + IAA
 
@@ -105,7 +99,7 @@ Verdict-mix targets across the gated labels: Supported ~40% (the corrective to A
 - **Role separation**: `pipeline_role` has no grants on the labels DB.
 - **One-way data flow**: `packages/harness` may import `packages/store` (read-only); a lint rule forbids `packages/pipeline` importing `packages/harness` or the labels connection module. Claim objects flow pipeline → harness; nothing flows back except published exports.
 - **No shared secrets**: labels-DB credentials exist only in the labelling operator's and harness job's env; CI greps the pipeline env for the labels credential name.
-- **Drizzle isolation**: label tables are `pgTable`s in `packages/harness/src/schema/`, generated against `claimwatch_labels` by `packages/harness/drizzle.config.ts` into `packages/harness/drizzle/`; the pipeline's migration history never touches them. This is what gives STO-R6/HAR-R5 something to check (`drizzle-kit diff`, cross-package typecheck) — the tables were DDL strings with no definition to compare until Sept 2026.
+- **Drizzle isolation**: label tables are `pgTable`s in `packages/harness/src/schema/`, generated against `claimwatch_labels` by `packages/harness/drizzle.config.ts` into `packages/harness/drizzle/`; the pipeline's migration history never touches them. This is what gives STO-R6/HAR-R5 something to check (`drizzle-kit diff`, cross-package typecheck) — hand-written DDL strings would leave no definition to compare.
 - **The labels chain never drops**: `applyLabelsMigrations` runs Drizzle's migrator and re-asserts the grants, but never `DROP SCHEMA` — labels are history (STO-R17). Suites that write labels get a scratch labels database (`createTestLabelsPool`, the labels counterpart of the store's `createTestStore`) rather than wiping or polluting the shared one.
 
 ### 2.5 Scoring-run pipeline

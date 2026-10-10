@@ -83,9 +83,8 @@ describe("scoring run → run file (HARNESS §2.5 step 6)", () => {
     const manifest = buildRunManifest(
       {
         pipelineVersion: "0.1.0",
-        promptVersions: { "triage-typing": "triage-typing@1" },
-        modelVersions: { "triage-typing": "flash@v1" },
-        gridAxesVersion: "grid-axes-2026-09",
+        promptVersions: { "triage-checkability": "triage-checkability@1" },
+        modelVersions: { "triage-checkability": "sonnet-class@v1" },
         searchConfig: "brave-primary",
       },
       { runId: "l1-run-1", layer: 1 },
@@ -93,7 +92,7 @@ describe("scoring run → run file (HARNESS §2.5 step 6)", () => {
     assertManifestCompleteness(manifest);
 
     const outDir = join(dir, "runs");
-    const result = await runAveritecScoring({
+    await runAveritecScoring({
       predictionsPath,
       referencesPath,
       evalToolDir: join(dir, "tool"),
@@ -127,9 +126,8 @@ describe("scoring run → run file (HARNESS §2.5 step 6)", () => {
     const manifest = buildRunManifest(
       {
         pipelineVersion: "0.1.0",
-        promptVersions: { "triage-typing": "triage-typing@1" },
-        modelVersions: { "triage-typing": "flash@v1" },
-        gridAxesVersion: "grid-axes-2026-09",
+        promptVersions: { "triage-checkability": "triage-checkability@1" },
+        modelVersions: { "triage-checkability": "sonnet-class@v1" },
         searchConfig: "brave-primary",
       },
       { runId: "l1-run-1", layer: 1 },

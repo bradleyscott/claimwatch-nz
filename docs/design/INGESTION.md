@@ -17,7 +17,7 @@ chosen so that measured accuracy speaks to the media types rather than to a sing
 | 1. Beehive RSS | ADR-0006 lane 1 | R1 (official prose), R2 (statistical claims) |
 | 2. RNZ politics RSS | ADR-0006 lane 4 | R1, R2 |
 | 3. YouTube broadcaster captions (1News, Q+A) | ADR-0007 | R3 (Tier-2 captions, media_anchor, quote fidelity), R8 (repeats) |
-| 4. One institution source | ADR-0018 | R6 (claims paired with own evidence → citation-check) |
+| 4. One institution source | ADR-0018 | R6 (claims paired with their own evidence) |
 | 5. False-context sample set | VALIDATION-SLICE (not live) | R5 (provenance mode, curated demonstration) |
 
 Every lane exercises R7 (extraction-ladder stress). The per-lane Tier-2 fallback rate is both its
@@ -33,13 +33,14 @@ lane (R4), and the full institutional register.
 Lanes share the same stages but run as separate workers:
 
 ```
-[lane worker] → fetch → normalise → attribute (claimant candidates)
-             → dedupe → [document record with provenance] → triage queue
+[lane worker] → fetch → normalise → dedupe
+             → [document record with provenance] → triage queue
 ```
 
-- **Attribution.** The `attribute` stage works out who is speaking in each sentence, and therefore
-  which sentences may become claims at all. Before this existed, every sentence was a candidate and
-  lane 2 published a verdict about a journalist's own narration (ADR-0019, §2.9).
+- **Scope.** Whose words each sentence is — and therefore whether it may become a claim at all — is
+  decided by **triage's single per-sentence class** (ADR-0025), not by a separate ingestion stage. Lane 2
+  once published a verdict about a journalist's own narration, which is what the scope rule exists to
+  stop (ADR-0025, §2.9).
 - **Scheduling.** One Graphile Worker per lane; job history (`graphile_worker.jobs`) feeds the
   job-health metrics (STORE §2.3, ADR-0012).
 - **Idempotency.** Every stage can be re-run. Raw documents are kept with `pipeline_version`, and
@@ -143,18 +144,20 @@ same views, so the ops view and the public view cannot diverge.
 
 - **Document level.** GUID, canonical URL, and content hash. This is the only dedupe that must run
   here.
-- **Claim level** (claim key plus embedding, with a repeat becoming a source-occurrence). This
+- **Claim level** (claim key plus embedding, with a repeat becoming a source-occurrence; the embedding half is **unwired** — nothing populates `claim.embedding`, so only the exact key runs). This
   straddles ingestion and triage: ingestion computes the embedding inputs and the occurrence records,
   and does not merge claims.
 
-### 2.9 Speakership attribution and claim scope (ADR-0019)
+### 2.9 Speakership and claim scope (ADR-0025)
 
-The `attribute` stage (§2.1) works out who is speaking in each sentence of a document, and therefore
-which sentences are eligible to become claims. This is a scope decision, not a refinement of entity
-resolution. Without it every sentence is a candidate, and a news report's narration gets fact-checked
-as if the outlet had made a claim.
+The **scope rule** is unchanged: the project does not fact-check newsroom narration, and a sentence is
+only a candidate claim when it is someone's reported or authored words. What changed is **where it is
+decided**. There is no separate `attribute` stage: triage's one per-sentence class decides whose words
+the sentence is *and* whether it is checkable, in the same call (ADR-0025). The class vocabulary is the
+union of the speakership classes and the checkability rejection classes, and checkability is derived
+from the class.
 
-Each sentence gets exactly one class (ADR-0019 §1):
+Eligible classes:
 
 | Class | Eligible to become a claim |
 |---|---|
@@ -163,21 +166,22 @@ Each sentence gets exactly one class (ADR-0019 §1):
 | `outlet-prose` — narration, editorial synthesis, scene-setting | **No** — recorded, never verified |
 | `unresolved` — quotation with no resolvable attribution | **No** — never guessed (ADR-0006) |
 
-Each document also gets a genre, because the rule depends on it (ADR-0019 §2): press release, news
-report, opinion/analysis, transcript, or institutional post. **Structural markup wins where it
-exists.** Hansard speaker markup and caption turn structure are attribution rather than inference,
-which is why Hansard is the cleanest claimant-entity source, and why a classified attribution is
-recorded as a different method with a different confidence.
+Each document also gets a genre, declared by the lane, because the rule depends on it (ADR-0025 §2):
+press release, news report, opinion/analysis, transcript, or institutional post. **Structural markup
+wins where it exists.** Hansard speaker markup and caption turn structure are attribution rather than
+inference, which is why Hansard is the cleanest claimant-entity source; where structure decides, no
+classification call is needed for those sentences.
 
-In scope (ADR-0019 §3): elected politicians, parties and candidates; officials speaking for the
+In scope (ADR-0025 §1): elected politicians, parties and candidates; officials speaking for the
 government (the MFAT deputy-secretary case); and institutional claim sources (ADR-0018). Journalists
 and outlets are sources of quotation, never claimants.
 
 Two constraints are structural rather than stylistic:
 
 - **Identity decides eligibility, never reading.** It may not fill a context field (ADR-0008), and it
-  may not enter triage's checkability or typing decision. Triage receives an eligibility flag and
-  attribution candidates, never a person to reason about (TRIAGE §1). Verification stays party-blind.
+  may not enter the class decision as an input: the call reads the sentence and the genre only, never a
+  claimant name or party. The class names the speaker the text attributes the words to, which is
+  attribution, not identity-as-a-decision-input. Verification stays party-blind.
 - **Attribution never guesses.** `unresolved` is excluded and counted, never promoted to a claim.
 
 One by-product per lane: the **in-scope rate** (eligible sentences divided by sentences read) sits
@@ -206,7 +210,7 @@ way (ING-R17).
 | Beehive / RNZ | minister/portfolio metadata where present |
 | YouTube | `media_anchor`, `transcript_tier`, `caption_quality_flag` (Tier-2), `cue_span`, track hash |
 | Institution | organisation entity candidate for attribution |
-| All prose lanes | speakership class + classification method, genre, actor candidate (ADR-0019, §2.9) |
+| All prose lanes | speakership class + classification method, genre, actor candidate (ADR-0025 §2.9) |
 | False-context | fixture provenance fields; `is_curated_fixture=true` |
 
 ### 3.3 Health contract
@@ -235,18 +239,18 @@ Highlights:
 | ING-R8 | Encoding/malformed HTML — mis-encoded Māori macrons, broken markup | Silent text corruption; attribution downstream damaged | Macron round-trips, double-encoded entities, malformed HTML — byte-exact comparisons | Adversarial fixture round-trips | L1 |
 | ING-R9 | Paywalled content mishandled — truncated text treated as complete | Mis-verification; ToS breach | Paid-tier fixture: truncated item → quoted-claim-only; no full-text fetch attempted | Fixture: paid-tier item → quoted-claim-only flag | L1 |
 | ING-R10 | False-context set treated as production lane | Slice overclaims a least-mature mode; credibility damage | Fixture records carry `is_curated_fixture`; never registered with lane health or scheduler | No lane-health registration; `is_curated_fixture` gate | L1 |
-| ING-R11 | Caption revision drift — stored cue no longer matches live track | "Hear it" plays audio that doesn't match the stored quote | Changed track hash → affected-claim flagging; re-pull re-resolves the cue span | Track-hash comparison; affected-claim flag | L1 + L2 |
+| ING-R11 | Caption revision drift — stored cue does not match the live track | "Hear it" plays audio that doesn't match the stored quote | Changed track hash → affected-claim flagging; re-pull re-resolves the cue span | Track-hash comparison; affected-claim flag | L1 + L2 |
 | ING-R12 | Health checks themselves fail silently | Monitoring is theatre | Graphile Worker job-history fixture with missing run → silence alert | Job-health silence-detection (Graphile Worker); heartbeat metric | L1 |
 | ING-R13 | Provenance fields missing at store-write | Firewall and reprocessing guarantees break silently | Zod validation on every emitted record; Drizzle constraints in CI migrations | L1 schema validation; NOT NULL constraints | L1 |
 | ING-R14 | Tier-2 fallback explosion — markup change flips a whole lane to LLM extraction | Silent cost blowout; the designated drift signal missed | Synthetic fallback rates outside bands → alert state | Per-lane fallback-rate anomaly band | L1 |
-| ING-R15 | Outlet prose verified as a claim — the pipeline fact-checks the newsroom | Unattributable verdicts about journalists; the project's stated subject abandoned (observed live, Sept 2026) | Fixture: a news report where narration and a quoted actor both assert — only the quoted actor's sentences become claims; the narration is recorded as out of scope | Speakership gate before claim creation; fixture where narration and quotation both assert | L1 |
+| ING-R15 | Outlet prose verified as a claim — the pipeline fact-checks the newsroom | Unattributable verdicts about journalists; the project's stated subject abandoned | Fixture: a news report where narration and a quoted actor both assert — only the quoted actor's sentences become claims; the narration is recorded as out of scope | Speakership gate before claim creation; fixture where narration and quotation both assert | L1 |
 | ING-R16 | Misattributed speaker — a quotation assigned to the wrong actor | The verdict names someone who did not say it; defamation exposure (ADR-0002) | Fixture set: in-sentence attribution, cross-sentence attribution, unattributed pull-quote, opinion-piece author claim, Hansard turn markup, press-release forwarding — `unresolved` never promoted | Structural markup preferred over classification; `unresolved` excluded, never guessed; per-lane attribution-accuracy meter | L1 + L2 |
 | ING-R17 | Scope starvation — over-strict filtering silently empties a lane's eligible claims | Coverage collapses invisibly; the slice measures a shrinking sample it did not notice | Synthetic in-scope rates outside the band → alert state; per-lane funnel on the coverage page | Per-lane in-scope rate vs band; 200-with-zero-in-scope is an alarm | L1 |
 | Behavioural | — | — | Golden set: one pinned item per lane; extraction changes show as snapshot diffs |  | L2 |
 | Accuracy | — | — | Per-stratum extraction quality is a measured L3 output, not an assumption |  | L3 |
 | Site | — | — | Hear-it links, ClaimReview on caption-derived pages, methodology table |  | L4 |
 
-**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant, + valid-entity variant — a page whose `&amp;` escapes are correct must extract, which the old guard denied); stale/broken feeds (200-zero-items, frozen, malformed XML); speakership set (quoted with in-sentence attribution, cross-sentence attribution, unattributed pull-quote, opinion-piece author claim, Hansard turn markup, press-release forwarded sentence); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-duplicate, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
+**L1 fixture list**: Beehive feed + release page (tables, macrons); RNZ feed + article (+ malformed-encoding variant, + valid-entity variant — a page whose `&amp;` escapes are correct must extract, which an over-broad guard would deny); stale/broken feeds (200-zero-items, frozen, malformed XML); speakership set (quoted with in-sentence attribution, cross-sentence attribution, unattributed pull-quote, opinion-piece author claim, Hansard turn markup, press-release forwarded sentence); `captionTracks` payloads (asr-only, manual-only, both, none); VTT/SRT tracks (asr with cues, manual, empty, revised-hash); media_anchor edge cases (missing end, missing URL, boundary cues); Kākā feed (free + paid-truncated items); dedupe pairs (identical, near-duplicate, cross-lane repeat); the curated false-context set; rate-budget harness; synthetic job history + metric series.
 
 ## 5. Open questions
 
@@ -258,8 +262,8 @@ Highlights:
 6. **NZIER entry criteria** — what justifies adding the scrape path post-slice; via an ADR-0013 public proposal?
 7. **False-context set redistribution** — can the curated set's provenance notes be published as-is, or need per-item licence review?
 8. **Embedding model for claim-level dedupe** — ADR-0011 routes embeddings; the slice's pick is unpinned.
-9. **Opinion-piece political relevance** (ADR-0019 §2) — how is "a statement relevant to politics" operationalised for an opinion piece, and who audits that boundary when it is contested?
-10. **Attribution window** (ADR-0019 §1) — how far from a quotation may its speaker be resolved: same sentence, same paragraph, ±N sentences? Cross-sentence attribution is the common real case.
+9. **Opinion-piece political relevance** (ADR-0025 §2) — how is "a statement relevant to politics" operationalised for an opinion piece, and who audits that boundary when it is contested?
+10. **Attribution window** (ADR-0025 §3) — how far from a quotation may its speaker be resolved: same sentence, same paragraph, ±N sentences? Cross-sentence attribution is the common real case.
 11. **`unresolved` handling** — counted only, or surfaced publicly as a coverage gap the way extraction degradation is?
-12. **Existing mis-scoped verdicts** — verdicts published under the pre-ADR-0019 rule (outlet prose as a claim) are wrong by the new standard: supersede with a new version, or annotate and leave (ADR-0002 append-only)?
+12. **Mis-scoped verdicts** — a verdict whose stored scope excludes the class it was published under is wrong by the current standard: supersede with a new version, or annotate and leave (ADR-0002 append-only)?
 13. **Genre detection source** — structural metadata (feed section, URL path, markup) where available, classified where not; which is recorded, and how is a mis-classified genre caught?

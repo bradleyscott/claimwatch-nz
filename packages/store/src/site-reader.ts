@@ -4,27 +4,27 @@
 //
 // It lives in `packages/store` rather than `apps/site` because STORE §2.1 makes
 // the store the single definition of claim/verdict/evidence shapes "shared by
-// pipeline (write), site (read), harness (export)". The site used to hand-write
-// its SELECT list inside template literals; `pg` returns `any` rows, so a column
-// rename left `pnpm typecheck` green and broke the page at request time — or,
-// for a nullable field, silently dropped a step from the public audit trail.
-// Here the same rename is a compile error (Sept 2026).
+// pipeline (write), site (read), harness (export)". Building the SELECT list from
+// the schema means a column rename is a compile error: hand-written string SQL
+// returns `any` rows, so the same rename would leave `pnpm typecheck` green and
+// break the page at request time — or, for a nullable field, silently drop a step
+// from the public audit trail.
 //
-// Two properties the previous string SQL had to be trusted for and this module
+// Two properties that string SQL would have to be trusted for, and this module
 // gets from the schema:
 //   * "latest verdict per claim" is computed from the same monotonic `version`
-//     column the write path assigns (STO-R2), not a second hand-written
-//     MAX() that could drift;
+//     column the write path assigns (STO-R2), not a second MAX() that could
+//     disagree with it;
 //   * the evidence rows come from the pack the VERDICT pins
 //     (`verdict_version.evidence_pack_id`), never from "some pack for this
-//     claim" — a claim with an earlier pack used to report that pack's check
-//     time and audit outcome beside the current verdict.
+//     claim" — a claim with more than one pack would otherwise report another
+//     pack's check time and audit outcome beside the current verdict.
 
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import { z } from "zod";
-import { VerificationPlan } from "./procedure.ts";
+import { ResearchLoopRecord } from "./research.ts";
 import * as s from "./schema/index.ts";
 import {
   ELIGIBLE_SPEAKERSHIP_CLASSES,
@@ -49,6 +49,8 @@ export function siteReaderPoolConfig(databaseUrl: string): PoolConfig {
 export const VerdictPageData = z.object({
   claimId: z.string(),
   claimText: z.string(),
+  /** The claim as made (the quote), stripped of its attribution. */
+  claimQuote: z.string().nullable().optional(),
   speaker: z.string().nullable(),
   speakerVenue: z.string().nullable(),
   speakerAffiliation: z.string().nullable(),
@@ -63,7 +65,8 @@ export const VerdictPageData = z.object({
   // than be invented as 0.5. Nothing renders it today (SIT-R6) — see
   // `verdict-page.ts` for why.
   confidence: z.number().min(0).max(1).nullable(),
-  attachedProposal: z.string().nullable(),
+  /** The argumentative point the claim supports (discourse_context.supports). */
+  supports: z.string().nullable(),
   /** The passage the claim was cut from (discourse_context.window) — verbatim. */
   claimPassage: z.string().nullable().default(null),
   /** The policy topic the passage is about (discourse_context.policyTopic). */
@@ -99,7 +102,7 @@ export const VerdictPageData = z.object({
   justifications: z.array(z.string()).default([]),
   modelVersions: z.record(z.string(), z.string()).default({}),
   searchRefs: z.array(z.string()).default([]),
-  // --- The trail's inputs (SITE-MVP §2.3, Sept 2026) -------------------------
+  // --- The trail's inputs (SITE-MVP §2.3) -------------------------------------
   // Every one defaults to "not recorded" rather than to a guessed value: the
   // trail omits a step whose date the store does not hold, so a missing field
   // loses a step instead of inventing one. Nullable per field, not per object,
@@ -110,10 +113,8 @@ export const VerdictPageData = z.object({
   claimRecordedAt: z.coerce.date().nullable().default(null),
   /** When we retrieved the document it came from (publication.retrieved_at). */
   sourceRetrievedAt: z.coerce.date().nullable().default(null),
-  /** Store claim type — decides which method the claim got (TRIAGE typing). */
-  claimType: z.string().nullable().default(null),
   /**
-   * Whose words the claim is (claim.speakership_class, ADR-0019 §1), and the
+   * Whose words the claim is (claim.speakership_class, ADR-0025), and the
    * reason the page can say who said it. Null on every claim classified before
    * the rule existed — and those do not reach the page at all, because the
    * reader's gate requires one of the two eligible classes. So in practice this
@@ -123,27 +124,23 @@ export const VerdictPageData = z.object({
   speakershipClass: z.enum(SPEAKERSHIP_CLASSES).nullable().default(null),
   /**
    * How that class was decided, and the genre that selected the rule
-   * (ADR-0019 §2/§5). The page owes the reader this: "we read the document's own
+   * (ADR-0025/§5). The page owes the reader this: "we read the document's own
    * turn structure" and "a model guessed" are different claims about the same
    * verdict, and a class without either of these does not reach the page at all.
    */
   speakershipMethod: z.enum(SPEAKERSHIP_METHODS).nullable().default(null),
   genre: z.enum(GENRES).nullable().default(null),
   /**
-   * The plan this verification ran (ADR-0023). An ordered list of steps, each
-   * naming the procedure and version it invoked, why it was chosen, and whether
-   * it ran or was declined and why.
+   * The adversarial research loop this verification ran (ADR-0026): each turn's
+   * evidence plan and critique, the evidence found, the turns used, whether the
+   * cap bound, and the final reason. Null on claims whose verification predates
+   * the loop, or whose record was never written: the page then renders NO check
+   * section rather than guessing which check ran.
    *
-   * This replaces the single `verificationMode`, which could hold exactly one of
-   * five values and so could not record that a claim was checked two ways. Null
-   * on claims whose verification predates plans, or whose plan was never
-   * written: the page then renders NO check section rather than guessing which
-   * check ran, which is the same rule the mode had.
-   *
-   * Validated rather than trusted: a malformed step fails here, at the read
-   * boundary, instead of rendering as an unknown procedure on a public page.
+   * Validated rather than trusted: a malformed record fails here, at the read
+   * boundary, instead of rendering on a public page.
    */
-  plan: VerificationPlan.nullable().default(null),
+  research: ResearchLoopRecord.nullable().default(null),
   /**
    * Triage's record of how the source document was read (claim.triage_record):
    * how many sentences were classified, how many became claims, which were set
@@ -173,8 +170,6 @@ export const VerdictPageData = z.object({
   claimModelVersion: z.string().nullable().default(null),
   /** When the evidence was assembled (evidence_pack.created_at). */
   checkedAt: z.coerce.date().nullable().default(null),
-  /** Publication gate outcome (evidence_pack.nli_outcome). */
-  nliOutcome: z.string().nullable().default(null),
   /** Monotonic verdict version — 1 means never revised (STO-R2). */
   verdictVersion: z.number().int().default(1),
   verdictStatus: z.string().default("PUBLISHED"),
@@ -212,16 +207,14 @@ export interface SiteReadOptions {
    *   verdicts of which 25 had no publication and 19 cited no evidence, with one
    *   claim text appearing twelve times carrying contradictory classes — ING-R10's
    *   "fixture records treated as a production lane" reaching the public site.
-   * - **Speakership** (ADR-0019) decides whether the sentence was ours to check at
-   *   all. The first live lane published a verdict about RNZ's own narration: a
-   *   compound sentence the reporter synthesised, with no speaker, so the verdict
-   *   could not say whose claim it assessed. Only `quoted-actor` and `author-claim`
+   * - **Speakership** (ADR-0025) decides whether the sentence was ours to check at
+   *   all. A verdict about the outlet's own narration could not say whose claim it
+   *   assessed, so it is not publishable. Only `quoted-actor` and `author-claim`
    *   publish; `outlet-prose` and `unresolved` are recorded, never verified.
    *
    * The gate FAILS CLOSED: a null speakership class means no decision was
-   * recorded (every row ingested before ADR-0019 existed), and those do not
-   * publish either. A claim has to be positively classified as in scope, not
-   * merely unclassified.
+   * recorded, and such a claim does not publish. A claim has to be positively
+   * classified as in scope, not merely unclassified.
    *
    * The escape hatch is the site's `?corpus=all`, so the corpus stays reachable
    * for inspection without becoming the default and without deleting anything.
@@ -247,8 +240,7 @@ export interface SiteReader {
 // vocabulary prints the state, so an unpublished check renders as "DRAFT"
 // rather than being hidden (SITE-MVP §2.3).
 //
-// CONTESTED and FROZEN belong here for the same reason, and their absence was a
-// contradiction the page's own copy made visible (Sept 2026). SITE-MVP §2.3 says
+// CONTESTED and FROZEN belong here for the same reason. SITE-MVP §2.3 says
 // "a FROZEN verdict is a fact the reader should meet on the page, not in a
 // footnote", and STORE §3 says contested verdicts render "contested — under
 // review" — while the reader served DRAFT and PUBLISHED only. So a verdict whose
@@ -275,10 +267,10 @@ function eligibilityCondition(opts?: SiteReadOptions) {
   return and(
     // Document provenance: a check traceable to something a reader can open.
     isNotNull(s.claim.publicationId),
-    // Speakership: ADR-0019's scope rule. `inArray` excludes NULL, which is the
+    // Speakership: ADR-0025's scope rule. `inArray` excludes NULL, which is the
     // fail-closed behaviour the option documents.
     inArray(s.claim.speakershipClass, [...ELIGIBLE_SPEAKERSHIP_CLASSES]),
-    // ...and the decision has to be COMPLETE. ADR-0019 §5 makes the page disclose
+    // ...and the decision has to be COMPLETE. ADR-0025 makes the page disclose
     // how a claim was attributed, and a class with no method or genre behind it
     // cannot be disclosed honestly — so a half-recorded scope decision is no more
     // publishable than an absent one. This is also what keeps a lane that sets a
@@ -321,10 +313,11 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         .select({
           claimId: s.claim.claimId,
           claimText: s.claim.utteranceText,
+          claimQuote: s.claim.text,
           // jsonb paths: genuinely SQL-shaped, so Drizzle's `sql` template
           // (STORE §2.1, ADR-0014) — the COLUMN is bound through the schema, so
           // a rename still fails typecheck; only the JSON keys are literals here.
-          attachedProposal: sql<string | null>`${s.claim.discourseContext}->>'attachedProposal'`,
+          supports: sql<string | null>`${s.claim.discourseContext}->>'supports'`,
           claimPassage: sql<string | null>`${s.claim.discourseContext}->>'window'`,
           policyTopic: sql<string | null>`${s.claim.discourseContext}->>'policyTopic'`,
           // The VENUE (where/on what occasion the words were said) — never the
@@ -335,11 +328,9 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           // from `claimant_entity`, joined by the attributed name.
           speakerAffiliation: s.claimantEntity.affiliation,
           transcriptTier: s.claim.transcriptTier,
-          claimType: s.claim.claimType,
           speakershipClass: s.claim.speakershipClass,
           speakershipMethod: s.claim.speakershipMethod,
           genre: s.claim.genre,
-          plan: s.verificationPlan.plan,
           triageRecord: s.claim.triageRecord,
           spokenAt: s.claim.spokenAt,
           claimRecordedAt: s.claim.createdAt,
@@ -379,13 +370,6 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           s.verdictProvenance,
           eq(s.verdictProvenance.provenanceId, s.verdictVersion.provenanceId),
         )
-        // The plan the verdict ran (ADR-0023 §5). LEFT, because a verdict written
-        // before plans exist has none and must render honestly rather than drop
-        // the page.
-        .leftJoin(
-          s.verificationPlan,
-          eq(s.verificationPlan.packId, s.verdictVersion.evidencePackId),
-        )
         .where(
           and(
             eq(s.claim.claimId, claimId),
@@ -404,7 +388,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         .select({
           justifications: s.evidencePack.justifications,
           createdAt: s.evidencePack.createdAt,
-          nliOutcome: s.evidencePack.nliOutcome,
+          research: s.evidencePack.research,
         })
         .from(s.evidencePack)
         .where(eq(s.evidencePack.packId, row.evidencePackId))
@@ -440,11 +424,12 @@ export function createSiteReader(databaseUrl: string): SiteReader {
       return VerdictPageData.parse({
         claimId: row.claimId,
         claimText: row.claimText,
+        claimQuote: row.claimQuote ?? null,
         speaker: row.speakerName ?? null,
-        // A venue that merely repeats the speaker is not a venue. Rows written
-        // before Sept 2026 stored the context pass's speaker in this field, which
-        // printed the name twice ("Mark Mitchell, Mark Mitchell"); claims are
-        // write-once, so the read path is where that bad value gets dropped.
+        // A venue that merely repeats the speaker is not a venue. A stored
+        // context that is just the speaker's name would print it twice ("Mark
+        // Mitchell, Mark Mitchell"), and claims are write-once, so the read path
+        // is where that value gets dropped.
         speakerVenue:
           row.speechContext != null && row.speechContext !== row.speakerName
             ? row.speechContext
@@ -455,7 +440,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         verdictClass: row.verdictClass,
         confidence: row.confidence ?? null,
         mediaAnchor: null, // caption lanes land with the YouTube slice
-        attachedProposal: row.attachedProposal,
+        supports: row.supports,
         claimPassage: row.claimPassage ?? null,
         policyTopic: row.policyTopic ?? null,
         evidence: itemRows.map((e) => ({
@@ -463,8 +448,7 @@ export function createSiteReader(databaseUrl: string): SiteReader {
           seriesIdentity: e.seriesIdentity,
           vintageDate: e.vintageDate.toISOString().slice(0, 10),
           // The adjudicator's per-source finding — what THIS source says
-          // relevant to the claim. Empty for stat-grid series rows (the series
-          // itself is the finding).
+          // relevant to the claim. Empty when the source itself is the finding.
           plainReason: e.plainFinding ?? "",
           url: e.url,
           tier: e.tier,
@@ -478,11 +462,10 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         claimMadeAt: row.spokenAt ?? null,
         claimRecordedAt: row.claimRecordedAt ?? null,
         sourceRetrievedAt: row.sourceRetrievedAt ?? null,
-        claimType: row.claimType ?? null,
         speakershipClass: row.speakershipClass ?? null,
         speakershipMethod: row.speakershipMethod ?? null,
         genre: row.genre ?? null,
-        plan: row.plan ?? null,
+        research: pack?.research ?? null,
         triageRecord: row.triageRecord ?? null,
         publisher: row.publisher ?? null,
         sourceUrl: row.sourceUrl ?? null,
@@ -491,7 +474,6 @@ export function createSiteReader(databaseUrl: string): SiteReader {
         // The pack is one row per claim (append-only, latest pack last): the
         // first row carries the pack's own timestamps even when it has no items.
         checkedAt: pack?.createdAt ?? null,
-        nliOutcome: pack?.nliOutcome ?? null,
         verdictVersion: row.verdictVersionNumber ?? 1,
         verdictStatus: row.verdictStatus ?? "PUBLISHED",
       });

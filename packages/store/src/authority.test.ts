@@ -1,4 +1,4 @@
-// Authority registry (ADR-0018 guardrail + user direction Sept 2026): no
+// Authority registry (ADR-0018 guardrail): no
 // pre-declared authority map — authorities are DISCOVERED over time, assessed
 // via the declared tier taxonomy, and persisted with their discovery
 // provenance. The registry is append-only: an authority's vetting record is a
@@ -28,7 +28,7 @@ afterAll(async () => {
   await store.close();
 });
 
-describe("authority registry — discovery persistence (user direction, Sept 2026)", () => {
+describe("authority registry — discovery persistence", () => {
   it("records a discovered authority with tier, rationale, and provenance", async () => {
     // Scratch domain: the shared seed domains are asserted elsewhere; this
     // test owns its own domain so suite runs stay order-independent.
@@ -115,7 +115,7 @@ describe("authority registry — discovery persistence (user direction, Sept 202
   });
 
   it("keyword buckets: free-text claim cores collapse to category keys (no registry fragmentation)", () => {
-    // The Biden AVeriTeC claim's core — previously keyed as the whole sentence.
+    // A free-text claim core, not a key-sized string.
     expect(canonicalDomain("More than 225,000 people dead because of covid-19")).toBe(
       "covid-mortality",
     );

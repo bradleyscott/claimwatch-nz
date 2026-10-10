@@ -1,493 +1,435 @@
-// TRIAGE L1 contract (TRIAGE.md §2, risks TRI-R1..R13). The LLM stages run
-// through the injectable TriageLlm port — L1 mocks the LLM entirely, so these
-// tests pin the CONTRACT, not model behaviour. Authored before implementation
-// (TDD red). Test-requirement changes need approval; structural changes don't.
+// Triage L1 (TRIAGE.md, ADR-0025). Two independent per-sentence arms: whose
+// words the sentence is, and what it is. A sentence is checkable only when both
+// pass. The LLM is mocked.
 
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
-const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
-
 import {
-  checkabilityFromLlm,
-  contextFromLlm,
+  emptyDiscourseContext,
+  isCheckable,
+  isCheckableContent,
+  isEligibleSpeakershipClass,
   splitSentences,
+  toStoredDiscourseContext,
   triageDocument,
-  typeClaimFromLlm,
+  triageRecordFor,
 } from "./triage.ts";
-import type {
-  CheckabilityDecision,
-  DiscourseContext,
-  Sentence,
-  TriageResult,
-  TypedClaim,
-} from "./triage-api.ts";
-import { type LlmCallResult, MockTriageLlm, type TriageLlm } from "./triage-llm.ts";
+import { MockTriageLlm } from "./triage-llm.ts";
 
-// ---------- sentence splitting ----------
-
-describe("sentence splitting (deterministic)", () => {
-  it("splits multi-clause prose on sentence boundaries, preserving punctuation", () => {
-    const doc = "The Minister spoke today. She said growth was strong. Then she left.";
-    const sentences = splitSentences(doc) as Sentence[];
-    expect(sentences).toHaveLength(3);
-    expect(sentences[0]?.text).toContain("today.");
-  });
-
-  it("keeps caption cues intact — ASR cues have no punctuation and are never split mid-cue (TRIAG open Q7)", () => {
-    const cue = "FINANCE MINISTER Unemployment is at a record low of three point two percent";
-    const sentences = splitSentences(cue, { cueSpanPreserving: true }) as Sentence[];
-    expect(sentences).toHaveLength(1);
-    expect(sentences[0]?.cueSpan).toEqual({ start: 0, end: cue.length });
-  });
-
-  it("records a sentence span for every split so claims stay anchorable", () => {
-    const sentences = splitSentences("First sentence. Second one follows.") as Sentence[];
-    expect(sentences[0]?.span).toEqual({ start: 0, end: "First sentence.".length });
-    expect(sentences[1]?.span.start).toBeGreaterThan(0);
-  });
+const doc = (sentences: Array<{ id: string; text: string; window?: string }>) => ({
+  documentId: "doc-1",
+  genre: "news-report" as const,
+  documentText: sentences.map((s) => s.text).join(" "),
+  sentences,
 });
 
-// ---------- checkability (LLM stage, mocked port) ----------
-
-describe("checkability (TRI-R1)", () => {
-  const corpus = JSON.parse(readFixture("triage-checkability.json")) as {
-    sentences: Array<{
-      id: string;
-      text: string;
-      expected: string;
-      rejectionClass?: string;
-      window: string;
-    }>;
-  };
-
-  it.each(corpus.sentences.map((s) => [s.id, s]))("classifies %s", async (_id, s) => {
-    const llm = MockTriageLlm.forCheckability(s.text, s.expected, s.rejectionClass);
-    const result = (await checkabilityFromLlm(llm, {
-      sentence: s.text,
-      window: s.window,
-    })) as CheckabilityDecision;
-    if (s.expected === "checkable") {
-      expect(result.decision).toBe("checkable");
-      expect(result.dropRecord).toBeUndefined();
-    } else {
-      expect(result.decision).toBe(s.expected);
-      expect(result.dropRecord).toMatchObject({
-        sentenceText: s.text,
-        rejectionClass: s.rejectionClass,
-        windowText: s.window,
-      });
-      expect(result.dropRecord?.provenance.promptVersion).toBeTruthy();
-    }
+describe("splitSentences", () => {
+  it("splits on sentence punctuation and keeps spans", () => {
+    const sentences = splitSentences("One. Two! Three?");
+    expect(sentences.map((s) => s.text)).toEqual(["One.", "Two!", "Three?"]);
+    expect(sentences[0]?.span).toEqual({ start: 0, end: 4 });
   });
 
-  it("never lets a malformed LLM output silently drop a sentence (TRI-R12)", async () => {
-    const llm = MockTriageLlm.malformed();
-    const result = (await checkabilityFromLlm(llm, {
-      sentence: "Crime is up 30 percent.",
-      window: "w",
-    })) as CheckabilityDecision;
-    expect(result.decision).toBe("schema-failure");
-    expect(result.failureRecord?.failureClass).toBe("schema-validation");
-    expect(result.failureRecord?.rawOutput).toBeTruthy();
-  });
-});
-
-// ---------- typing + routing (TRI-R3) ----------
-
-describe("claim typing and mode routing (TRI-R3)", () => {
-  const set = JSON.parse(readFixture("triage-typing.json")) as {
-    items: Array<{
-      id: string;
-      text: string;
-      claimType: string;
-      routesTo?: string;
-      expectedType?: string;
-      retainFingerprintAttempt?: boolean;
-      isCuratedFixture?: boolean;
-    }>;
-  };
-
-  it.each(set.items.filter((i) => i.expectedType === undefined))("routes $id", async (item) => {
-    const llm = MockTriageLlm.forTyping(item.text, item.claimType);
-    const claim = (await typeClaimFromLlm(llm, { sentence: item.text })) as TypedClaim;
-    expect(claim.claimType).toBe(item.claimType);
-    // `claim.mode` was asserted here. ADR-0023 removed it from triage: the type
-    // is triage's answer, and which procedures that type needs is the plan's
-    // (`plan.test.ts`). Asserting a mode here would re-pin the taxonomy.
-    expect(claim).not.toHaveProperty("mode");
-  });
-
-  // The fingerprint-degrade case (TRI-R3) used to be tested here: an unusable
-  // parse degraded the claim's TYPE to `other`, silently rerouting it to a
-  // different check. ADR-0023 deleted the stage — the parse now happens inside
-  // the figures procedure and an unreadable magnitude ABSTAINS rather than
-  // rerouting (`claim-parameters.test.ts`).
-
-  it("routes the false-context fixture type with is_curated_fixture gate", async () => {
-    const item = set.items.find((i) => i.isCuratedFixture);
-    const llm = MockTriageLlm.forTyping(item?.text ?? "", "false-context");
-    const claim = (await typeClaimFromLlm(llm, {
-      sentence: item?.text ?? "",
-      isCuratedFixture: true,
-    })) as TypedClaim;
-    expect(claim.claimType).toBe("false-context");
-  });
-});
-
-// ---------- fingerprint normalisation (TRI-R2/R4) — REMOVED ----------
-//
-// The fingerprint was a six-part identity key, normalised so two claims about
-// the same number produced the same canonical string. ADR-0023 removed it
-// entirely: the key had no reader, and the two fields anything consumed were the
-// window and the magnitude, which are now typed (`claim-parameters.ts`) rather
-// than normalised text. The fixture `triage-fingerprint.json` is gone with it.
-
-describe("discourse-context extraction (ADR-0008)", () => {
-  const fixture = JSON.parse(readFixture("triage-context.json")) as {
-    variants: Array<{ id: string; window: string; expected: Record<string, unknown> }>;
-  };
-
-  it.each(fixture.variants)(
-    "$id keeps absent fields null, never defaulted (TRI-R5/R6)",
-    async (v) => {
-      const llm = MockTriageLlm.forContext(v.window, v.expected);
-      const context = (await contextFromLlm(llm, { window: v.window })) as DiscourseContext;
-      const exp = v.expected as Record<string, unknown>;
-
-      if (exp.attachedProposal === "present") {
-        expect(context.attachedProposal).toBeTruthy();
-      } else if (exp.attachedProposal === null) {
-        expect(context.attachedProposal).toBeNull();
-      }
-      if (exp.speaker === "absent") {
-        expect(context.speaker).toBeNull();
-      } else if (exp.speaker === "present") {
-        expect(context.speaker).toBeTruthy();
-      }
-      if (exp.venue === "absent") {
-        expect(context.venue).toBeNull();
-      } else if (exp.venue === "present") {
-        expect(context.venue).toBeTruthy();
-      }
-      if (exp.topic === "absent") {
-        expect(context.topic).toBeNull();
-      } else if (typeof exp.topic === "string") {
-        expect(context.topic).toBe(exp.topic);
-      }
-      if (exp.stillRoutes) {
-        expect(() => context).not.toThrow();
-      }
-    },
-  );
-
-  it("identity-only windows never infer an attached proposal (TRI-R6 — the no-inference guardrail)", async () => {
-    const identityOnly = fixture.variants.find((v) => v.id === "ctx-identity-only");
-    const llm = MockTriageLlm.forContext(identityOnly?.window ?? "", { attachedProposal: null });
-    const context = (await contextFromLlm(llm, {
-      window: identityOnly?.window ?? "",
-    })) as DiscourseContext;
-    expect(context.attachedProposal).toBeNull();
-  });
-});
-
-// ---------- idempotency (TRI-R13) ----------
-
-describe("re-triage idempotency (TRI-R13)", () => {
-  it("re-triaging the same document yields the identical claim set and drop log", async () => {
-    const corpus = JSON.parse(readFixture("triage-checkability.json")) as {
-      sentences: Array<{
-        id: string;
-        text: string;
-        expected: string;
-        rejectionClass?: string;
-        window: string;
-      }>;
-    };
-    const doc = {
-      documentId: "doc-1",
-      sentences: corpus.sentences.map((s) => ({ id: s.id, text: s.text, window: s.window })),
-    };
-    const llm = MockTriageLlm.forDocument(corpus.sentences);
-
-    const first = (await triageDocument(doc, llm)) as TriageResult;
-    const second = (await triageDocument(doc, llm)) as TriageResult;
-
-    expect(second.claims.map((c) => c.claimId)).toEqual(first.claims.map((c) => c.claimId));
-    expect(second.claims).toHaveLength(first.claims.length);
-    expect(second.dropLog.map((d) => d.sentenceId)).toEqual(first.dropLog.map((d) => d.sentenceId));
-    expect(second.dropLog).toHaveLength(first.dropLog.length);
-  });
-
-  it("claim IDs are stable across runs — derived from content, not sequence", async () => {
-    const corpus = JSON.parse(readFixture("triage-checkability.json")) as {
-      sentences: Array<{
-        id: string;
-        text: string;
-        expected: string;
-        rejectionClass?: string;
-        window: string;
-      }>;
-    };
-    const doc = {
-      documentId: "doc-1",
-      sentences: corpus.sentences
-        .filter((s) => s.expected === "checkable")
-        .map((s) => ({ id: s.id, text: s.text, window: s.window })),
-    };
-    const llm = MockTriageLlm.forDocument(corpus.sentences);
-    const a = (await triageDocument(doc, llm)) as TriageResult;
-    const reversed = (await triageDocument(
-      { ...doc, sentences: [...doc.sentences].reverse() },
-      llm,
-    )) as TriageResult;
-    const idsBySentence = new Map(reversed.claims.map((c) => [c.sourceSentenceId, c.claimId]));
-    for (const claim of a.claims) {
-      expect(idsBySentence.get(claim.sourceSentenceId)).toBe(claim.claimId);
-    }
-  });
-});
-
-// The checkability call returns one result per sentence, so the response grows
-// with the document while the adapter's output budget is fixed. A real
-// 47-sentence RNZ article truncated at the 2048-token default and surfaced as
-// `schema-validation — the model did not return a response` (Sept 2026); every
-// fixture then in L1 was 3-5 sentences, so nothing reached the bound. These pin
-// the bound and its failure mode (TRI-R12).
-class BudgetedCheckabilityLlm implements TriageLlm {
-  /** Sentences per call, in call order — the fan-out shape, observable. */
-  readonly calls: number[] = [];
-
-  constructor(
-    private readonly failsAbove: number,
-    private readonly modelFor: (callIndex: number) => string = () => "mock-model-a",
-  ) {}
-
-  async generateObject<T>(
-    role: "triage-checkability" | "triage-typing" | "triage-fingerprint" | "triage-context",
-    input: unknown,
-    schema: { parse(value: unknown): T },
-  ): Promise<LlmCallResult<T>> {
-    if (role !== "triage-checkability") throw new Error(`unexpected role: ${role}`);
-    const sentences = (input as { sentences: Array<{ id: string; text: string }> }).sentences;
-    const model = this.modelFor(this.calls.length);
-    this.calls.push(sentences.length);
-    if (sentences.length > this.failsAbove) {
-      // What an output-budget truncation looks like at this port.
-      return {
-        ok: false,
-        failureClass: "schema-validation",
-        rawOutput: "No object generated: the model did not return a response.",
-        model,
-        finishReason: "length",
-      };
-    }
-    return {
-      ok: true,
-      value: schema.parse({
-        results: sentences.map((s) => ({
-          sentenceId: s.id,
-          checkable: false,
-          rejectionClass: "opinion",
-        })),
-      }),
-      usage: { tokensIn: 10, tokensOut: 5 },
-      model,
-    };
-  }
-}
-
-describe("checkability fan-out bounds (TRI-R12)", () => {
-  const doc = (n: number) => ({
-    documentId: "long-doc",
-    sentences: Array.from({ length: n }, (_, i) => ({
-      id: `s${i}`,
-      text: `Sentence number ${i} of a long document that must not be lost.`,
-      window: "window text",
-    })),
-  });
-
-  it("classifies every sentence of a document too long for one call", async () => {
-    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY);
-    const result = await triageDocument(doc(47), llm);
-
-    // Chunked, not one unbounded call — and no sentence is dropped in the split.
-    expect(llm.calls.length).toBeGreaterThan(1);
-    expect(llm.calls.reduce((a, b) => a + b, 0)).toBe(47);
-    expect(result.triageRecord.sentencesRead).toBe(47);
-    expect(result.dropLog).toHaveLength(47);
-    // Document order, not chunk-completion order: the page renders this list in
-    // array order and tells the reader to judge the boundary themselves.
-    expect(result.dropLog.map((d) => d.sentenceId)).toEqual(doc(47).sentences.map((s) => s.id));
-    // Provenance accumulates across chunks (ADR-0012: tokens, not money).
-    expect(result.provenance.tokensOut).toBe(5 * llm.calls.length);
-    expect(result.provenance.tokensIn).toBe(10 * llm.calls.length);
-  });
-
-  it("a document inside one chunk makes exactly one call with the unchanged payload", async () => {
-    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY);
-    await triageDocument(doc(5), llm);
-    // This is what keeps every pre-existing fixture and L2 golden unchanged.
-    expect(llm.calls).toEqual([5]);
-  });
-
-  it("retries a truncated chunk at half size instead of failing the document", async () => {
-    // A budget of 10 rejects the 20-sentence chunks and accepts their halves.
-    const llm = new BudgetedCheckabilityLlm(10);
-    const result = await triageDocument(doc(47), llm);
-
-    expect(llm.calls).toContain(20);
-    expect(llm.calls).toContain(10);
-    expect(result.triageRecord.sentencesRead).toBe(47);
-    expect(result.dropLog).toHaveLength(47);
-  });
-
-  it("names the truncation when a chunk cannot be split further", async () => {
-    // Budget of 0: even a single-sentence chunk fails, so the halving stops.
-    const llm = new BudgetedCheckabilityLlm(0);
-    await expect(triageDocument(doc(3), llm)).rejects.toThrow(/finish_reason: length/);
-  });
-
-  it("refuses to record one model for chunks served by different models", async () => {
-    // ADR-0011 escalation can split a document across tiers. Storing the first
-    // chunk's model would name a model that produced only part of the triage.
-    const llm = new BudgetedCheckabilityLlm(Number.POSITIVE_INFINITY, (i) =>
-      i === 0 ? "anthropic:claude-sonnet-5" : "openrouter:z-ai/glm-5.3-flash",
-    );
-    await expect(triageDocument(doc(47), llm)).rejects.toThrow(/spans 2 models/);
-  });
-});
-
-// ---------- the orchestrator's role set (Sept 2026) ----------
-//
-// `contextFromLlm` had TRI-R5/TRI-R6 tests and no caller for weeks, so
-// `discourse_context.attached_proposal` was null on every real claim and the
-// verdict page's "as deployed" section could not render. Each stage was covered
-// in isolation and nothing asserted that the orchestrator ran them, which is a
-// failure mode L1 cannot see by construction. These tests assert the CALL SET,
-// so a stage that stops being invoked fails here rather than silently not
-// existing in production.
-
-/** Wraps a TriageLlm and records every role the orchestrator asks for. */
-function recordingRoles(inner: TriageLlm, roles: string[]): TriageLlm {
-  return {
-    generateObject: async (role, input, schema) => {
-      roles.push(role);
-      return inner.generateObject(role, input, schema);
-    },
-  } as TriageLlm;
-}
-
-describe("the orchestrator runs the stages the spec says it runs", () => {
-  const corpus = JSON.parse(readFixture("triage-checkability.json")) as {
-    sentences: Array<{
-      id: string;
-      text: string;
-      expected: string;
-      rejectionClass?: string;
-      window: string;
-    }>;
-  };
-
-  it("runs the discourse-context pass, once per checkable claim", async () => {
-    const sentences = corpus.sentences.map((s) => ({
-      id: s.id,
-      text: s.text,
-      window: s.window,
-    }));
-    const roles: string[] = [];
-    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
-    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
-    const checkable = corpus.sentences.filter((s) => s.expected === "checkable").length;
-
-    expect(checkable).toBeGreaterThan(0);
-    expect(roles.filter((role) => role === "triage-context")).toHaveLength(checkable);
-    // And the context it read reaches the claim, carrying the window verbatim as
-    // the artefact it was read from (TRIAGE §3.2) — not the sentence text.
-    for (const claim of result.claims) {
-      const source = sentences.find((s) => s.id === claim.sourceSentenceId);
-      expect(claim.discourseContext.window).toBe(source?.window);
-    }
-  });
-
-  it("carries the deployment framing through to the claim", async () => {
-    // The value the verdict page's "as deployed" line renders (SITE-MVP §2.2).
-    const sentences = corpus.sentences.map((s) => ({
-      id: s.id,
-      text: s.text,
-      window: s.window,
-    }));
-    const llm = MockTriageLlm.forDocument(corpus.sentences, {
-      attachedProposal: "the announced housing package",
-      argumentDirection: "problem",
-      speaker: "Minister",
-      venue: "Parliament",
-      topic: "housing",
+  it("keeps a caption cue whole when asked", () => {
+    const sentences = splitSentences("we will build three thousand homes by 2030", {
+      cueSpanPreserving: true,
     });
-    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
-    const [claim] = result.claims;
-    expect(claim?.discourseContext.attachedProposal).toBe("the announced housing package");
-    // Field names are the STORED ones — the two contracts differ, and nothing but
-    // this boundary maps between them.
-    expect(claim?.discourseContext.argumentDirection).toBe("problem");
-    // The stored field is the VENUE. The context pass reads a speaker too, but
-    // that is attribution — the `attribute` stage owns it and it rides on
-    // `attribution_candidates`. Writing the speaker here is what printed
-    // "Mark Mitchell, Mark Mitchell" on the page.
-    expect(claim?.discourseContext.speechContext).toBe("Parliament");
-    expect(claim?.discourseContext.policyTopic).toBe("housing");
-  });
-
-  it("does not read context from a sentence with no window, and claims no framing", async () => {
-    // ADR-0008: framing comes from window text or not at all. Reading it off the
-    // claim itself would manufacture a deployment context out of nothing.
-    const sentences = corpus.sentences.map((s) => ({ id: s.id, text: s.text }));
-    const roles: string[] = [];
-    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
-    const result = await triageDocument({ documentId: "doc-1", sentences }, llm);
-    expect(roles).not.toContain("triage-context");
-    for (const claim of result.claims) {
-      expect(claim.discourseContext).toEqual({
-        window: "",
-        speechContext: null,
-        policyTopic: null,
-        attachedProposal: null,
-        argumentDirection: null,
-        contextQualifiers: null,
-      });
-    }
-  });
-
-  it("calls checkability and context, and not typing, for non-statistical claims", async () => {
-    // The role set, asserted rather than assumed. `triage-typing` is NOT called:
-    // the checkability call returns `claimType` and `mode` per sentence, so
-    // typing is folded into it. `triage-fingerprint` is not called here either,
-    // because this fixture's sentences are all typed `other` — it runs for
-    // statistical claims only, proven in the fingerprint describe block below.
-    // Pinned so that wiring typing (TRIAGE open question 2) is a deliberate
-    // change rather than an accident.
-    const sentences = corpus.sentences.map((s) => ({
-      id: s.id,
-      text: s.text,
-      window: s.window,
-    }));
-    const roles: string[] = [];
-    const llm = recordingRoles(MockTriageLlm.forDocument(corpus.sentences), roles);
-    await triageDocument({ documentId: "doc-1", sentences }, llm);
-    expect([...new Set(roles)].sort()).toEqual(["triage-checkability", "triage-context"]);
+    expect(sentences).toHaveLength(1);
+    expect(sentences[0]?.cueSpan).toEqual({ start: 0, end: 42 });
   });
 });
 
-// ---------- the fingerprint stage (TRI-R3) — REMOVED ----------
-//
-// These tests exercised `fingerprintFromLlm` through the orchestrator: the parse
-// attached to the claim, its canonical key, and the degrade-to-`other` path when
-// the parse was unusable. ADR-0023 removed the stage and the object it built, so
-// there is nothing left to assert here. The behaviour that replaced it — a typed
-// parse at the point of use, and an ABSTENTION when a stated magnitude cannot be
-// read, rather than a silent reroute — is covered by
-// `claim-parameters.test.ts` and by the stat-grid's unreadable-magnitude case in
-// `verification.test.ts`.
+describe("the two arms (ADR-0025)", () => {
+  it("axis 1 passes only for quoted-actor and author-claim", () => {
+    expect(isEligibleSpeakershipClass("quoted-actor")).toBe(true);
+    expect(isEligibleSpeakershipClass("author-claim")).toBe(true);
+    for (const cls of ["outlet-prose", "unresolved"]) {
+      expect(isEligibleSpeakershipClass(cls), cls).toBe(false);
+    }
+  });
+
+  it("axis 2 passes only for a checkable factual assertion", () => {
+    expect(isCheckableContent("checkable")).toBe(true);
+    for (const cls of [
+      "opinion",
+      "rhetoric",
+      "procedure",
+      "satire",
+      "question",
+      "off-domain",
+      "pledge-conditional",
+    ]) {
+      expect(isCheckableContent(cls), cls).toBe(false);
+    }
+  });
+
+  it("checkable requires BOTH arms — a quoted opinion is not checkable", () => {
+    expect(isCheckable("quoted-actor", "checkable")).toBe(true);
+    expect(isCheckable("author-claim", "checkable")).toBe(true);
+    // The overlap the single-class design missed:
+    expect(isCheckable("quoted-actor", "opinion")).toBe(false);
+    expect(isCheckable("author-claim", "satire")).toBe(false);
+    expect(isCheckable("outlet-prose", "checkable")).toBe(false);
+    expect(isCheckable("unresolved", "checkable")).toBe(false);
+  });
+});
+
+describe("triageDocument", () => {
+  it("makes a claim only when both arms pass, and drops each failure with its reason", async () => {
+    const llm = MockTriageLlm.forDocument(
+      [
+        {
+          text: "Crime is up 30% since 2017.",
+          speakershipClass: "quoted-actor",
+          speaker: "A Minister",
+          contentClass: "checkable",
+        },
+        {
+          text: "It was a lively debate.",
+          speakershipClass: "quoted-actor",
+          contentClass: "opinion",
+        },
+        { text: "The reporter noted the setting.", speakershipClass: "outlet-prose" },
+        {
+          text: "We will build homes.",
+          speakershipClass: "quoted-actor",
+          contentClass: "pledge-conditional",
+        },
+      ],
+      { supports: "that law and order is failing" },
+    );
+    const result = await triageDocument(
+      doc([
+        { id: "s1", text: "Crime is up 30% since 2017.", window: "…debate…" },
+        { id: "s2", text: "It was a lively debate." },
+        { id: "s3", text: "The reporter noted the setting." },
+        { id: "s4", text: "We will build homes." },
+      ]),
+      llm,
+    );
+
+    expect(result.claims).toHaveLength(1);
+    const claim = result.claims[0];
+    expect(claim?.speakershipClass).toBe("quoted-actor");
+    expect(claim?.speaker).toBe("A Minister");
+    expect(claim?.discourseContext.supports).toBe("that law and order is failing");
+    expect(claim?.discourseContext.window).toBe("…debate…");
+
+    // One drop log, with the arm that failed as the reason.
+    expect(result.dropLog.map((d) => d.rejectionClass).sort()).toEqual([
+      "opinion",
+      "outlet-prose",
+      "pledge-conditional",
+    ]);
+    expect(result.triageRecord.sentencesRead).toBe(4);
+    expect(result.triageRecord.checked).toBe(1);
+    expect(result.triageRecord.held).toHaveLength(1);
+  });
+
+  it("does not ask the content arm about ineligible sentences", async () => {
+    const contentCalls: Array<Array<{ id: string; text: string }>> = [];
+    const llm = MockTriageLlm.scripted((role, input) => {
+      if (role === "triage-context") {
+        return { ok: true, value: { venue: null, topic: null, supports: null, qualifiers: [] } };
+      }
+      const sentences = (input as { sentences: Array<{ id: string; text: string }> }).sentences;
+      if (role === "triage-speakership") {
+        return {
+          ok: true,
+          value: {
+            sentences: sentences.map((s) =>
+              s.text.startsWith("Narration")
+                ? { sentenceId: s.id, speakershipClass: "outlet-prose", speaker: null }
+                : { sentenceId: s.id, speakershipClass: "quoted-actor", speaker: "A" },
+            ),
+          },
+        };
+      }
+      contentCalls.push(sentences);
+      return {
+        ok: true,
+        value: {
+          sentences: sentences.map((s) => ({ sentenceId: s.id, contentClass: "checkable" })),
+        },
+      };
+    });
+    await triageDocument(
+      doc([
+        { id: "s1", text: "Narration one." },
+        { id: "s2", text: "Claim two." },
+      ]),
+      llm,
+    );
+    expect(contentCalls).toHaveLength(1);
+    expect(contentCalls[0]?.map((s) => s.text)).toEqual(["Claim two."]);
+  });
+
+  it("fails closed on an unanswered sentence at either arm", async () => {
+    const llm = MockTriageLlm.scripted((role, input) => {
+      if (role === "triage-context") {
+        return { ok: true, value: { venue: null, topic: null, supports: null, qualifiers: [] } };
+      }
+      const sentences = (input as { sentences: Array<{ id: string; text: string }> }).sentences;
+      if (role === "triage-speakership") {
+        // s3 is omitted, so it must fall closed to `unresolved`.
+        return {
+          ok: true,
+          value: {
+            sentences: sentences
+              .filter((s) => s.text !== "Never answered.")
+              .map((s) => ({ sentenceId: s.id, speakershipClass: "quoted-actor", speaker: "A" })),
+          },
+        };
+      }
+      // The content arm omits s2, so it must fall closed to `off-domain`.
+      return {
+        ok: true,
+        value: {
+          sentences: sentences
+            .filter((s) => s.text === "Claim one.")
+            .map((s) => ({ sentenceId: s.id, contentClass: "checkable" })),
+        },
+      };
+    });
+    const result = await triageDocument(
+      doc([
+        { id: "s1", text: "Claim one." },
+        { id: "s2", text: "Claim two." },
+        { id: "s3", text: "Never answered." },
+      ]),
+      llm,
+    );
+    expect(result.claims).toHaveLength(1);
+    expect(result.dropLog.map((d) => d.rejectionClass).sort()).toEqual([
+      "off-domain",
+      "unresolved",
+    ]);
+  });
+
+  it("reads the WHOLE document for context, not a moving window", async () => {
+    let contextInput: unknown = null;
+    const llm = MockTriageLlm.scripted((role, input) => {
+      if (role === "triage-context") {
+        contextInput = input;
+        return { ok: true, value: { venue: null, topic: null, supports: "x", qualifiers: [] } };
+      }
+      const sentences = (input as { sentences: Array<{ id: string }> }).sentences;
+      return {
+        ok: true,
+        value: {
+          sentences:
+            role === "triage-speakership"
+              ? sentences.map((s) => ({
+                  sentenceId: s.id,
+                  speakershipClass: "quoted-actor",
+                  speaker: "A",
+                }))
+              : sentences.map((s) => ({ sentenceId: s.id, contentClass: "checkable" })),
+        },
+      };
+    });
+    await triageDocument(
+      {
+        documentId: "doc-1",
+        genre: "news-report",
+        documentText: "Opening context. The claim. Closing context.",
+        sentences: [{ id: "s1", text: "The claim.", window: "a window" }],
+      },
+      llm,
+    );
+    const input = contextInput as { claim: string; document: string };
+    expect(input.claim).toBe("The claim.");
+    expect(input.document).toContain("Opening context.");
+    expect(input.document).toContain("Closing context.");
+  });
+
+  it("is idempotent: a re-run resolves to the same claim ids (TRI-R13)", async () => {
+    const fixture = [
+      { id: "s1", text: "Crime is up 30% since 2017.", window: "…debate…" },
+      { id: "s2", text: "The reporter noted the setting." },
+    ];
+    const script = (role: string, input: unknown) => {
+      if (role === "triage-context") {
+        return { ok: true, value: { venue: null, topic: null, supports: null, qualifiers: [] } };
+      }
+      const sentences = (input as { sentences: Array<{ id: string; text: string }> }).sentences;
+      return {
+        ok: true,
+        value: {
+          sentences:
+            role === "triage-speakership"
+              ? sentences.map((s) =>
+                  s.text.startsWith("The reporter")
+                    ? { sentenceId: s.id, speakershipClass: "outlet-prose", speaker: null }
+                    : { sentenceId: s.id, speakershipClass: "quoted-actor", speaker: "A" },
+                )
+              : sentences.map((s) => ({ sentenceId: s.id, contentClass: "checkable" })),
+        },
+      };
+    };
+    const first = await triageDocument(doc(fixture), MockTriageLlm.scripted(script));
+    const second = await triageDocument(doc(fixture), MockTriageLlm.scripted(script));
+    expect(second.claims.map((c) => c.claimId)).toEqual(first.claims.map((c) => c.claimId));
+  });
+});
+
+describe("discourse-context mapping (ADR-0026)", () => {
+  it("maps the context pass onto the stored shape and carries the window verbatim", () => {
+    const stored = toStoredDiscourseContext(
+      { venue: "in the House", topic: "housing", supports: "the housing plan", qualifiers: [] },
+      "the window text",
+    );
+    expect(stored).toEqual({
+      window: "the window text",
+      speechContext: "in the House",
+      policyTopic: "housing",
+      supports: "the housing plan",
+      contextQualifiers: null,
+    });
+  });
+
+  it("leaves every field null for a claim with no window — absent is data", () => {
+    expect(emptyDiscourseContext()).toEqual({
+      window: "",
+      speechContext: null,
+      policyTopic: null,
+      supports: null,
+      contextQualifiers: null,
+    });
+  });
+});
+
+describe("triageRecordFor", () => {
+  it("counts the whole document, so a partial read can never look complete", () => {
+    const record = triageRecordFor(
+      doc([
+        { id: "s1", text: "One." },
+        { id: "s2", text: "Two." },
+        { id: "s3", text: "Three." },
+      ]),
+      [],
+      [
+        {
+          sentenceId: "s1",
+          sentenceText: "One.",
+          rejectionClass: "opinion",
+          windowText: "One.",
+          provenance: {
+            promptVersion: "triage-checkability@1",
+            model: "m",
+            tokensIn: 1,
+            tokensOut: 1,
+          },
+        },
+      ],
+    );
+    expect(record.sentencesRead).toBe(3);
+    expect(record.checked).toBe(0);
+    expect(record.setAside).toHaveLength(1);
+  });
+});
+
+describe("decision-backed triage (ADR-0024)", () => {
+  const choice = (value: string, confidence: number) => ({
+    type: "choice" as const,
+    choice: value,
+    probabilities: { [value]: confidence },
+    confidence,
+  });
+  const ok = (answers: Record<string, ReturnType<typeof choice>>) => ({
+    ok: true as const,
+    answers,
+    usage: { tokensIn: 120, tokensOut: 0 },
+    model: "typesafe/jev-1.13-20260917",
+    provider: "TypeSafe",
+  });
+
+  const sentences = [
+    {
+      text: "We will cut crime by half.",
+      speakershipClass: "quoted-actor",
+      contentClass: "checkable",
+      speaker: "A. Person",
+    },
+    {
+      text: "Crime fell two percent last year.",
+      speakershipClass: "author-claim",
+      contentClass: "checkable",
+    },
+    { text: "Here is the story.", speakershipClass: "outlet-prose" },
+  ];
+
+  it("settles the classes and escalates only for the attribution name", async () => {
+    const input = doc(sentences.map((s, i) => ({ id: `s${i + 1}`, text: s.text })));
+    const llm = MockTriageLlm.forDocument(sentences, { supports: "cut crime" });
+    const requests: string[] = [];
+    const decisions = {
+      decide: async (request: { role: string }) => {
+        requests.push(request.role);
+        if (request.role === "triage-speakership") {
+          return ok({
+            s1: choice("quoted-actor", 0.99),
+            s2: choice("author-claim", 0.95),
+            s3: choice("outlet-prose", 0.9),
+          });
+        }
+        return ok({ s1: choice("checkable", 0.95), s2: choice("checkable", 0.97) });
+      },
+    };
+    const result = await triageDocument(input, llm, {
+      decisions,
+      decisionRoles: ["triage-speakership", "triage-checkability"],
+    });
+
+    expect(requests).toEqual(["triage-speakership", "triage-checkability"]);
+    expect(result.claims.map((c) => c.sourceSentenceId)).toEqual(["s1", "s2"]);
+    // s1 was settled as quoted-actor, so it escalated for the NAME only.
+    expect(result.claims[0]?.speaker).toBe("A. Person");
+    expect(result.claims[1]?.speaker).toBeNull();
+    expect(result.dropLog.map((d) => d.sentenceId)).toEqual(["s3"]);
+    expect(result.provenance.decision).toMatchObject({
+      role: "triage-speakership",
+      model: "typesafe/jev-1.13-20260917",
+      provider: "TypeSafe",
+      settled: 2,
+      escalated: 1,
+      degraded: false,
+    });
+  });
+
+  it("stays entirely generative when no role is gated", async () => {
+    const input = doc(sentences.map((s, i) => ({ id: `s${i + 1}`, text: s.text })));
+    const llm = MockTriageLlm.forDocument(sentences, { supports: "cut crime" });
+    let calls = 0;
+    const decisions = {
+      decide: async () => {
+        calls += 1;
+        return ok({});
+      },
+    };
+    const result = await triageDocument(input, llm, { decisions, decisionRoles: [] });
+    expect(calls).toBe(0);
+    expect(result.provenance.decision).toBeUndefined();
+    expect(result.claims.map((c) => c.sourceSentenceId)).toEqual(["s1", "s2"]);
+  });
+
+  it("degrades to the generative path when the decision call fails", async () => {
+    const input = doc(sentences.map((s, i) => ({ id: `s${i + 1}`, text: s.text })));
+    const llm = MockTriageLlm.forDocument(sentences, { supports: "cut crime" });
+    const decisions = {
+      decide: async () => ({
+        ok: false as const,
+        failureClass: "transport" as const,
+        rawOutput: "HTTP 503",
+      }),
+    };
+    const result = await triageDocument(input, llm, {
+      decisions,
+      decisionRoles: ["triage-speakership", "triage-checkability"],
+    });
+    // The generative mock answered everything, so the claims are unchanged.
+    expect(result.claims.map((c) => c.sourceSentenceId)).toEqual(["s1", "s2"]);
+    expect(result.provenance.decision?.degraded).toBe(true);
+    expect(result.provenance.decision?.settled).toBe(0);
+    expect(result.provenance.decision?.escalated).toBe(3);
+  });
+});

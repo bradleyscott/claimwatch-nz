@@ -18,10 +18,11 @@
 export interface ClaimContextBundle {
   /** The policy topic the passage is about. */
   topic?: string | null | undefined;
-  /** The proposal the claim was deployed in support of. */
-  attachedProposal?: string | null | undefined;
-  /** The stance the passage takes: a fault to fix, or a result claimed. */
-  argumentDirection?: "problem" | "success" | null | undefined;
+  /**
+   * The argumentative point the claim supports (ADR-0026) — why it matters to
+   * the speaker's argument, read over the whole document.
+   */
+  supports?: string | null | undefined;
   /** Where or on what occasion it was said. */
   venue?: string | null | undefined;
 }
@@ -31,11 +32,7 @@ export function describeContext(context: ClaimContextBundle | null | undefined):
   if (context == null) return null;
   const parts: string[] = [];
   if (context.topic) parts.push(`about ${context.topic}`);
-  if (context.attachedProposal) {
-    parts.push(`used in support of the proposal "${context.attachedProposal}"`);
-  }
-  if (context.argumentDirection === "problem") parts.push("arguing a problem to fix");
-  if (context.argumentDirection === "success") parts.push("arguing a result to claim");
+  if (context.supports) parts.push(`used to support "${context.supports}"`);
   if (context.venue) parts.push(`said ${context.venue}`);
   return parts.length > 0 ? parts.join("; ") : null;
 }

@@ -95,11 +95,10 @@ describe("article extraction (Tier 1 readability)", () => {
     ).toThrow(/encoding/i);
   });
 
-  // The guard used to be `/&amp;[a-zA-Z#]/`, which fires on ANY `&amp;X` and so
-  // rejected real pages: `M&amp;T Stadium` and every query-string separator are
-  // correct escaping, not corruption. This case is the RNZ page from the live
-  // probe — it must extract, or the lane cannot read a single article (ING-R8,
-  // Sept 2026).
+  // A guard of `/&amp;[a-zA-Z#]/` would fire on ANY `&amp;X` and so reject real
+  // pages: `M&amp;T Stadium` and every query-string separator are correct
+  // escaping, not corruption. This case must extract, or the lane cannot read a
+  // single article (ING-R8).
   it("keeps correctly escaped ampersands, which are not corruption (ING-R8)", () => {
     const doc = extractArticle(
       readFixture("rnz-article-legit-entities.html"),

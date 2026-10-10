@@ -80,15 +80,11 @@ const OFFICIAL_HOSTS = [
 export function looksOfficial(link: string): boolean {
   const host = hostOf(link);
   if (host == null) return false;
-  return (
-    OFFICIAL_HOSTS.includes(host) || OFFICIAL_SUFFIXES.some((suffix) => host.endsWith(suffix))
-  );
+  return OFFICIAL_HOSTS.includes(host) || OFFICIAL_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
 /** How many DIFFERENT domains speak to the claim. Two pages on one site are one source. */
-export function independentSourceCount(
-  evidence: ReadonlyArray<{ link: string }>,
-): number {
+export function independentSourceCount(evidence: ReadonlyArray<{ link: string }>): number {
   return new Set(evidence.map((e) => hostOf(e.link)).filter((h) => h != null)).size;
 }
 

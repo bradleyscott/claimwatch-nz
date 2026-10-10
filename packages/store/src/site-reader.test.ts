@@ -1,16 +1,15 @@
-// Site read model L1 (STORE §3, SITE-MVP §3.1, SIT-R14). The site's live reader
-// used to be string SQL over six pipeline tables, reachable by no test at all:
-// a column rename could only be discovered by a broken page in production. These
-// tests exercise the typed reader against a real migrated scratch database, so
-// the read path fails in CI when the schema moves.
+// Site read model L1 (STORE §3, SITE-MVP §3.1, SIT-R14). These tests exercise the
+// typed reader against a real migrated scratch database, so the read path fails in
+// CI when the schema moves rather than in production on a broken page.
 //
-// The behaviours pinned here are the ones the hand-written SQL had to be trusted
+// The behaviours pinned here are the ones string SQL would have to be trusted
 // for: the LATEST verdict per claim, the pack THAT verdict pins (not just any
 // pack for the claim), the visible-status filter, and the audit-trail fields the
 // page prints or omits.
 
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { ResearchLoopRecord } from "./research.ts";
 import { createSiteReader, type SiteReader, siteReaderPoolConfig } from "./site-reader.ts";
 import { isEligibleSpeakership } from "./speakership.ts";
 import { createTestStore, scratchDatabaseUrl } from "./store.ts";
@@ -50,9 +49,59 @@ afterAll(async () => {
 function provenance() {
   return {
     pipelineVersion: "0.1.0",
-    promptVersions: { "triage-typing": "triage-typing@1" },
-    modelVersions: { "triage-typing": "model-x@v1" },
+    promptVersions: { "triage-checkability": "triage-checkability@1" },
+    modelVersions: { "triage-checkability": "sonnet-class@v1" },
     searchRefs: ["brave:query-hash"],
+  };
+}
+
+/** A minimal research-loop record, so a pack carries one. */
+function researchRecord(reason: string): ResearchLoopRecord {
+  return {
+    turns: [
+      {
+        round: 0,
+        plan: {
+          evidencePlan: "Find the official series for the claim.",
+          questions: ["What do the official figures say?"],
+          sources: ["NZ Police policedata.nz victimisations"],
+        },
+        strategy: "searched the official series",
+        queries: ["crime statistics New Zealand"],
+        toolCalls: [
+          {
+            toolName: "search",
+            input: { query: "crime statistics New Zealand" },
+            resultSummary: "4 results",
+          },
+        ],
+        evidenceFound: [
+          {
+            url: "https://www.policedata.nz/x",
+            title: "Police data",
+            domain: "policedata.nz",
+            passage: "Victimisations rose 12%.",
+            tier: 1,
+          },
+        ],
+        critique: {
+          sufficient: true,
+          verdictClass: "refuted" as const,
+          confidence: 0.8,
+          reason,
+          gaps: [] as string[],
+          justifications: ["The official series shows 12%."],
+        },
+      },
+    ],
+    turnsUsed: 1,
+    capBinding: 3,
+    capped: false,
+    stopReason: "sufficient",
+    budgetUsd: 0.25,
+    spentUsd: 0.07,
+    reason,
+    agreement: { agreed: true, classes: ["refuted"] },
   };
 }
 
@@ -75,8 +124,7 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = tru
     ...(publicationId ? { publicationId } : {}),
     utteranceText: "Crime is up 30% since 2017.",
     text: "Crime is up 30% since 2017.",
-    claimType: "statistical",
-    // Eligible by default: the site serves claims that are in scope (ADR-0019),
+    // Eligible by default: the site serves claims that are in scope (ADR-0025),
     // so the fixtures are in scope — with a COMPLETE decision — unless a test
     // says otherwise. The gate requires the method and genre too, because the
     // page has to disclose how the claim was attributed.
@@ -85,13 +133,13 @@ async function seedClaim(overrides: Partial<ClaimFixture> = {}, documented = tru
     genre: "transcript",
     discourseContext: {
       window: "…in the context of law and order debate…",
-      attachedProposal: "tougher sentencing",
+      supports: "tougher sentencing",
       speechContext: "said in the House",
     },
     // The live lane's actual shape: a name and what produced it. No kind, no
     // confidence — nothing has resolved the entity, and the page names the
     // speaker from the name alone (ADR-0005; see `AttributionCandidate`).
-    attributionCandidates: [{ name: "Hon Sample Minister", basis: "speakership-classify@1" }],
+    attributionCandidates: [{ name: "Hon Sample Minister", basis: "triage-checkability@1" }],
     spokenAt: new Date("2026-09-08T00:00:00Z"),
     ...overrides,
   });
@@ -103,7 +151,6 @@ async function publishVerdictWithId(overrides: Partial<ClaimFixture> = {}) {
   const pack = await store.appendEvidencePack(claim.claimId, {
     itemRefs: [],
     justifications: [],
-    nliOutcome: "pass",
   });
   const verdict = await store.writeVerdict(claim.claimId, pack.packId, {
     provenance: provenance(),
@@ -116,16 +163,17 @@ async function publishVerdictWithId(overrides: Partial<ClaimFixture> = {}) {
 /**
  * A published verdict, so the claim has a page to read at all.
  *
- * `plan` travels with the PACK, not the claim (ADR-0023 §5): the plan is a
- * record of one verification, and a claim that is verified again gets a new pack
- * and a new plan.
+ * `research` travels with the PACK, not the claim (ADR-0026): the research loop
+ * is a record of one verification, and a claim verified again gets a new pack.
  */
-async function publishVerdict(claimId: string, plan?: EvidencePackFixture["plan"]): Promise<void> {
+async function publishVerdict(
+  claimId: string,
+  research?: EvidencePackFixture["research"],
+): Promise<void> {
   const pack = await store.appendEvidencePack(claimId, {
     itemRefs: [],
     justifications: [],
-    nliOutcome: "pass",
-    ...(plan ? { plan } : {}),
+    ...(research ? { research } : {}),
   });
   const verdict = await store.writeVerdict(claimId, pack.packId, {
     provenance: provenance(),
@@ -168,7 +216,6 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     const pack = await store.appendEvidencePack(claim.claimId, {
       itemRefs: ["item-1"],
       justifications: ["Series shows 12% not 30%."],
-      nliOutcome: "pass",
     });
     const verdict = await store.writeVerdict(claim.claimId, pack.packId, {
       provenance: provenance(),
@@ -183,7 +230,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     // extraction still lands on the fields the page renders.
     expect(page?.speaker).toBe("Hon Sample Minister");
     expect(page?.speakerVenue).toBe("said in the House");
-    expect(page?.attachedProposal).toBe("tougher sentencing");
+    expect(page?.supports).toBe("tougher sentencing");
     expect(page?.verdictClass).toBe("refuted");
     expect(page?.confidence).toBeCloseTo(0.72);
     expect(page?.verdictVersion).toBe(1);
@@ -191,7 +238,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     // The trail's first anchor: when the claim was MADE, not when we ingested it.
     expect(page?.claimMadeAt?.toISOString()).toBe("2026-09-08T00:00:00.000Z");
     expect(page?.justifications).toEqual(["Series shows 12% not 30%."]);
-    expect(page?.nliOutcome).toBe("pass");
+    expect(page?.research).toBeNull();
 
     expect(page?.evidence).toHaveLength(1);
     const item = page?.evidence[0];
@@ -205,11 +252,10 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(item?.retrievedAt).toBeInstanceOf(Date);
   });
 
-  it("carries the verification plan and the triage record, and leaves both absent when unrecorded", async () => {
+  it("carries the research loop and the triage record, and leaves both absent when unrecorded", async () => {
     // Recorded: the two things the "how this verdict was made" section is
-    // selected by and justified from. The plan replaced the single
-    // `verification_mode` (ADR-0023), and it is a LIST of steps — a claim can now
-    // have been checked more than one way.
+    // selected by and justified from. The research loop (ADR-0026) carries each
+    // turn's plan and critique.
     const recorded = await seedClaim({
       triageRecord: {
         sentencesRead: 12,
@@ -220,31 +266,18 @@ describe("site reader (STORE §3, SIT-R14)", () => {
         held: [{ sentenceText: "Housing will be fixed.", reason: "no deadline has passed" }],
       },
     });
-    await publishVerdict(recorded.claimId, {
-      libraryVersion: "proc-lib-2026-09",
-      features: {
-        category: "crime-statistics",
-        assertsNumber: true,
-        quotesPerson: false,
-        citesDocument: false,
-        attachesToProposal: true,
-      },
-      steps: [
-        {
-          procedureRef: "stat-grid",
-          procedureVersion: "stat-grid@1",
-          reason: "the claim states a number",
-          source: "required",
-          status: "ran",
-          declineReason: null,
-          outcome: "conflicting_cherry_picking",
-        },
-      ],
-      notAttempted: [],
-    });
+    await publishVerdict(
+      recorded.claimId,
+      researchRecord("The official series refutes the claim."),
+    );
 
     const page = await reader.getVerdictPage(recorded.claimId);
-    expect(page?.plan?.steps.map((step) => step.procedureRef)).toEqual(["stat-grid"]);
+    expect(page?.research?.turns[0]?.plan.evidencePlan).toContain("official series");
+    expect(page?.research?.turns[0]?.critique.reason).toBe(
+      "The official series refutes the claim.",
+    );
+    expect(page?.research?.turnsUsed).toBe(1);
+    expect(page?.research?.capped).toBe(false);
     expect(page?.triageRecord?.sentencesRead).toBe(12);
     expect(page?.triageRecord?.checked).toBe(3);
     // Verbatim, not paraphrased: the disclosure is only checkable against the
@@ -253,13 +286,12 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(page?.triageRecord?.setAside[0]?.rejectionClass).toBe("pledge-conditional");
     expect(page?.triageRecord?.held[0]?.reason).toBe("no deadline has passed");
 
-    // Unrecorded: every row ingested before the columns existed behaves this
-    // way (there is no backfill), and the page must omit both sections rather
-    // than guess a mode or render an empty "nothing was set aside".
+    // Unrecorded: the page must omit both sections rather than guess a check or
+    // render an empty "nothing was set aside".
     const bare = await seedClaim();
     await publishVerdict(bare.claimId);
     const barePage = await reader.getVerdictPage(bare.claimId);
-    expect(barePage?.plan).toBeNull();
+    expect(barePage?.research).toBeNull();
     expect(barePage?.triageRecord).toBeNull();
   });
 
@@ -314,19 +346,17 @@ describe("site reader (STORE §3, SIT-R14)", () => {
   });
 
   it("publishes only positively in-scope speakership, and fails closed on unclassified claims", async () => {
-    // ADR-0019's scope rule, enforced where it cannot be skipped. The first live
-    // lane published a verdict about RNZ's own narration — a compound sentence
-    // the reporter synthesised, with no speaker — so `outlet-prose` must not
-    // reach the public record even though the row exists, is published, and has
-    // a document behind it.
+    // ADR-0025's scope rule, enforced where it cannot be skipped. A verdict about
+    // the outlet's own narration could not say whose claim it assessed, so
+    // `outlet-prose` must not reach the public record even though the row exists,
+    // is published, and has a document behind it.
     const outletProse = await seedClaim({ speakershipClass: "outlet-prose" });
     await publishVerdict(outletProse.claimId);
     const unresolved = await seedClaim({ speakershipClass: "unresolved" });
     await publishVerdict(unresolved.claimId);
     const authorClaim = await seedClaim({ speakershipClass: "author-claim" });
     await publishVerdict(authorClaim.claimId);
-    // No decision recorded at all — the state every row ingested before
-    // ADR-0019 is in, and the state the live store's 29 claims are in.
+    // No decision recorded at all — a claim whose scope was never assessed.
     const unclassified = await seedClaim({ speakershipClass: null });
     await publishVerdict(unclassified.claimId);
 
@@ -336,12 +366,12 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(await reader.getVerdictPage(unresolved.claimId)).toBeNull();
     // Fail CLOSED: unclassified is not "probably fine". A claim has to be
     // positively classified in scope, not merely never judged out of it —
-    // otherwise publishing is the default and the ADR-0019 defect returns
+    // otherwise publishing is the default and the ADR-0025 defect returns
     // through the back door of an older writer.
     expect(await reader.getVerdictPage(unclassified.claimId)).toBeNull();
 
     // The class reaches the read model, so the page can say how a claim was
-    // attributed (ADR-0019 §5) rather than guessing from the speaker string.
+    // attributed (ADR-0025) rather than guessing from the speaker string.
     const page = await reader.getVerdictPage(authorClaim.claimId);
     expect(page?.speakershipClass).toBe("author-claim");
     expect(page?.speakershipMethod).toBe("structural");
@@ -353,7 +383,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
   });
 
   it("requires a COMPLETE scope decision — a class with no method or genre does not publish", async () => {
-    // ADR-0019 §5 makes the page disclose how a claim was attributed, and §2 says
+    // ADR-0025 makes the page disclose how a claim was attributed, and §2 says
     // the rule is genre-dependent. So an in-scope class with no provenance is not
     // a publishable decision: it is a claim whose confidence and rule-selection
     // cannot be stated. This is also the guard against a lane asserting a class
@@ -395,13 +425,13 @@ describe("site reader (STORE §3, SIT-R14)", () => {
         speakershipMethod: "classified",
         genre: "opinion-analysis",
       },
-      // Class recorded, but out of scope: recorded, never verified (ADR-0019 §1).
+      // Class recorded, but out of scope: recorded, never verified (ADR-0025).
       { speakershipClass: "outlet-prose", speakershipMethod: "classified", genre: "news-report" },
       { speakershipClass: "unresolved", speakershipMethod: "classified", genre: "news-report" },
       // A half-recorded decision: in-scope class, no provenance for it.
       { speakershipClass: "quoted-actor", speakershipMethod: null, genre: "transcript" },
       { speakershipClass: "quoted-actor", speakershipMethod: "structural", genre: null },
-      // No decision at all — every row ingested before ADR-0019.
+      // No decision at all.
       { speakershipClass: null, speakershipMethod: null, genre: null },
     ];
 
@@ -424,7 +454,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     const first = await store.appendEvidencePack(claim.claimId, {
       itemRefs: [],
       justifications: ["first pass"],
-      nliOutcome: "fail",
+      research: researchRecord("first pass"),
     });
     const v1 = await store.writeVerdict(claim.claimId, first.packId, {
       provenance: provenance(),
@@ -436,7 +466,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     const second = await store.appendEvidencePack(claim.claimId, {
       itemRefs: [],
       justifications: ["second pass"],
-      nliOutcome: "pass",
+      research: researchRecord("second pass"),
     });
     await store.writeVerdict(claim.claimId, second.packId, {
       provenance: provenance(),
@@ -451,7 +481,7 @@ describe("site reader (STORE §3, SIT-R14)", () => {
     expect(page?.verdictVersion).toBe(2);
     expect(page?.verdictStatus).toBe("DRAFT");
     expect(page?.justifications).toEqual(["second pass"]);
-    expect(page?.nliOutcome).toBe("pass");
+    expect(page?.research?.reason).toBe("second pass");
     // A pack with no items still reports its own metadata (the trail's "second
     // pass" line is about the reasoning, not about the sources).
     expect(page?.checkedAt).toBeInstanceOf(Date);
@@ -460,10 +490,9 @@ describe("site reader (STORE §3, SIT-R14)", () => {
 
   // SITE-MVP §2.3 makes these reachable in prose — "a FROZEN verdict is a fact the
   // reader should meet on the page, not in a footnote" — and STORE §3 says
-  // contested verdicts render "contested — under review", while the reader served
-  // DRAFT and PUBLISHED only. The consequence was that the 5 Nov freeze would
-  // remove live pages (Sept 2026). The page prints `state ${status}`, so serving
-  // them required no site change.
+  // contested verdicts render "contested — under review". Serving only DRAFT and
+  // PUBLISHED would make the 5 Nov freeze remove live pages. The page prints
+  // `state ${status}`, so serving them requires no site change.
   it("serves a frozen verdict, so the freeze cannot remove a live page", async () => {
     const { claim, verdictId } = await publishVerdictWithId();
     await store.logTransition(verdictId, { from: "PUBLISHED", to: "FROZEN" });

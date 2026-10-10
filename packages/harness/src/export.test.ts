@@ -20,7 +20,6 @@ const label = (over: Partial<LabelRecord> & { claimId: string }): LabelRecord =>
   claim: {
     text: "Crime is up 30% since 2017",
     utteranceText: "Crime is up 30% since 2017",
-    claimType: "statistical",
     claimDate: "2026-09-01",
     speaker: "A minister",
   },

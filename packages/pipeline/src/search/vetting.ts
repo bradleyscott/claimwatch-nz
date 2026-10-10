@@ -11,13 +11,11 @@
 // KIND of source a page is (1 official · 2 academic · 3 media · 5 sector ·
 // 6 unknown). The value written to `evidence_item.tier` comes from here, so
 // public copy is described from TIER_GUIDANCE (see
-// apps/site/src/lib/evidence-source-labels.ts). The two previously shared a
-// T1–T6 code space and disagreed from T2 on; the docs ladder was renamed to
-// A1–A6 (Sept 2026) to end the false equivalence. The
-// classifier is an LLM, honestly stated: same posture as the NLI publication
-// gate (VERIFICATION §2.7) — a gate on the worst misclassifications, calibrated
-// by harness fixtures (must-pass/must-fail authority packs at L1; audit
-// agreement on labels at L3). The rationale is recorded on the authority row as
+// apps/site/src/lib/evidence-source-labels.ts). The docs ladder is A1–A6 and
+// this scale is separate: the two answer different questions. The classifier is
+// an LLM, honestly stated — a gate on the worst misclassifications, calibrated
+// by harness fixtures (must-pass/must-fail authority packs at L1; agreement on
+// labels at L3). The rationale is recorded on the authority row as
 // provenance, contestable like any verdict.
 
 import type { SearchResult } from "./serper-adapter.ts";
@@ -44,10 +42,9 @@ export interface AuthorityVettingLlm {
 
 /**
  * Batched classification port: one call classifies every candidate that
- * survived stage 1. The per-candidate port above cost one LLM call per organic
- * search result (Serper returns ~10, roughly 8 survive guardrails) — by far the
- * largest call count in the pipeline, for a task that is one classification per
- * row. Same model, same taxonomy, more context per call (Sept 2026).
+ * survived stage 1. One call per organic result would be the largest call count
+ * in the pipeline for a task that is one classification per row. Same model,
+ * same taxonomy, more context per call.
  */
 export interface BatchedAuthorityVettingLlm {
   classifyAuthorities(

@@ -39,22 +39,21 @@ faithfully records what the pipeline did: fallbacks, vintages, and versions.
 |---|---|---|
 | `publication` | source_id, canonical_url, content_hash, retrieved_at/method, publisher + publication metadata, transcript (once), `transcript_tier` | Unit of document dedupe, health checks, reprocessing. Hash enforces re-ingest identity. |
 | `segment` | publication_id FK, span, descriptive summary, turn structure | Only where structure exists. |
-| `claim` | text, type, embedding, `discourse_window`, optional context fields (all nullable, never defaulted), publication/segment FKs, `media_anchor`, `transcript_tier`, `spoken_at` | The embedding powers repeat match. The fingerprint and `verification_mode` columns were removed by ADR-0023: a claim carries a PLAN (`verification_plan`), and its window and magnitude are parsed inside the procedure that needs them. `spoken_at` is when the claim was MADE (broadcast moment / item publication date), distinct from `created_at` (when we ingested it) — the public trail states both dates and omits the step when this one is absent rather than guessing (SITE-MVP §2.3). |
+| `claim` | text, embedding, `discourse_context` (incl. `supports`), publication/segment FKs, `media_anchor`, `transcript_tier`, `spoken_at` | The embedding column powers repeat match **in design only — nothing writes it yet** (no embedding provider is routed). Verification is one research loop (ADR-0026), so no claim type or plan selects a check. `spoken_at` is when the claim was MADE (broadcast moment / item publication date), distinct from `created_at` (when we ingested it) — the public trail states both dates and omits the step when this one is absent rather than guessing (SITE-MVP §2.3). |
 | `claimant_entity` | person/party, aliases, affiliation **at time of statement**, cross-links | Conservative attribution, never guessed. The verification loop never receives claimant identity. The candidate stored on the claim itself (`attribution_candidates`) requires only a `name`: `kind` and `confidence` are optional and are **not defaulted**, because the stage that produces it can honestly state the name the text attributes the words to, and nothing has yet resolved the entity. A required confidence forced the first wired lane to write `1` — the placeholder-confidence pattern already removed once for verdict confidence (SIT-R6). |
 | `evidence_item` | claim_id, authority ref, series identity, **vintage_date**, URL, **archive_snapshot_url**, hash, version | One row per fetched version; re-fetch creates a version, never an update. |
-| `evidence_pack` | claim_id, item refs, grid result, justifications, NLI outcome | Append-only; the pack that triggered a verdict is frozen and referenced by it. |
+| `evidence_pack` | claim_id, item refs, justifications, **research** (the loop record) | Append-only; the pack that triggered a verdict is frozen and referenced by it. `research` holds each turn's plan and critique, the evidence found, the turns used, whether the cap bound, and the class-agreement state (ADR-0026). The `grid_result` and `nli_outcome` columns are removed. |
 | `verdict_version` | claim_id, version (n), status, class (four + pledge/conditional), confidence, evidence_pack_id, **structured diff vs previous**, superseded_by, transition_reason | The mutation path is v(n)→v(n+1) with a stored public diff (ADR-0002). |
 | `verdict_transition_log` | from_status, to_status, reason, actor, at | Every transition logged; nothing silently edited; carries public evidence rejections. |
 | `fallback_log` | lane, source_id, stage, tier, reason | Feeds the per-lane Tier-2 fallback rate. |
 | `verdict_provenance` | pipeline_version, prompt_versions, model_versions, search refs, cost/latency refs | Rendered as the site's provenance block. |
-| `procedure` | procedure_ref, version, kind, title, consumes, produces, cannot_establish, rationale, discovered_by, status | The procedure library (ADR-0023). Fixed shape, emergent population, append-only; `retired` is a status change, never a deletion. Seeded with the five former modes. |
-| `verification_plan` | pack_id FK, plan (jsonb) | The plan a verification ran: ordered steps, each naming a procedure and version, its reason, whether it ran or was declined and why, and its outcome. Its own table rather than a column on `evidence_pack`, which is append-only and would have had history backfilled into it. |
+| `authority` | domain, authority_ref, source_url, tier, rationale, confidence, discovered_by, status | Discovered authorities with provenance; append-only like vintages. Feeds admissibility and the A1–A6 authority map (ADR-0020). |
 | `labels` (harness schema) | claim ref, verdict, cited sources, reasoning, evidence-availability, source-ecosystem, labeller, label-set version | Same object design as pipeline tables, versioned together; separate schema + access boundary (§2.8). |
 | job state | job name, schedule, last_run, status | `cron.job_run_details` feeds silence-detection. |
 
 Retrieval is native: HNSW on `claim.embedding`, `tsvector` FTS — hybrid dense+lexical is two indexes in one database. Hand-written SQL (hybrid retrieval, funnel views) stays typed via Drizzle's `sql` template.
 
-The site's reads are part of this package, not `apps/site` (Sept 2026): `site-reader.ts` holds the read model (Zod-validated `VerdictPageData`/`FeedEntry`) and the only queries the reader plane runs, so "latest verdict per claim" and "the pack this verdict pins" are written once against the schema instead of as string SQL in a consumer. The site's connection is opened read-only at the session level (`default_transaction_read_only`), so "the site has no write path" survives a future query-list mistake.
+The site's reads are part of this package, not `apps/site`: `site-reader.ts` holds the read model (Zod-validated `VerdictPageData`/`FeedEntry`) and the only queries the reader plane runs, so "latest verdict per claim" and "the pack this verdict pins" are written once against the schema instead of as string SQL in a consumer. The site's connection is opened read-only at the session level (`default_transaction_read_only`), so "the site has no write path" survives a future query-list mistake.
 
 **The reader serves only eligible claims by default**, on two conditions the pipeline decides and the
 store records. The site cannot infer either, so it does not guess.
@@ -62,18 +61,15 @@ store records. The site cannot infer either, so it does not guess.
 - **Document provenance** (`claim.publication_id` present). The `publication → segment → claim`
   hierarchy is what makes a check traceable to a document a reader can open (ADR-0008). Records without
   one are the AVeriTeC evaluation corpus and anything a slice script wrote straight into the store. On
-  13 September 2026 the live store served 26 published verdicts, 25 with no publication and 19 citing
-  no evidence, with one claim text appearing up to twelve times carrying contradictory classes —
-  ING-R10's "fixture records treated as a production lane" reaching the public site.
-- **Speakership** (`claim.speakership_class`, ADR-0019 §1) — whether the sentence was ours to check at
-  all. The first live lane published a verdict about RNZ's own narration: a compound sentence the
-  reporter synthesised, with no speaker, so the verdict could not say whose claim it assessed. Only
-  `quoted-actor` and `author-claim` publish; `outlet-prose` and `unresolved` are recorded, never
-  verified. The decision must also be **complete**: `speakership_method` and `genre` have to be
-  recorded, because the page discloses how a claim was attributed and a class with no provenance
-  behind it cannot be disclosed honestly. A **null class, or a null method or genre, fails closed** —
-  no decision recorded means not publishable, which is the state of every row ingested before ADR-0019
-  existed.
+  evaluation records and slice-written rows, a fixture set reaching the public site as though it were a
+  production lane (ING-R10).
+- **Speakership** (`claim.speakership_class`, ADR-0025 §1) — whether the sentence was ours to check at
+  all. A verdict about the outlet's own narration could not say whose claim it assessed, so it is not
+  publishable. Only `quoted-actor` and `author-claim` publish; `outlet-prose` and `unresolved` are
+  recorded, never verified. The decision must also be **complete**: `speakership_method` and `genre`
+  have to be recorded, because the page discloses how a claim was attributed and a class with no
+  provenance behind it cannot be disclosed honestly. A **null class, or a null method or genre, fails
+  closed**: no decision recorded means not publishable.
 
 `SiteReadOptions.includeIneligible` (the site's `?corpus=all`) is the explicit escape hatch, so the corpus stays reachable for inspection without being the default and without deleting anything. One predicate gates both the page and the feed, so a record cannot be listable but unreadable.
 
@@ -156,8 +152,8 @@ One schema design, two access boundaries: labels are generated from the **same D
 
 | Consumer | Reads | Writes | Contract |
 |---|---|---|---|
-| Verification engine | claim + context pack + procedure library, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
-| Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role, and the read path is the store's own typed read model (`packages/store/src/site-reader.ts`) — the site holds no SQL and its connection is a read-only session. Serves **eligible** records only: document provenance present (ADR-0008) and a positively in-scope speakership class (ADR-0019); everything else is reachable only through an explicit reader option (the site's `?corpus=all`). ClaimReview from store fields; methodology table from harness files, never hand-edited. |
+| Verification engine | claim + context pack, accumulated evidence | claims, evidence, packs, verdict v1, transition log, fallback log, provenance | Never receives claimant identity. Append-only writes; confidence on every verdict; below-threshold → open questions. |
+| Site | published verdicts, packs, context stack, provenance, entity records, funnel views | nothing | Read-only role, and the read path is the store's own typed read model (`packages/store/src/site-reader.ts`) — the site holds no SQL and its connection is a read-only session. Serves **eligible** records only: document provenance present (ADR-0008) and a positively in-scope speakership class (ADR-0025 §1); everything else is reachable only through an explicit reader option (the site's `?corpus=all`). ClaimReview from store fields; methodology table from harness files, never hand-edited. |
 | Harness | verdicts + evidence paths (read-only) | labels, label-set versions, scoring-run outputs | Blind rule: writes labels; pipeline cannot read them. |
 | Graphile Worker | claims, evidence, verdicts (via task handlers) | jobs, job runs, retries | Postgres-backed scheduler + executor (§2.3). Node work runs in worker containers; no separate queue service. |
 | Grafana | funnel views, reconciliation counts, job health | nothing | Store is the reconcilable truth; drift alerts. |
@@ -173,7 +169,7 @@ Highlights:
 | ID | Risk | Consequence if untested | Test | Signal | Layer |
 |---|---|---|---|---|---|
 | STO-R1 | Append-only violated by UPDATE/DELETE paths | Audit-log integrity silently broken; a "fixed" verdict indistinguishable from an honest one | Assert UPDATE/DELETE raise on all four append-only tables (real Postgres in CI); grants deny UPDATE to pipeline/site; hash-before/after immutability check | UPDATE/DELETE succeeding on append-only tables; row counts/hashes changing without a new version | L1 |
-| STO-R2 | Versioning/diff missing — mutation path unimplementable | ADR-0002's core mechanism unbuildable; s 199A clarity lost | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | Mutation rehearsal can't write v2; diff column null | L1 |
+| STO-R2 | Versioning/diff missing — mutation path unimplementable | ADR-0002's core mechanism unbuildable; supersession clarity lost | Write v1 → simulate validated pack → write v2; assert monotonic version, non-null diff, superseded_by | Mutation rehearsal can't write v2; diff column null | L1 |
 | STO-R3 | Vintage-date gaps, or vintage conflated with retrieval time | "As deployed" unverifiable; revisions undetectable | Vintage stored, distinct from retrieved_at, propagated to "as deployed"; no null vintages on series rows | Null vintage on series rows; vintage == retrieved_at everywhere | L1 |
 | STO-R4 | pgvector/FTS index drift after bulk load or migration | Repeat claims re-verified at full cost; duplicates published | Bulk-load-then-query on scratch Postgres — indexes return fixture neighbours post-migration; L2 repeat pair dedups every PR | Repeat-occurrence ratio ~0; dedup counter divergence | L1 + L2 |
 | STO-R5 | Migration failure corrupts live schema | Append-only store broken mid-campaign | drizzle-kit migrations in CI before merge; suite runs on the migrated schema; rollback tested | CI scratch-Postgres migration failing | L1 (CI) |

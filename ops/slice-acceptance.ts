@@ -106,7 +106,7 @@ async function main(): Promise<void> {
   // 3. Per-lane fallback log queryable (STORE §5.3). Read through the store's
   // typed API rather than a hand-written SELECT: this script should break when
   // the shape moves, not report a PASS against a query nothing else in the repo
-  // uses (Sept 2026).
+  // uses.
   console.error("→ store probes");
   let fallback: Check;
   try {
@@ -140,9 +140,7 @@ async function main(): Promise<void> {
   console.error("→ restore drill");
   try {
     const drill = await import("../packages/store/src/restore-drill.ts");
-    const { createTestStore, scratchDatabaseUrl } = await import(
-      "../packages/store/src/store.ts"
-    );
+    const { createTestStore, scratchDatabaseUrl } = await import("../packages/store/src/store.ts");
     const targetStore = await createTestStore(databaseUrl, { scratchSuffix: "_restore_drill" });
     await targetStore.close();
     const dump = await drill.exportDrillDump(databaseUrl);
@@ -161,7 +159,7 @@ async function main(): Promise<void> {
   console.log(
     [
       `Acceptance criteria NOT yet scriptable (outputs of the live run):`,
-      `  [ ] per-stratum accuracy table exists (per mode × media type, double-labelled IAA, cost/claim)`,
+      `  [ ] per-stratum accuracy table exists (per verdict class × source type, double-labelled IAA, cost/claim)`,
       `  [ ] site demoable on live data from five source types with hear-it links`,
       `  [ ] risk map empirical (which strata are production-grade)`,
       `  [ ] feedback channels live with early-user input`,

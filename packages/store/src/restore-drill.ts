@@ -18,13 +18,10 @@ export interface DrillTableNode {
 
 /**
  * The store schema as a dependency graph, read from the Drizzle table objects.
- * Nothing here is hand-listed: the drill used to carry literal table arrays and
- * they silently drifted — `authority` (the one table that persists across live
- * runs) was absent from every list, so the release-blocking drill reported PASS
- * while dropping the authority registry, and no grant was replayed for it
- * (Sept 2026). Deriving from the schema makes that class of omission
- * impossible. `drillTableGraph` is exported so the parity test can re-assert
- * the derivation rather than trust it.
+ * Nothing here is hand-listed, because a literal table array drifts silently: a
+ * table missing from the list makes the release-blocking drill report PASS while
+ * dropping it, with no grant replayed for it. `drillTableGraph` is exported so
+ * the parity test can re-assert the derivation rather than trust it.
  */
 export function drillTableGraph(): DrillTableNode[] {
   const tables = Object.values(schema).filter((value) => is(value, PgTable));
@@ -137,9 +134,8 @@ export async function replayDrillDump(targetDatabaseUrl: string, dumpSql: string
   try {
     // The target must start EMPTY: the migration chain is schema + seed rows
     // (0001_seeds), and the dump carries those same seed rows as data, so
-    // replaying over a freshly migrated target duplicates every seed. The
-    // authority registry came back with 6 rows against a source of 3 — invisible
-    // until `authority` joined the derived table set (Sept 2026).
+    // replaying over a freshly migrated target duplicates every seed: the
+    // authority registry comes back with 6 rows against a source of 3.
     //
     // TRUNCATE, not DELETE: it does not fire the row-level append-only triggers,
     // and this is a throwaway scratch database, never history. The same trap

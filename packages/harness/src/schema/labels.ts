@@ -5,12 +5,11 @@
 // claim object, never a foreign key: the claim record stays the pipeline's
 // (HARNESS §2.1 — "the label schema does not redefine claim or verdict types").
 //
-// They were previously hand-written DDL strings inside `applyLabelsMigrations`.
-// That left STO-R6/HAR-R5's mitigations ("cross-package typecheck; drizzle-kit
-// diff") with nothing to check: there was no Drizzle definition to diff against
-// the pipeline's objects, and `packages/harness` declared drizzle-orm without
-// importing it. The tables are now generated against `claimwatch_labels` by
-// `packages/harness/drizzle.config.ts` (Sept 2026).
+// The tables are generated against `claimwatch_labels` by
+// `packages/harness/drizzle.config.ts`, which is what gives STO-R6/HAR-R5's
+// mitigations ("cross-package typecheck; drizzle-kit diff") something to check:
+// hand-written DDL strings would leave no Drizzle definition to diff against the
+// pipeline's objects.
 
 import { sql } from "drizzle-orm";
 import {

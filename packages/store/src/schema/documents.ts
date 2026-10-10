@@ -79,18 +79,14 @@ export const claim = pgTable(
     sentenceSpan: jsonb("sentence_span"),
     utteranceText: text("utterance_text").notNull(),
     text: text("text").notNull(),
-    claimType: text("claim_type").notNull(),
-    // The claim's CONTENT IDENTITY, derived by triage from the sentence text,
-    // the window it was read in and its type (`claimIdFor` in
-    // packages/pipeline/src/triage.ts). Unique, so re-ingesting the same document
-    // finds the claim it already made instead of making a second one.
+    // The claim's CONTENT IDENTITY, derived by triage from the sentence text and
+    // the window it was read in (`claimIdFor` in packages/pipeline/src/triage.ts).
+    // Unique, so re-ingesting the same document finds the claim it already made
+    // instead of making a second one.
     //
-    // This is the key TRIAGE §5's "append-idempotent on fingerprint" actually
-    // needs: a fingerprint exists for statistical claims only, so it cannot
-    // dedupe a quotation or a cited-document claim at all. Nullable because rows
-    // ingested before this column exist and because a caller with no triage
-    // behind it has no key to give — Postgres allows many NULLs in a unique
-    // index, so those rows stay insertable without weakening the constraint.
+    // Nullable because a caller with no triage behind it has no key to give.
+    // Postgres allows many NULLs in a unique index, so those rows stay insertable
+    // without weakening the constraint.
     claimKey: text("claim_key"),
     embedding: text("embedding"), // pgvector vector; populated by triage phase
     discourseContext: jsonb("discourse_context").notNull(), // nullable fields inside, never defaulted
@@ -98,28 +94,27 @@ export const claim = pgTable(
     // When the claim was MADE — the broadcast moment or the publication date of
     // the item it was said in — as distinct from `createdAt`, which is when we
     // ingested it. The public trail needs both to say "said on 8 Sep, checked on
-    // 9 Sep" (SITE-MVP §2.3); nullable because some sources carry no usable
-    // date and every row ingested before this column existed has none, and an
-    // absent date must render as "we do not have this" rather than as a guess.
+    // 9 Sep" (SITE-MVP §2.3). Nullable because some sources carry no usable date,
+    // and an absent date must render as "we do not have this" rather than as a
+    // guess.
     spokenAt: timestamp("spoken_at", { withTimezone: true }),
     transcriptTier: text("transcript_tier"),
     captionQualityFlag: text("caption_quality_flag"),
     attributionCandidates: jsonb("attribution_candidates").notNull().default([]),
-    // Whose words this sentence is (ADR-0019): the `attribute` stage's decision,
-    // made at ingestion BEFORE triage reads it, and the eligibility gate on the
-    // public record. The first live lane published a verdict about RNZ's own
-    // narration — a compound sentence the reporter synthesised, with no speaker —
-    // because nothing said which sentences are ours to check.
+    // Whose words this sentence is (ADR-0025): triage's single per-sentence
+    // class decision, and the eligibility gate on the public record. The gate
+    // exists because a verdict about the outlet's own narration would be a
+    // verdict about nobody's claim.
     //
-    // Null means NO decision was recorded: every row ingested before the rule
-    // existed, and any writer that has not classified the sentence yet. The
-    // reader treats that as NOT eligible (`speakership.ts`), so a claim cannot
-    // reach the public record by never being assessed. `quoted-actor` and
+    // Null means NO decision was recorded — any writer that has not classified
+    // the sentence yet. The reader treats that as NOT eligible
+    // (`speakership.ts`), so a claim cannot reach the public record by never
+    // being assessed. `quoted-actor` and
     // `author-claim` are the eligible classes; `outlet-prose` and `unresolved`
     // are recorded, never verified.
     speakershipClass: text("speakership_class"),
     // How that class was decided, and the genre that selected the rule
-    // (ADR-0019 §2/§5). Both are part of the decision, not metadata about it:
+    // (ADR-0025). Both are part of the decision, not metadata about it:
     // a structural attribution and a classified one carry different confidence,
     // and the rule itself is genre-dependent — so a class with neither recorded
     // cannot be disclosed honestly and does not publish (see `speakership.ts`).
@@ -130,9 +125,8 @@ export const claim = pgTable(
     // rejection class, and which were held without grading. This is the "what we
     // did not check" disclosure — the honest edge of every verdict, since a
     // finding about one sentence is not a finding about the interview it came
-    // from. Computed on every run and discarded until Sept 2026; nullable
-    // because rows ingested before it exist, and the page then omits the section
-    // rather than rendering an empty one.
+    // from. Nullable because a writer may not have recorded one, and the page
+    // then omits the section rather than rendering an empty one.
     triageRecord: jsonb("triage_record"),
     isCuratedFixture: boolean("is_curated_fixture").notNull().default(false),
     pipelineVersion: text("pipeline_version").notNull(),
@@ -142,12 +136,11 @@ export const claim = pgTable(
   },
   (t) => [
     index("claim_publication_idx").on(t.publicationId),
-    index("claim_type_idx").on(t.claimType),
     // Re-ingest idempotency (TRI-R13/STO-R13): one row per content identity, so a
     // re-triage that reaches the same conclusion about the same sentence cannot
     // accumulate a duplicate claim with its own verdict and its own trail.
     uniqueIndex("claim_key_uq").on(t.claimKey),
-    // ADR-0019 §1's four classes. The CHECK is the schema-side half of the
+    // ADR-0025's four classes. The CHECK is the schema-side half of the
     // eligibility rule: `speakership.ts` decides which are publishable, and a
     // value outside the vocabulary cannot be written at all (the site gate and
     // the pipeline classifier both derive from that one list).

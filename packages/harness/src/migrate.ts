@@ -6,9 +6,8 @@
 //
 // The chain is generated against `claimwatch_labels` by
 // `packages/harness/drizzle.config.ts` from the Drizzle tables in
-// `./schema/labels.ts`, so STO-R6/HAR-R5's mitigations ("cross-package
-// typecheck; drizzle-kit diff") have a definition to check — the schema used to
-// be DDL strings with nothing to diff (Sept 2026).
+// `./schema/labels.ts`, so STO-R6/HAR-R5's mitigations ("cross-package typecheck;
+// drizzle-kit diff") have a definition to check.
 
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -85,8 +84,8 @@ export interface LabelsTestOptions extends LabelsMigrateOptions {
  */
 export async function createTestLabelsPool(options: LabelsTestOptions): Promise<Pool> {
   // Per-process run id, for the same reason the pipeline store uses one: two
-  // sessions running the blind-rule suite at once picked the same scratch name and
-  // each DROP DATABASE … WITH (FORCE) killed the other mid-test (Sept 2026).
+  // sessions running the blind-rule suite at once would pick the same scratch name
+  // and each DROP DATABASE … WITH (FORCE) would kill the other mid-test.
   const runId = process.env.CW_TEST_RUN_ID ?? `p${process.pid}`;
   const scratchName = `${new URL(options.labelsDatabaseUrl).pathname.replace(/^\//, "")}${options.scratchSuffix}_${runId}`;
   assertSafeIdentifier(scratchName);

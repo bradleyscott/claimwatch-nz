@@ -1,9 +1,9 @@
-// Class-agreement gate (Sept 2026): when no sampling knob can pin the sampler,
-// pin the decision — publish a class only when two runs agree.
+// Class-agreement gate: when no sampling knob can pin the sampler, pin the
+// decision — publish a class only when two runs agree.
 
 import type { VerdictClass } from "../verification-api.ts";
 
-// ---------- class-agreement gate (Sept 2026) ----------
+// ---------- class-agreement gate ----------
 
 export interface ClassAgreement<T> {
   /** True when every attempt produced the same verdict class. */
@@ -23,7 +23,7 @@ export interface ClassAgreement<T> {
 
 /**
  * Run the class-deciding step more than once and publish only if it agrees with
- * itself (Sept 2026).
+ * itself.
  *
  * Why this exists rather than a sampling pin: the configured models discard the
  * sampling settings (`claude-sonnet-5` ignores `temperature`; the OpenRouter

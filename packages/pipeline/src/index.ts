@@ -1,7 +1,10 @@
-// Pipeline public surface: the deterministic verification surface plus the
-// versioned config constants other packages pin against.
+// Pipeline public surface: triage (one decision per sentence), the adversarial
+// research loop, and the deterministic ingestion/search surface.
 
-export { GRID_AXES_VERSION, PROCEDURE_LIBRARY_VERSION } from "@cw/llm";
-export * from "./claim-parameters.ts";
+export * from "./agent-port.ts";
+export * from "./claim-context.ts";
+export * from "./decision-port.ts";
 export * from "./ingestion.ts";
-export * from "./plan.ts";
+export * from "./research.ts";
+export * from "./triage.ts";
+export * from "./verification.ts";

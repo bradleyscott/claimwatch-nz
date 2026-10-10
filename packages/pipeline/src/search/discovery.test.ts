@@ -1,4 +1,4 @@
-// Discovery flow (user direction, Sept 2026): open-web is the DEFAULT
+// Discovery flow: open-web is the DEFAULT
 // verification path; the authority registry makes later claims better. On a
 // registry miss, discovery runs NON-BLOCKING: the triggering claim gets its
 // open-web verdict immediately, while search → guardrails → LLM classification
@@ -36,7 +36,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
     const { calls, search } = stubSearch([]);
     const classify = stubClassifier(() => null);
     await discoverAuthority(
-      { domain: "covid-mortality", claimText: "More than 225,000 people dead" },
+      { domain: "covid-mortality" },
       {
         search,
         classifyAuthorities: classify,
@@ -64,7 +64,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
       searchRefs: string[];
     }> = [];
     await discoverAuthority(
-      { domain: "covid-mortality", claimText: "whatever" },
+      { domain: "covid-mortality" },
       {
         search,
         classifyAuthorities: stubClassifier((c) =>
@@ -92,7 +92,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
     ]);
     const persisted: unknown[] = [];
     const outcome = await discoverAuthority(
-      { domain: "covid-mortality", claimText: "x" },
+      { domain: "covid-mortality" },
       {
         search,
         classifyAuthorities: stubClassifier(() => ({ tier: 1, rationale: "x", confidence: 0.9 })),
@@ -116,7 +116,7 @@ describe("discovery flow — non-blocking authority persistence", () => {
     ]);
     const batches: number[] = [];
     await discoverAuthority(
-      { domain: "covid-mortality", claimText: "x" },
+      { domain: "covid-mortality" },
       {
         search,
         classifyAuthorities: async (candidates) => {
@@ -134,37 +134,13 @@ describe("discovery flow — non-blocking authority persistence", () => {
     expect(batches).toEqual([3]); // single call for the whole surviving set
   });
 
-  it("skips discovery for a claim type that can never route to stat-grid", async () => {
-    const { calls, search } = stubSearch([
-      { title: "MoH", link: "https://www.health.govt.nz/x", snippet: "" },
-    ]);
-    let classifyCalls = 0;
-    const outcome = await discoverAuthority(
-      { domain: "covid-mortality", claimType: "other", claimText: "x" },
-      {
-        search,
-        classifyAuthorities: async (candidates) => {
-          classifyCalls++;
-          return candidates.map(() => ({ tier: 1, rationale: "x", confidence: 0.9 }));
-        },
-        recordAuthority: async () => {
-          throw new Error("should not persist");
-        },
-      },
-    );
-    expect(outcome.persisted).toBe(false);
-    expect(outcome.reason).toContain("never routes to stat-grid");
-    expect(calls).toHaveLength(0); // no search bought for a dead registry row
-    expect(classifyCalls).toBe(0);
-  });
-
   it("guardrails fire before the classifier — advocacy never reaches the LLM", async () => {
     const { search } = stubSearch([
       { title: "Curia report", link: "https://curia.com/report", snippet: "" },
     ]);
     let classifyCalls = 0;
     await discoverAuthority(
-      { domain: "covid-mortality", claimText: "x" },
+      { domain: "covid-mortality" },
       {
         search,
         classifyAuthorities: async (candidates) => {

@@ -1,344 +1,278 @@
-// One-claim live run (Sept 2026): end-to-end through the real
-// pipeline with the live adapter — ingest a real Beehive release text →
-// triage (checkability + typing via Claude) → verify (stat grid + NLI gate)
-// → verdict written to the store → viewable on the site.
+// One-claim live run (ADR-0025, ADR-0026): a small press-release-like document
+// through the two live stages — triage (two arms per sentence) → the adversarial
+// research loop (assessor → researcher → critiquer) → claim, evidence pack and
+// verdict written to the store, viewable on the site.
 //
-// Cost estimate: a handful of generateObject calls, well under $0.05.
+// Usage:
+//   set -a; source .env; set +a
+//   npx tsx ops/live-one-claim.ts
+//
+// LIVE_EGRESS-gated by the keys it requires (preflight makes no paid call without
+// them). Cost: a handful of generateObject calls plus Serper searches.
 
 import { setDefaultResultOrder } from "node:dns";
 
 setDefaultResultOrder("ipv4first");
 
-import { PROCEDURE_LIBRARY_VERSION } from "../packages/llm/src/config.ts";
-import { claimParametersFromLlm } from "../packages/pipeline/src/claim-parameters.ts";
-import {
-  createLiveAdapter,
-  type ProviderCall,
-  type ProviderResult,
-} from "../packages/pipeline/src/llm/live-adapter.ts";
-import { portFromAdapter } from "../packages/pipeline/src/llm/live-port.ts";
-import { derivePlanFeatures, planForClaim } from "../packages/pipeline/src/plan.ts";
-import {
-  TRIAGE_CONTEXT_PROMPT,
-  TRIAGE_SCHEMAS,
-  triageDocument,
-} from "../packages/pipeline/src/triage.ts";
-import type { TriageLlm, TriageRole } from "../packages/pipeline/src/triage-llm.ts";
-import {
-  agreeOnVerdictClass,
-  computeStatGrid as computeGrid,
-  materialGridRows,
-  nliAudit,
-  VERIFICATION_SCHEMAS,
-} from "../packages/pipeline/src/verification.ts";
-import type {
-  VerificationLlm,
-  VerificationRole,
-} from "../packages/pipeline/src/verification-llm.ts";
+import { createHash } from "node:crypto";
+import { deriveJurisdiction } from "../packages/pipeline/src/claim-context.ts";
+import { extractArticle } from "../packages/pipeline/src/ingestion.ts";
+import type { ResearchClaimContext } from "../packages/pipeline/src/research.ts";
+import { fetchEvidenceText } from "../packages/pipeline/src/search/fetch-evidence.ts";
+import { splitSentences, triageDocument } from "../packages/pipeline/src/triage.ts";
 import { claimReviewFromVerdict, validateClaimReview } from "../packages/store/src/claimreview.ts";
-import { createTestStore } from "../packages/store/src/store.ts";
+import { createStore } from "../packages/store/src/store.ts";
+import {
+  createTrackedAdapter,
+  logCost,
+  logRouting,
+  PIPELINE_VERSION,
+  preflight,
+  provenanceFor,
+  requireEnv,
+  researchAgentPort,
+  researchPort,
+  runResearch,
+  toResearchLoopRecord,
+  triagePort,
+} from "./live-support.ts";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is not set — copy .env.example to .env and fill it in`);
+// A real published article, fetched at run time: a Police Minister's quoted
+// statistic with the reporting around it. The document is the item we read, so
+// its URL resolves, the Minister is named in it, and the window is the passage
+// the quote was cut from (ADR-0008).
+const DOC = {
+  documentId: "live-run-one-claim",
+  genre: "news-report" as const,
+  sourceId: "rnz-politics",
+  link: "https://www.rnz.co.nz/news/politics/543322/violent-crime-victimisation-rates-steady-not-dropping-data-shows",
+  spokenAt: new Date("2025-02-27T12:00:00Z"),
+};
+
+// Used only if the live fetch fails; the run then says so rather than inventing a
+// document.
+const FALLBACK_TEXT =
+  "Victimisation rates for violent offences have stayed mostly steady according to new official data. " +
+  "Police Minister Mark Mitchell said violent crime had a 51 percent increase from 2018 to 2023 and a 2 percent decrease from 2023 to 2024.";
+
+/** Fetch a URL and extract its article; degrade to the plain fetcher, then a fixture. */
+async function fetchDocument(url: string): Promise<{ text: string; title: string }> {
+  try {
+    const response = await fetch(url, { headers: { "user-agent": "claimwatch-slice/0.1" } });
+    const html = await response.text();
+    const doc = extractArticle(html, url);
+    return { text: doc.text, title: doc.title };
+  } catch {
+    const fallback = await fetchEvidenceText(url);
+    return {
+      text: fallback.ok && fallback.text.length > 200 ? fallback.text : FALLBACK_TEXT,
+      title: "",
+    };
   }
-  return value;
 }
 
-const DATABASE_URL = requireEnv("DATABASE_URL");
-
-// The real claim: a Beehive release line that will exercise the stat-grid.
-const CLAIM_TEXT = "Crime is up 30% since 2017.";
-
 async function main(): Promise<void> {
+  preflight();
+
   console.log("── one-claim live run ──");
-  console.log(`claim: "${CLAIM_TEXT}"`);
 
-  // Live adapter bridging both ports.
-  // Provenance (HAR-R7): record the roles this run actually invoked, with the
-  // model the adapter reported for each — never a hand-written role/model list.
-  // Every LLM call funnels through `call`, so the manifest cannot claim a step
-  // that did not run.
-  const invokedRoles = new Map<string, string>();
-  const rawAdapter = createLiveAdapter();
-  const adapter = {
-    call: async <T>(providerCall: ProviderCall): Promise<ProviderResult<T>> => {
-      const result = await rawAdapter.call<T>(providerCall);
-      invokedRoles.set(providerCall.role, result.model ?? "unknown");
-      return result;
-    },
-  };
-  const triageLlm: TriageLlm = portFromAdapter<TriageRole>(adapter, {
-    promptFor,
-    schemas: TRIAGE_SCHEMAS,
-  });
-  const verificationLlm: VerificationLlm = portFromAdapter<VerificationRole>(adapter, {
-    promptFor,
-    schemas: VERIFICATION_SCHEMAS,
-  });
+  // Fetch the real item and run the ingestion extraction ladder over it, so the
+  // stored source URL is the one we read and the text is article text, not markup.
+  const document = await fetchDocument(DOC.link);
+  const documentText = document.text;
+  console.log(`document: ${DOC.documentId} (${DOC.genre}) — ${documentText.length} chars`);
+  console.log(`  fetched from: ${DOC.link}`);
 
-  // 1. Triage: checkability + typing via the LLM.
+  // Live adapter + the two stage ports. Provenance records what actually ran.
+  const tracked = createTrackedAdapter();
+  const triageLlm = triagePort(tracked.adapter);
+  const researchLlm = researchPort(tracked.adapter);
+  const agentPort = researchAgentPort(tracked.adapter);
+
+  // 1. Triage: two arms per sentence (ADR-0025).
   console.log("\n[1/4] triage (live LLM)…");
-  const doc = {
-    documentId: "live-run-001",
-    sentences: [
-      { id: "s1", text: CLAIM_TEXT, window: "post-Cabinet press conference, 8 September 2026" },
-    ],
-  };
-  const triage = await triageDocument(doc, triageLlm as never);
-  console.log(`  claims: ${triage.claims.length}, dropped: ${triage.dropLog.length}`);
-  for (const claim of triage.claims) {
-    // No mode any more (ADR-0023): triage answers the TYPE, and the plan below
-    // decides which procedures that type needs.
-    console.log(`  → claim ${claim.claimType}`);
+  const sentences = splitSentences(documentText);
+  const triage = await triageDocument(
+    {
+      documentId: DOC.documentId,
+      genre: DOC.genre,
+      documentText,
+      sentences: sentences.map((sentence) => ({
+        id: sentence.id,
+        text: sentence.text,
+        // The passage the sentence was cut from, so the page can show the claim
+        // in context rather than repeating the sentence.
+        window: documentText.slice(
+          Math.max(0, sentence.span.start - 500),
+          Math.min(documentText.length, sentence.span.end + 500),
+        ),
+      })),
+    },
+    triageLlm,
+    { decisions: tracked.decisions, decisionRoles: tracked.decisionRoles },
+  );
+  console.log(
+    `  read ${triage.triageRecord.sentencesRead} sentence(s): ${triage.claims.length} claim(s), ` +
+      `${triage.triageRecord.setAside.length} set aside, ${triage.triageRecord.held.length} held`,
+  );
+  for (const drop of triage.triageRecord.setAside) {
+    console.log(`    set aside (${drop.rejectionClass}): ${drop.sentenceText.slice(0, 80)}`);
+  }
+  const funnels = [triage.provenance.decision, triage.claims[0]?.provenance.decision];
+  for (const funnel of funnels) {
+    if (funnel == null) continue;
+    console.log(
+      `  decision (${funnel.role}): ${funnel.model} — settled ${funnel.settled}, ` +
+        `escalated ${funnel.escalated}${funnel.degraded ? " (DEGRADED)" : ""}`,
+    );
   }
   if (triage.claims.length === 0) {
-    console.log("  no claim survived triage — check drop log:");
-    for (const drop of triage.dropLog) {
-      console.log(`    dropped: ${drop.rejectionClass} — ${drop.sentenceText.slice(0, 80)}`);
-    }
+    console.log("  no claim survived triage — nothing to verify.");
     return;
   }
-  const [claim] = triage.claims;
-  // noUncheckedIndexedAccess: triage guarantees at least one claim, but TS needs
-  // the narrowing spelled out.
+  // Prefer a directly quoted claim that states a number; then any attributed
+  // claim with a number; otherwise the first attributed claim.
+  const quotedClaims = triage.claims.filter((c) => c.speakershipClass === "quoted-actor");
+  const claim =
+    quotedClaims.find((c) => /["“]/.test(c.text) && /\d/.test(c.text)) ??
+    quotedClaims.find((c) => /\d/.test(c.text)) ??
+    quotedClaims[0] ??
+    triage.claims[0];
   if (claim == null) return;
+  console.log(`  verifying: "${claim.text.slice(0, 110)}"`);
+  console.log(`  class: ${claim.speakershipClass}${claim.speaker ? ` (${claim.speaker})` : ""}`);
 
-  // 2. Verify: the figures procedure over the fixture series. The claim's window
-  // and magnitude are PARSED here, at the point of use, by a live model call
-  // (ADR-0023) — they used to arrive pre-extracted as a fingerprint, which is why
-  // nothing noticed that the grid read them out of free text with a regex. The
-  // grid arithmetic is pure logic; the materiality selection is also live.
-  console.log("\n[2/4] verification (stat grid, materiality via live LLM)…");
-  // The class-agreement gate (VERIFICATION §2.7a, VER-R16): the class this slice
-  // publishes is decided twice, and a disagreement publishes nothing. The
-  // sampling pin does not work on the configured models — claude-sonnet-5
-  // ignores temperature and the OpenRouter model ignores seed — so the decision
-  // is what gets pinned rather than the sampler: one claim returned
-  // `not_enough_evidence` once and `supported` twice, gate passing each time.
-  const parameters = await claimParametersFromLlm(triageLlm as never, { sentence: claim.text });
+  // 2. The adversarial research loop (ADR-0026): assessor → researcher → critiquer,
+  // capped at MAX_RESEARCH_TURNS.
+  console.log("\n[2/4] adversarial research (live LLM + Serper)…");
+  const context: ResearchClaimContext = {
+    claim: claim.text,
+    supports: claim.discourseContext.supports ?? null,
+    topic: claim.discourseContext.policyTopic ?? null,
+    venue: claim.discourseContext.speechContext ?? null,
+    document: documentText,
+    // The claim's own document: its republications are the claim, not evidence.
+    sourceUrl: DOC.link,
+    documentTitle: document.title,
+    jurisdiction: deriveJurisdiction({ publicationUrl: DOC.link, sourceId: DOC.sourceId }),
+  };
+  const { outcome } = await runResearch(context, researchLlm, agentPort);
   console.log(
-    `  parsed: window=${parameters.window.kind} ${parameters.window.start ?? "-"}→${parameters.window.end ?? "now"}` +
-      ` · quantity=${parameters.quantity.kind} ${parameters.quantity.value ?? "-"}`,
+    `  ${outcome.turnsUsed} turn(s)${outcome.capped ? ` (STOPPED: ${outcome.stopReason})` : ""}; ` +
+      `${outcome.evidence.length} piece(s) of evidence; agreement: ${outcome.agreement.agreed}`,
   );
-  const agreement = await agreeOnVerdictClass(() =>
-    computeGrid(verificationLlm as never, {
-      parameters,
-      claimText: claim.text,
-      series: fixtureSeries(),
-      discourseContext: { attachedProposal: "tougher sentencing package" },
-    }),
+  console.log(
+    `  research spend $${(outcome.spentUsd ?? 0).toFixed(4)} of $${outcome.budgetUsd.toFixed(2)} budget`,
   );
-  if (!agreement.agreed || !agreement.outcome) {
-    console.log(
-      `\n── publication blocked by class disagreement ──\n  runs: ${agreement.attempts}\n  classes: ${agreement.classes.join(", ")}`,
-    );
-    return;
+  console.log(`  reason: ${outcome.reason}`);
+  for (const e of outcome.evidence.slice(0, 4)) {
+    console.log(`    · ${e.domain || e.url} — ${e.passage.slice(0, 70)}`);
   }
-  const grid = agreement.outcome;
-  console.log(`  verdict: ${grid.verdictClass}`);
-  console.log(`  matched row: ${grid.matchedRow ?? "none"}`);
-  console.log(`  reason: ${grid.reason}`);
-  console.log(
-    `  grid rows computed: ${grid.grid.rows.length}, material: ${grid.grid.materialRows.length}`,
-  );
 
-  // 3. NLI gate + store write. The gate runs BEFORE the write: this script used
-  // to record `nliOutcome: "pass"` without ever running an audit, which put a
-  // gate result on a public verdict that nothing had checked (Sept 2026).
-  console.log("\n[3/4] publication (NLI gate + verdict write)…");
-  // Round to the precision the evidence carries: interpolating the raw float
-  // (11.585365853658537%) states a precision no source supports, which the NLI
-  // gate is right to reject as unsupported detail.
-  const citedChange = grid.grid.rows[0]?.percentChange;
-  const justification = `The cited window shows ${
-    citedChange != null ? `${citedChange.toFixed(1)}%` : "no computed change"
-  }, not 30%.`;
-  const nli = await nliAudit(verificationLlm as never, {
-    justification,
-    // What the audit is given as "the evidence": the material rows the grid
-    // computed, each as window + change, so the audit can ask whether the
-    // justification above actually follows from them.
-    citedSpan: materialGridRows(grid.grid)
-      .map(
-        (row) =>
-          `${row.axis} ${row.variant}: ${
-            row.percentChange != null ? `${row.percentChange.toFixed(1)}%` : "no change computed"
-          }`,
-      )
-      .join("; "),
-  });
-  console.log(`  NLI: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`);
-  const store = await createTestStore(DATABASE_URL);
+  // 3. Store writes: claim, evidence items, evidence pack (the loop record).
+  console.log("\n[3/4] store writes…");
+  const store = await createStore(requireEnv("DATABASE_URL"));
   try {
+    // The public reader serves only claims with document provenance, so the
+    // slice records the item it read before the claim (ADR-0008).
+    const publication = await store.recordPublication({
+      sourceId: DOC.sourceId,
+      canonicalUrl: DOC.link,
+      contentHash: createHash("sha256").update(documentText).digest("hex"),
+      retrievedAt: new Date(),
+      retrievalMethod: "slice",
+      pipelineVersion: PIPELINE_VERSION,
+      rawRef: DOC.documentId,
+      text: documentText,
+    });
     const claimRecord = await store.recordClaim({
-      utteranceText: CLAIM_TEXT,
-      text: CLAIM_TEXT,
-      // Content identity from triage — makes the write idempotent, so re-running
-      // the slice does not accumulate a second claim with its own verdict
-      // (TRI-R13).
-      claimKey: triage.claims[0]?.claimId ?? null,
-      claimType: "statistical",
-      // What triage made of the document the claim came from — the "what we did
-      // not check" section on the page. Written from the triage result, never
-      // hand-authored: a summary a human wrote is not a record of what ran.
+      publicationId: publication.publicationId,
+      // Content identity from triage makes the write idempotent (TRI-R13).
+      claimKey: claim.claimId,
+      utteranceText: claim.utteranceText,
+      text: claim.text,
+      speakershipClass: claim.speakershipClass,
+      // One combined classifier decided this (ADR-0025); the genre selected the rule.
+      speakershipMethod: "classified",
+      genre: DOC.genre,
       triageRecord: triage.triageRecord,
-      // No claim-level parse and no `verification_mode` (ADR-0023): the plan
-      // travels with the evidence pack, below.
-      discourseContext: {
-        window: "post-Cabinet press conference",
-        attachedProposal: "tougher sentencing",
-        argumentDirection: "problem",
-      },
+      spokenAt: DOC.spokenAt,
+      discourseContext: claim.discourseContext,
+      // No confidence: nothing measures entity resolution, and a fabricated 1
+      // reads as certainty (store/src/speakership.ts, AttributionCandidate).
+      attributionCandidates: claim.speaker
+        ? [{ name: claim.speaker, kind: "person", basis: "triage-checkability@1" }]
+        : [],
     });
-    const plan = planForClaim({
-      features: derivePlanFeatures({
-        category: "crime-statistics",
-        claimText: claim.text,
-        claimType: claim.claimType,
-        attachesToProposal: true,
-      }),
-      claimText: claim.text,
-      available: (await store.listProcedures()).map((p) => ({
-        procedureRef: p.procedureRef,
-        version: p.version,
-        status: p.status ?? ("active" as const),
-        cannotEstablish: p.cannotEstablish,
-      })),
-      pastPlans: [],
-      notAttempted: [
-        "whether any policy caused the change — no procedure here can reach causation",
-      ],
-    }).steps.map((step) => ({ ...step, status: "ran" as const, outcome: grid.verdictClass }));
-    const pack = await store.appendEvidencePack(claimRecord.claimId, {
-      plan: {
-        libraryVersion: PROCEDURE_LIBRARY_VERSION,
-        features: derivePlanFeatures({
-          category: "crime-statistics",
-          claimText: claim.text,
-          claimType: claim.claimType,
-          attachesToProposal: true,
-        }),
-        steps: plan,
-        notAttempted: [
-          "whether any policy caused the change — no procedure here can reach causation",
-        ],
-      },
-      itemRefs: [],
-      gridResult: grid.grid,
-      justifications: [justification],
-      nliOutcome: nli.verdict === "pass" ? "pass" : "fail",
-    });
-    if (nli.verdict !== "pass") {
-      // The publication gate is a gate (VERIFICATION §2.7): the pack is the record
-      // of the blocked attempt and no verdict is written, so nothing unvetted
-      // reaches the public page.
-      console.log(
-        `\n── publication blocked ── NLI audit: ${nli.verdict}${nli.failureClass ? ` (${nli.failureClass})` : ""}`,
-      );
-      console.log(`  pack recorded without a verdict: ${pack.packId}`);
-      return;
+    console.log(`  claim row: ${claimRecord.claimId}`);
+
+    const itemRefs: string[] = [];
+    const seenUrls = new Set<string>();
+    for (const e of outcome.evidence) {
+      if (seenUrls.has(e.url)) continue;
+      seenUrls.add(e.url);
+      try {
+        const written = await store.recordEvidenceItem({
+          claimId: claimRecord.claimId,
+          authorityRef: e.domain || new URL(e.url).hostname,
+          seriesIdentity: e.title || e.url,
+          vintageDate: new Date(),
+          url: e.url,
+          archiveSnapshotUrl: "",
+          contentHash: createHash("sha256").update(e.url).digest("hex"),
+          plainFinding: e.passage,
+          tier: e.tier,
+        });
+        itemRefs.push(written.itemId);
+      } catch {
+        // A duplicate or malformed source never blocks the pack.
+      }
     }
+
+    const justifications =
+      outcome.justifications.length > 0 ? outcome.justifications : [outcome.reason];
+    const pack = await store.appendEvidencePack(claimRecord.claimId, {
+      itemRefs,
+      justifications,
+      research: toResearchLoopRecord(outcome),
+    });
+    console.log(`  evidence pack: ${pack.packId} (${itemRefs.length} item(s))`);
+
     const verdict = await store.writeVerdict(claimRecord.claimId, pack.packId, {
-      provenance: {
-        pipelineVersion: "0.1.0-live-run",
-        promptVersions: Object.fromEntries(
-          [...invokedRoles.keys()].map((role) => [role, `${role}@1`]),
-        ),
-        modelVersions: Object.fromEntries(invokedRoles),
-        searchRefs: [],
-      },
-      verdictClass: grid.verdictClass,
-      // No confidence recorded: nothing in the pipeline measures one yet, and a
-      // placeholder is what made every verdict page read "Confidence: 70%".
+      provenance: provenanceFor(
+        tracked.invokedRoles,
+        outcome.evidence.map((e) => e.url),
+      ),
+      verdictClass: outcome.verdictClass,
+      // The critiquer now produces a confidence (ADR-0026 §1), so it is recorded.
+      confidence: outcome.confidence,
     });
     await store.logTransition(verdict.verdictId, {
       from: "DRAFT",
       to: "PUBLISHED",
-      reason: "live one-claim run",
+      reason: "one-claim live run",
     });
-    console.log(
-      `  verdict v${verdict.version} (${verdict.status}) written: ${verdict.verdictClass}`,
-    );
+    console.log(`  verdict v${verdict.version} (${verdict.status}): ${verdict.verdictClass}`);
 
     // 4. ClaimReview markup (what the site renders).
     console.log("\n[4/4] ClaimReview markup…");
     const review = claimReviewFromVerdict({
       verdictUrl: `https://claimwatch.nz/claim/${claimRecord.claimId}`,
-      claimText: CLAIM_TEXT,
-      verdictClass: grid.verdictClass,
+      claimText: claim.text,
+      verdictClass: outcome.verdictClass,
       publishedAt: new Date().toISOString(),
-      claimPublishedAt: new Date().toISOString(),
-      claimantName: "Hon Sample Minister",
-      claimantKind: "person",
+      claimPublishedAt: DOC.spokenAt.toISOString(),
+      claimantName: claim.speaker ?? "Government (publication)",
+      claimantKind: claim.speaker ? "person" : "institution",
     });
     validateClaimReview(review);
-    console.log(
-      `  ClaimReview valid: ${review.reviewRating.ratingName} (${review.reviewRating.ratingValue}/4)`,
-    );
-    console.log(`  site URL: http://localhost:3456/claim/${claimRecord.claimId}`);
-    console.log("\n── done — view at http://localhost:3456/claim/" + claimRecord.claimId + " ──");
+    console.log(`  ClaimReview valid: ${review.reviewRating.ratingName}`);
+    logRouting(tracked);
+    logCost(tracked);
+    console.log(`\n  site: http://localhost:3456/claim/${claimRecord.claimId}`);
+    console.log("\n── done — one claim end-to-end ──");
   } finally {
     await store.close();
-  }
-}
-
-// The fixture series the L1 tests use — policedata victimisations, vintage
-// 2026-06-30. Live run uses the same data shape as the scored harness.
-function fixtureSeries() {
-  return {
-    authorityRef: "policedata.nz",
-    authorityTier: 1 as const,
-    seriesIdentity: "victimisations-monthly",
-    unit: "count",
-    vintageDate: "2026-06-30",
-    retrievedAt: "2026-09-08",
-    archiveSnapshotUrl: "https://web.archive.org/web/2026/https://www.policedata.nz/victimisations",
-    points: [
-      { period: "2017", value: 328000 },
-      { period: "2018", value: 312000 },
-      { period: "2019", value: 322000 },
-      { period: "2020", value: 335000 },
-      { period: "2024", value: 352000 },
-      { period: "2026", value: 366000 },
-    ],
-    populationSeries: {
-      seriesIdentity: "nz-pop-estimate",
-      authorityTier: 1 as const,
-      vintageDate: "2026-06-30",
-      points: [
-        { period: "2017", value: 4790000 },
-        { period: "2026", value: 5246000 },
-      ],
-    },
-  };
-}
-
-function promptFor(role: string): string {
-  switch (role) {
-    case "triage-checkability":
-      return 'You classify political sentences for checkability AND type the checkable ones. The input contains a "sentences" array with "id" and "text" per sentence. For EVERY sentence return one result. Reply with ONLY JSON: {"results": [{"sentenceId": string, "checkable": true, "claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web"} | {"sentenceId": string, "checkable": false, "rejectionClass": "opinion"|"rhetoric"|"procedure"|"satire"|"pledge-conditional"|"question"}]}. Mode mapping: statistical→stat-grid, citation-backed→citation-check, broadcast-quote→quote-fidelity, institution-citation→citation-check, false-context→provenance, other→open-web.';
-    case "triage-typing":
-      return 'You type a checkable claim and route it to a verification mode. Reply with ONLY JSON: {"claimType": "statistical"|"citation-backed"|"broadcast-quote"|"institution-citation"|"false-context"|"other", "mode": "stat-grid"|"citation-check"|"quote-fidelity"|"provenance"|"open-web", "sentence": string, "fingerprint": {"core": string, "claimant": string|null, "domain": string|null, "temporal": string|null, "quantity": string|null, "source": string|null} | null}.';
-    case "triage-fingerprint":
-      return 'Extract the fingerprint six-tuple from a claim. Reply with ONLY JSON: {"fingerprint": {"core": string, "claimant": string|null, "domain": string|null, "temporal": string|null, "quantity": string|null, "source": string|null}}.';
-    case "triage-context":
-      // @3: asks for `venue` (what `speechContext` stores). The text lives in the
-      // pipeline module that uses it, so every live script reads the same copy.
-      return TRIAGE_CONTEXT_PROMPT;
-    case "grid-materiality":
-      return 'You select which grid rows are material to how a claim is deployed. Reply with ONLY JSON: {"materialRows": string[]}.';
-    case "citation-compare":
-      return 'Compare a claim against a cited document: does the document say what the claim says (numbers, period, population, direction)? Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "bindingStrictness": "direct"|"decorative", "mismatch": string}.';
-    case "quote-fidelity":
-      return 'Compare a claim wording against a stored caption. Reply with ONLY JSON: {"verdict": "supported"|"refuted"|"not_enough_evidence"|"conflicting_cherry_picking", "note": string}.';
-    case "nli-audit":
-      return 'Check if a justification sentence is entailed by the cited evidence. Reply with ONLY JSON: {"verdict": "pass"|"fail", "failureClass": "unattributed-synthesis"|"unstated-arithmetic"|"authority-by-citation"|"hallucinated-content"|null}.';
-    case "open-web":
-      return 'Decide whether enough evidence has been gathered. Reply with ONLY JSON: {"done": boolean, "confidence": number, "nextRound": number}.';
-    default:
-      return "Reply with ONLY a JSON object.";
   }
 }
 

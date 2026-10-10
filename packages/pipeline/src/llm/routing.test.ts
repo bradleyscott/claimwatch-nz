@@ -1,23 +1,38 @@
-// Routing table shape (ADR-0011 provisional tiering, Sept 2026): the cost split
-// is only defensible if it is the one that actually runs — a research-tier role
-// drifting onto the verdict tier (or the reverse) is a silent cost or accuracy
-// change, and the recorded model key must name the model, not the role.
+// Routing table shape (ADR-0011 provisional tiering): the cost split is only
+// defensible if it is the one that actually runs — a research-tier role drifting
+// onto the verdict tier (or the reverse) is a silent cost or accuracy change, and
+// the recorded model key must name the model, not the role.
 //
 // No network here: this suite asserts the table and the key derivation, which are
 // what a mis-routing bug looks like. Live calls stay LIVE_EGRESS-gated (CRO-R6).
 
 import { PRICE_MAP, PROMPT_ROLES } from "@cw/llm";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_DECISION_ROLES } from "../decision-port.ts";
 import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_ROUTING, SERVING_MODE } from "./live-adapter.ts";
 
-const RESEARCH_TIER = ["research-assess", "claim-decompose", "authority-classify", "open-web"];
-const VERDICT_TIER = [
-  "citation-compare",
-  "quote-fidelity",
-  "nli-audit",
-  "grid-materiality",
-  "speakership-classify",
-] as const;
+/** The cheap research tier. */
+const CHEAP_MODEL = "z-ai/glm-5.3-flash";
+
+/**
+ * The plan a reader sees, and the gate that decides whether anything is published
+ * at all. `evidence-critiquer` is deliberately never the cheap tier.
+ */
+const VERDICT_TIER = ["claim-assessor", "evidence-critiquer"] as const;
+
+/**
+ * The bulk of the calls per claim, whose output is evidence the critiquer judges
+ * rather than a published finding.
+ */
+const RESEARCH_TIER = ["researcher", "researcher-extract", "authority-classify"] as const;
+
+/**
+ * The triage arms. Their generative entry is the ESCALATION TARGET for a role
+ * routed to the decision model, so it stays on the strong tier even when the
+ * decision model answers most items: a marginal sentence reaches this model, and
+ * it is the answer that gets published.
+ */
+const TRIAGE_ROLES = ["triage-speakership", "triage-checkability", "triage-context"] as const;
 
 describe("routing table (ADR-0011)", () => {
   it("routes every declared prompt role — no role without a model", () => {
@@ -26,23 +41,32 @@ describe("routing table (ADR-0011)", () => {
     }
   });
 
-  it("keeps the verdict and publication-gate roles off the cheap research tier", () => {
-    for (const role of VERDICT_TIER) {
-      expect(DEFAULT_ROUTING[role].model).not.toBe("z-ai/glm-5.3-flash");
+  it("keeps the publication gate and the triage arms off the cheap research tier", () => {
+    for (const role of [...VERDICT_TIER, ...TRIAGE_ROLES]) {
+      expect(DEFAULT_ROUTING[role].model, role).not.toBe(CHEAP_MODEL);
     }
-    // And the research roles really are on the cheap tier — the saving depends on
-    // it, so assert it rather than trusting the table by eye.
+  });
+
+  it("keeps the research tier on the cheap model — the saving depends on it", () => {
     for (const role of RESEARCH_TIER) {
-      expect(DEFAULT_ROUTING[role as keyof typeof DEFAULT_ROUTING]?.model).toBe(
-        "z-ai/glm-5.3-flash",
-      );
+      expect(DEFAULT_ROUTING[role].model, role).toBe(CHEAP_MODEL);
     }
   });
 
   it("prices every routed model (cost lookup and provenance key agree)", () => {
+    // Load-bearing for the research budget and the cost report: a routing change
+    // that lands without a price entry must fail here, not silently cost zero or
+    // throw in the middle of a run.
     for (const [role, entry] of Object.entries(DEFAULT_ROUTING)) {
       const key = `${entry.provider}:${entry.model}`;
       expect(PRICE_MAP[key], `role "${role}" routes to unpriced "${key}"`).toBeDefined();
+    }
+  });
+
+  it("routes only roles a run manifest can record (HAR-R7)", () => {
+    // A decision role is a prompt role, or its provenance cannot be recorded.
+    for (const role of DEFAULT_DECISION_ROLES) {
+      expect(PROMPT_ROLES as readonly string[], role).toContain(role);
     }
   });
 
@@ -62,21 +86,23 @@ describe("routing table (ADR-0011)", () => {
     }
   });
 
-  it("gives prose-answering roles output headroom over the one-object default", () => {
-    // `citation-compare` returns a lead, 2-4 paragraphs, a pull-quote and a
-    // finding per source. At the flat default that narrative was cut mid-sentence
-    // and surfaced as `schema-validation`, so the run looked like it had received
-    // a malformed answer rather than a truncated one (Sept 2026). The budget is
-    // per role because the response SHAPE is a property of the role.
-    expect(DEFAULT_ROUTING["citation-compare"].maxOutputTokens).toBeGreaterThan(
-      DEFAULT_MAX_OUTPUT_TOKENS,
-    );
+  it("gives the roles that answer in prose output headroom over the one-object default", () => {
+    // A plan, a critique and a per-sentence classification do not fit the default
+    // budget, and a truncated response arrives as `schema-validation` — which
+    // reads as "the model returned something malformed" rather than "the answer
+    // was cut in half". The budget is per role because the response SHAPE is a
+    // property of the role.
+    for (const role of ["claim-assessor", "evidence-critiquer", "triage-speakership"] as const) {
+      expect(DEFAULT_ROUTING[role].maxOutputTokens, role).toBeGreaterThan(
+        DEFAULT_MAX_OUTPUT_TOKENS,
+      );
+    }
   });
 
   it("derives a model key of the form provider:model, never the role name", () => {
-    // Regression: the adapter used to return the ROLE as `model`, so every run
-    // manifest recorded `{role: role}` and provenance could not tell which model
-    // produced a verdict — invisible while one model did everything.
+    // Regression: the adapter returned the ROLE as `model`, so every run manifest
+    // recorded `{role: role}` and provenance could not tell which model produced a
+    // verdict — invisible while one model did everything.
     const keys = Object.values(DEFAULT_ROUTING).map((e) => `${e.provider}:${e.model}`);
     for (const key of keys) {
       expect(key).toContain(":");

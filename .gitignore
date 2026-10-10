@@ -1,12 +1,14 @@
 # Local test-run databases (SQL scratch files) — never committed.
 scratch/
 *.sql
-# ...but the Drizzle migration chain IS the schema's history: drizzle's migrator
-# reads these files, so a clone without them cannot migrate at all (the blanket
-# rule above silently swallowed 0000–0003 until this was caught — and it did it
-# again to the harness labels chain, hence the per-package glob rather than a
-# literal path).
+# ...but the schema's SQL is not scratch. Drizzle's migrator reads the harness
+# labels chain, and the store applies its own `packages/store/sql/*.sql` after
+# `pushSchema` (zero-migration), so a clone without these cannot migrate at all.
+# The blanket rule above silently swallowed 0000–0003 until this was caught — and
+# it then did it again to the harness labels chain, and again to the store's
+# zero-migration seeds, hence the explicit negations.
 !packages/*/drizzle/*.sql
+!packages/store/sql/*.sql
 
 # Environment files (CROSS-CUTTING §4) — .env.example is the template.
 .env

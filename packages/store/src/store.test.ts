@@ -26,7 +26,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-// No committed connection strings (Sept 2026): credentials come from
+// No committed connection strings: credentials come from
 // .env (gitignored — see .env.example) or the CI environment. The database
 // name is infra wiring, not a requirement — createTestStore wipes whichever
 // database it gets.
@@ -189,32 +189,28 @@ describe("the claim's own date (claim.spoken_at, SITE-MVP §2.3)", () => {
 describe("claim records", () => {
   it("keeps context fields null when absent — never defaulted (STO-R15)", async () => {
     const claim = await store.recordClaim(store.fixtures.claimWithoutContext());
-    expect(claim.discourseContext.attachedProposal).toBeNull();
-    expect(claim.discourseContext.argumentDirection).toBeNull();
+    expect(claim.discourseContext.supports).toBeNull();
   });
 
   it("stores verbatim utterance + window alongside normalised text (TRI-R7)", async () => {
     const claim = await store.recordClaim(store.fixtures.statClaim());
     expect(claim.utteranceText.length).toBeGreaterThan(0);
     expect(claim.text.length).toBeGreaterThan(0);
-    // The claim carried a six-part `fingerprint` here, typed as
-    // {indicator, population, geography, timeWindow, baseline, unit} while the
-    // pipeline produced a different six-part tuple with no mapping between them.
-    // ADR-0023 removed the object; the window and magnitude are parsed at the
-    // point of use (`claim-parameters.ts`) and stored with the check that used
-    // them, so there is nothing claim-level left to assert.
+    // The window and magnitude a figures check needs are parsed at the point of
+    // use and stored with the check that consumed them, so nothing claim-level
+    // holds them.
     expect(claim).not.toHaveProperty("fingerprint");
   });
 
   it("accepts an attribution candidate that states only the name and its basis (ADR-0005)", async () => {
-    // What the live lane actually writes: the text attributes the words to a
-    // name, and `basis` records what produced it. No `kind`, and above all no
-    // confidence — a fabricated `1` would read as a resolved entity when nothing
-    // has resolved it. The old shape REQUIRED both, so the lane had to invent
-    // them; the shape now matches what can be honestly known.
+    // What a lane writes: the text attributes the words to a name, and `basis`
+    // records what produced it. No `kind`, and above all no confidence — a
+    // fabricated `1` would read as a resolved entity when nothing has resolved
+    // it. The shape matches what can be honestly known, so no writer has to
+    // invent a value to satisfy it.
     const claim = await store.recordClaim({
       ...store.fixtures.statClaim(),
-      attributionCandidates: [{ name: "Mark Mitchell", basis: "speakership-classify@1" }],
+      attributionCandidates: [{ name: "Mark Mitchell", basis: "triage-checkability@1" }],
     });
     const [stored] = claim.attributionCandidates ?? [];
     expect(stored?.name).toBe("Mark Mitchell");
@@ -228,7 +224,7 @@ describe("claim records", () => {
     await expect(
       store.recordClaim({
         ...store.fixtures.statClaim(),
-        attributionCandidates: [{ name: "", basis: "speakership-classify@1" }],
+        attributionCandidates: [{ name: "", basis: "triage-checkability@1" }],
       }),
     ).rejects.toThrow();
   });
@@ -266,7 +262,7 @@ describe("verdict versioning", () => {
     });
     expect(v1.version).toBe(1);
     expect(v1.provenance.pipelineVersion).toBeTruthy();
-    expect(v1.provenance.promptVersions["triage-typing"]).toBeTruthy();
+    expect(v1.provenance.promptVersions["triage-checkability"]).toBeTruthy();
   });
 
   it("writes v2 with a structured diff on a validated pack (STO-R2)", async () => {

@@ -6,7 +6,6 @@ import type { StratumResult } from "./gate-api.ts";
 export interface GoldenSnapshot {
   claimId: string;
   lane: string;
-  mode: string;
   verdictClass: string;
   confidence: number;
   evidencePath: string[];
@@ -36,21 +35,13 @@ export interface RunManifest {
   modelVersions: Record<string, string>;
   promptVersions: Record<string, string>;
   promptContentHashes: Record<string, string>;
-  gridAxesVersion: string;
-  /**
-   * Which procedure library the run scored against (ADR-0023 §6). It replaces
-   * `fingerprintNormalisationVersion`: the fingerprint was removed entirely, and
-   * a scoring run now depends on the library's state rather than on how claim
-   * parses were normalised.
-   */
-  procedureLibraryVersion: string;
   searchConfig: string;
   storeSchemaVersion: string;
   /**
    * The sampling settings the run made its calls with (CROSS-CUTTING §2,
    * `SAMPLING`). Part of the pinned tuple for the same reason the versions are:
    * two runs that differed only in temperature are not comparable, and without
-   * this the manifest cannot say which is which (Sept 2026). The seed applies to
+   * this the manifest cannot say which is which. The seed applies to
    * providers that accept one (OpenAI, OpenRouter); `modelVersions` names which
    * providers ran, and Anthropic accepts no seed.
    */

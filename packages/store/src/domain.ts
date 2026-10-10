@@ -1,4 +1,4 @@
-// Domain canonicalisation (user direction, Sept 2026): the triage fingerprint's
+// Domain canonicalisation: the triage fingerprint's
 // free-text domain ("Covid Mortality", "covid-mortality", "pandemic deaths")
 // must resolve to ONE registry key, or discovery fragments and re-runs per
 // phrasing. Deterministic first — with discovery non-blocking, a missed

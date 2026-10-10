@@ -3,7 +3,7 @@
 // fills it in. Signatures mirror docs/design/STORE.md §3 interfaces.
 
 import type { Pool } from "pg";
-import type { ProcedureRecord, VerificationPlan } from "./procedure.ts";
+import type { ResearchLoopRecord } from "./research.ts";
 import type {
   AttributionCandidate,
   Genre,
@@ -27,15 +27,8 @@ export interface ClaimFixture {
   publicationId?: string;
   utteranceText: string;
   text: string;
-  claimType:
-    | "statistical"
-    | "citation-backed"
-    | "broadcast-quote"
-    | "institution-citation"
-    | "false-context"
-    | "other";
   /**
-   * The claim's content identity, derived by triage (`TypedClaim.claimId`).
+   * The claim's content identity, derived by triage (`ClaimRecord.claimId`).
    * Supplying it makes the write idempotent: re-ingesting the same document
    * returns the claim that already exists rather than creating a duplicate
    * (TRI-R13). Absent → the row is inserted unconditionally, which is what a
@@ -43,22 +36,22 @@ export interface ClaimFixture {
    */
   claimKey?: string | null;
   /**
-   * Whose words this sentence is (ADR-0019 §1), decided by the `attribute`
-   * stage before triage reads it. Optional and nullable: absent means NO
-   * eligibility decision was recorded, which the reader treats as not
-   * publishable — a claim cannot reach the public record by never being
-   * assessed. `quoted-actor` and `author-claim` are the eligible classes.
+   * Whose words this sentence is (ADR-0025), decided by triage's per-sentence
+   * class. Optional and nullable: absent means NO eligibility decision was
+   * recorded, which the reader treats as not publishable — a claim cannot reach
+   * the public record by never being assessed. `quoted-actor` and `author-claim`
+   * are the eligible classes.
    */
   speakershipClass?: SpeakershipClass | null;
   /**
-   * How that class was decided (ADR-0019 §2): the document's own structure, the
+   * How that class was decided (ADR-0025): the document's own structure, the
    * publishing body by construction, or a classifier. Part of the decision, not
    * metadata about it — a class with no method cannot be disclosed with its
    * confidence, so it does not publish.
    */
   speakershipMethod?: SpeakershipMethod | null;
   /**
-   * The document's genre (ADR-0019 §2), which selected the eligibility rule.
+   * The document's genre (ADR-0025), which selected the eligibility rule.
    * Stored so the selection is auditable after the fact; a class with no genre
    * does not publish, for the same reason as the method.
    */
@@ -82,29 +75,21 @@ export interface ClaimFixture {
   attributionCandidates?: AttributionCandidate[];
 }
 
-// `Fingerprint` used to be declared here — {indicator, population, geography,
-// timeWindow, baseline, unit} — while the pipeline produced a different six-part
-// tuple and the stat-grid consumed THAT one. Two shapes, one name, no mapping
-// between them, and the flagship verdict's window and magnitude were read out of
-// the pipeline's version by regex. ADR-0023 removed it entirely: the window and
-// the magnitude are now parsed at the point of use, inside the procedure that
-// needs them, and stored with the check that consumed them.
-
 /**
  * The STORED discourse-context shape (ADR-0008), as `claim.discourse_context`
  * holds it. Deliberately not named `DiscourseContext`: triage has a type of that
- * name covering the same material with different field names, and the two being
- * identically named is what let the boundary between them go unwritten for so
- * long — `contextFromLlm` ran in tests only, and nothing mapped its output into
- * this shape, so `attached_proposal` was always null and the verdict page's "as
- * deployed" line could never render (Sept 2026). The mapping is
- * `toStoredDiscourseContext` in `packages/pipeline/src/triage.ts`.
+ * name covering the same material with different field names, so the two being
+ * identically named would leave the boundary between them unwritten. The mapping
+ * is `toStoredDiscourseContext` in `packages/pipeline/src/triage.ts`.
  */
 export interface StoredDiscourseContext {
   speechContext?: string | null;
   policyTopic?: string | null;
-  attachedProposal?: string | null;
-  argumentDirection?: "problem" | "success" | null;
+  /**
+   * The argumentative point the claim supports, read over the whole document
+   * (ADR-0026). One field, because the point a claim supports is a single idea.
+   */
+  supports?: string | null;
   contextQualifiers?: string | null;
   window: string;
 }
@@ -133,23 +118,14 @@ export interface EvidenceItemFixture {
 
 export interface EvidencePackFixture {
   itemRefs: string[];
-  gridResult?: unknown;
   justifications: string[];
-  nliOutcome: "pass" | "fail";
   /**
-   * The plan this verification ran (ADR-0023). Written alongside the pack as its
-   * own append-only row (`verification_plan`), not as a column on the pack,
-   * because `evidence_pack` is append-only and backfilling a column into
-   * historical rows mutates them.
+   * The adversarial research loop's record (ADR-0026):
+   * the grid/NLI columns: what was sought, what was found, and why the class
+   * followed.
    */
-  plan?: VerificationPlan | null;
+  research?: ResearchLoopRecord | null;
   revised?: boolean;
-}
-
-/** A procedure library row as the store holds it (ADR-0023 §2). */
-export interface ProcedureFixture extends Omit<ProcedureRecord, "searchRefs" | "status"> {
-  searchRefs?: string[];
-  status?: "active" | "retired";
 }
 
 export interface ProvenanceFixture {
@@ -259,10 +235,6 @@ export interface FallbackLog {
 export interface AuthorityRegistry {
   recordAuthority(fixture: AuthorityFixture): Promise<AuthorityRecord>;
   resolveAuthority(domain: string): Promise<AuthorityRecord | null>;
-  /** The active procedure library (ADR-0023 §3): what the planner may suggest from. */
-  listProcedures(): Promise<ProcedureFixture[]>;
-  /** Add a library row. On conflict the existing row is left alone, never edited. */
-  recordProcedure(fixture: ProcedureFixture): Promise<{ procedureRef: string }>;
 }
 
 /** Append-only enforcement probes (STO-R1). Test-only. */
