@@ -192,7 +192,7 @@
           <div class="st">We sorted the claim: a number, over a stated window, credited to a policy</div>
           <div class="sb">That sends it to the official migration series rather than to a news story about migration.</div>
           <div class="why">the method follows from what the claim is, and is fixed before we know the answer — so the same kind of claim always gets the same kind of check.</div>
-          <div class="tech"><b>method</b> stat-grid · <b>prompts</b> triage-typing@1, triage-fingerprint@1 · <b>model</b> claude-sonnet-5</div>
+          <div class="tech"><b>method</b> research · <b>prompts</b> triage-checkability@1, triage-checkability@1 · <b>model</b> claude-sonnet-5</div>
         </div>
       </div>
 
@@ -228,7 +228,7 @@
           <div class="st">The data settled it: “Accurate but incomplete”</div>
           <div class="sb">Both numbers are in the series. But most of the fall happened before the settings the claim credits took effect, and Stats NZ attributes it to post-pandemic catch-up unwinding.</div>
           <div class="why">a true number used in a way that changes the picture gets its own verdict here — it is a category, not a mild “mostly true”.</div>
-          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> grid-materiality@2 · <b>verdict version</b> 1</div>
+          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> claim-assessor@1 · <b>verdict version</b> 1</div>
         </div>
       </div>
 
@@ -238,7 +238,7 @@
           <div class="st">A second, independent pass re-read the sources against the verdict</div>
           <div class="sb">It asked only whether the evidence supports the conclusion. It agreed, so the verdict went forward unchanged.</div>
           <div class="why">this is what “quality-audited” means: if the second pass disagrees, no verdict is published and the claim goes back for another look.</div>
-          <div class="tech"><b>prompt</b> nli-audit@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
+          <div class="tech"><b>prompt</b> evidence-critiquer@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
         </div>
       </div>
 

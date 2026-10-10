@@ -8,7 +8,7 @@
 // page input types, the label set and the section builder, and re-exports the
 // moved names so importers are unchanged.
 
-import type { VerificationPlan } from "@cw/store";
+import type { ResearchLoopRecord } from "@cw/store";
 import { buildVerdictTrail, type VerdictTrail } from "./verdict-trail.ts";
 
 export {
@@ -91,6 +91,8 @@ export interface TriageRecordInput {
 export interface VerdictPageInput {
   claimId: string;
   claimText: string;
+  /** The claim as made (the quote), stripped of its attribution. */
+  claimQuote?: string | null;
   speaker: string | null;
   /** Where or on what occasion the words were said (venue). Never the speaker. */
   speakerVenue: string | null;
@@ -108,7 +110,13 @@ export interface VerdictPageInput {
    * measures it (EVALUATION §3). Test: SIT-R6.
    */
   confidence: number | null;
-  attachedProposal: string | null;
+  /**
+   * The argumentative point the claim was used in support of
+   * (discourse_context.supports, ADR-0026):
+   * the field says what the claim SUPPORTS rather than what it was attached to,
+   * and the page's "as deployed" line is the same section either way.
+   */
+  supports: string | null;
   /**
    * The passage the claim was cut from, verbatim (claim.discourse_context.window).
    * Rendered under the quote so a reader sees the sentence in its context rather
@@ -141,19 +149,18 @@ export interface VerdictPageInput {
   claimRecordedAt: Date | null;
   /** When the source document was retrieved (publication.retrieved_at). */
   sourceRetrievedAt: Date | null;
-  /** Store claim type — decides which method the claim got (TRIAGE). */
-  claimType: string | null;
   /**
-   * The check triage routed this claim to (claim.verification_mode, Sept 2026).
-   * Null on every row written before the column existed — the trail then renders
-   * an absent check rather than guessing, and never falls back to a guess for a
-   * statistical claim, which can take either of two modes.
+   * The adversarial research loop this verification ran (ADR-0026): each turn's
+   * evidence plan and critique, the evidence found, the turns used, whether the
+   * cap bound, and the final reason.
+   *
+   * Replaces `claimType`, `plan` and `nliOutcome`. There is no claim type to
+   * render, and no separate entailment outcome, because the critiquer's
+   * sufficiency decision IS the gate and its record carries it.
+   * Null on claims whose verification predates the loop, or whose record was
+   * never written: the trail then renders an absent check rather than guessing.
    */
-  /**
-   * The plan this verification ran (ADR-0023): an ordered list of steps, each
-   * naming the procedure it invoked. Replaces the single `verificationMode`.
-   */
-  plan?: VerificationPlan | null;
+  research?: ResearchLoopRecord | null;
   /**
    * Triage's output for the document this claim came from (claim.triage_record):
    * how many sentences were read, which were set aside and why, which were held.
@@ -170,8 +177,6 @@ export interface VerdictPageInput {
   claimModelVersion: string | null;
   /** When the evidence pack was assembled (evidence_pack.created_at). */
   checkedAt: Date | null;
-  /** Publication gate outcome (evidence_pack.nli_outcome). */
-  nliOutcome: string | null;
   /** Monotonic verdict version (1 = never revised). */
   verdictVersion: number;
   verdictStatus: string;
@@ -188,7 +193,7 @@ export interface VerdictPageModel {
   label: string;
   plainSummary: string;
   verdictPosition: number; // 0..3 on the verdict rule, left = refuted
-  /** The mode-aware account of the check (SITE-MVP §2.3, Sept 2026). */
+  /** The dated account of the check (SITE-MVP §2.3). */
   trail: VerdictTrail;
 }
 
@@ -202,8 +207,8 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
     kind: "verdict",
     data: { verdictClass: input.verdictClass },
   });
-  if (input.attachedProposal) {
-    sections.push({ kind: "deployed", data: { attachedProposal: input.attachedProposal } });
+  if (input.supports) {
+    sections.push({ kind: "deployed", data: { supports: input.supports } });
   }
   if (input.mediaAnchor) {
     sections.push({ kind: "media", data: input.mediaAnchor });
@@ -212,10 +217,10 @@ export function buildVerdictPageModel(input: VerdictPageInput): VerdictPageModel
   // not-enough-evidence ("we could not verify this") — never a failure state
   // (SITE-MVP §2.5), never a placeholder-free gap.
   sections.push({ kind: "evidence", data: input.evidence });
-  // The trail became mode-aware in Sept 2026: the same dated record, but the
-  // section that explains HOW the comparison worked is the one belonging to the
-  // check this claim actually got, rather than one shape stretched to cover all
-  // five kinds of check.
+  // The trail renders the research loop (ADR-0026): what evidence was sought,
+  // what was found, and why the class followed. The dated record and the section
+  // order are unchanged — what changed is that section 3 describes one loop
+  // rather than selecting its copy from a plan.
   const trail = buildVerdictTrail(input);
   sections.push({ kind: "trail", data: trail });
   return {

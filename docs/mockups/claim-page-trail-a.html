@@ -163,7 +163,7 @@
           <div class="st">We worked out what kind of claim it was — and therefore what to check it against</div>
           <div class="sb">A number, over a stated time window, credited to a policy change. That routes it to the official migration series rather than to a news story about migration.</div>
           <div class="swhy">Which method a claim gets is decided by what the claim is, before we know what the answer is. Five of the six claims we drop never get this far.</div>
-          <div class="tech"><b>method</b> stat-grid · <b>prompts</b> triage-typing@1, triage-fingerprint@1 · <b>model</b> claude-sonnet-5</div>
+          <div class="tech"><b>method</b> research · <b>prompts</b> triage-checkability@1, triage-checkability@1 · <b>model</b> claude-sonnet-5</div>
         </div>
       </div>
 
@@ -201,7 +201,7 @@
           <div class="st">The data settled it <span class="tag">the answer</span></div>
           <div class="sb">Both numbers are in the series. But most of the fall happened before the settings the claim credits took effect, and Stats NZ attributes it to post-pandemic catch-up unwinding.</div>
           <div class="swhy">A true number used in a way that changes the picture is its own verdict here — not a milder “mostly true”.</div>
-          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> grid-materiality@2 · <b>verdict version</b> 1</div>
+          <div class="tech"><b>grid rows</b> 14 computed, 4 material · <b>prompt</b> claim-assessor@1 · <b>verdict version</b> 1</div>
         </div>
       </div>
 
@@ -212,7 +212,7 @@
           <div class="st">A second pass re-read the sources against the verdict</div>
           <div class="sb">An independent pass asked only: does this evidence actually support this conclusion? It agreed, so the verdict went forward unchanged.</div>
           <div class="swhy">If the second pass disagrees, the claim does not publish a verdict at all — it comes back for another look instead.</div>
-          <div class="tech"><b>prompt</b> nli-audit@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
+          <div class="tech"><b>prompt</b> evidence-critiquer@1 · <b>model</b> claude-opus-5 · <b>outcome</b> pass</div>
         </div>
       </div>
 

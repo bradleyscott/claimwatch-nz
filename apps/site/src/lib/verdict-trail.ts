@@ -1,7 +1,7 @@
-// The mode-aware verdict trail (SITE-MVP §2.3, Sept 2026): the dated account of
-// how a claim was checked, rendered per verification mode. Pure logic; public
-// copy goes through the register check.
+// The verdict trail (SITE-MVP §2.3, ADR-0026): the dated account of how a claim
+// was checked. Pure logic; public copy goes through the register check.
 
+import type { ResearchLoopRecord } from "@cw/store";
 import { rejectionDescription } from "./triage-labels.ts";
 import {
   clipOffset,
@@ -16,16 +16,15 @@ import type { VerdictClass, VerdictPageInput } from "./verdict-page.ts";
 import {
   assertAuditLabelsKnown,
   assertRegisterSafe,
+  sanitiseRegisterText,
   TECHNICAL_RECORD_KEY,
 } from "./verdict-register.ts";
-import { CLAIM_TYPE_READING, type ResolvedStep, resolvePlan } from "./verification-mode.ts";
 
 // ---------------------------------------------------------------------------
-// "How this verdict was made" — the mode-aware trail (SITE-MVP §2.3, Sept 2026)
+// "How this verdict was made" — the trail (SITE-MVP §2.3)
 // ---------------------------------------------------------------------------
 //
-// House style, unchanged from the Sept 2026 revisions and now applied per
-// section: every line is either a fact about THIS claim (its dates, its counts,
+// House style, applied per section: every line is either a fact about THIS claim (its dates, its counts,
 // its sources, its verdict) or — at most one per section — a single short
 // sentence explaining the stage. Nothing restates the verdict card above, and
 // nothing restates `/methodology`: the general explanation of a check lives
@@ -34,15 +33,15 @@ import { CLAIM_TYPE_READING, type ResolvedStep, resolvePlan } from "./verificati
 // Sections, and which of them exist for a given claim:
 //
 //   1 read      the document this claim came from, and what was not checked
-//   2 chosen    what the claim was read as, and which check that produced
-//   3 check     THE MODE SECTION — one body per verification mode, plus the
-//               bound that mode must declare, plus the decision it reached
+//   2 chosen    the evidence plan: what evidence would settle the claim, per turn
+//   3 check     THE LOOP SECTION — what was sought, what was found, the
+//               critiquer's finding, and the bound the loop must declare
 //   4 sources   what we compared it against
 //   5 gate      our own reasoning re-read against those sources
 //
 // Sections 1 and 3 can render as ABSENCES, and that is a designed state rather
 // than a failure: a claim whose document record we do not hold, and a claim
-// whose mode we do not hold, both say so. Neither substitutes a generic
+// whose loop record we do not hold, both say so. Neither substitutes a generic
 // paragraph for material it does not have, because an empty section is
 // indistinguishable from a check that found nothing to say.
 //
@@ -108,8 +107,8 @@ export interface TrailSection {
    * on section 3 only. Always present when section 3 describes a check: a finding
    * reported without its limit invites the reader to over-read it.
    *
-   * A LIST, not one string, since ADR-0023: a claim can be checked several ways
-   * and a limit printed once would attach to the wrong finding.
+   * A LIST, not one string: a bound printed once for several checks would attach
+   * to the wrong finding.
    */
   bounds: Array<{ label: string; text: string }>;
   /** True when the section reports that something did NOT happen. */
@@ -142,29 +141,23 @@ const DECISION_PHRASE: Record<VerdictClass, string> = {
  * final section, rather than being dropped (HAR-R7).
  */
 const ROLES_BY_SECTION: Record<TrailSectionKind, string[]> = {
-  read: ["triage-checkability", "triage-typing", "triage-fingerprint", "triage-context"],
+  // ADR-0025 makes triage two arms over one sentence, so triage is the only
+  // thing recorded on the claim.
+  read: ["triage-checkability", "triage-context"],
   chosen: [],
-  check: [
-    "citation-compare",
-    "quote-fidelity",
-    "open-web",
-    "authority-classify",
-    "claim-decompose",
-    "research-assess",
-    // Selects which readings of a series are material to how the claim is
-    // deployed — the comparison itself, not the gate. Filed here rather than
-    // under `gate` because the published copy for this section is what that
-    // selection produced.
-    "grid-materiality",
-  ],
+  check: ["claim-assessor", "researcher", "evidence-critiquer", "authority-classify"],
   sources: [],
-  gate: ["nli-audit"],
+  // The critiquer is the gate as well as the check (ADR-0026 §3): it decides
+  // sufficiency, so its version belongs on both. Listed here too rather than
+  // only under `check`, because a reader asking "what gated this?" is owed the
+  // instructions that did it.
+  gate: ["evidence-critiquer"],
 };
 
 /**
- * Sections a role may land on when the pipeline recorded it before the section
- * names existed. `read` and `chosen` share the triage roles; a role that belongs
- * to neither is printed on the last section rather than dropped.
+ * Every role the mapping knows about. A role belonging to no section is printed on
+ * the last section rather than dropped, so provenance the mapping has not been
+ * taught about still reaches the reader.
  */
 const KNOWN_ROLES: ReadonlySet<string> = new Set(Object.values(ROLES_BY_SECTION).flat());
 
@@ -243,10 +236,10 @@ function line(parts: Array<string | null>): string {
  */
 export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
   const sections: Array<Omit<TrailSection, "number">> = [];
-  // The plan, not a single mode (ADR-0023). A claim may have been checked more
-  // than one way, so section 3 renders one block per step that ran, and section 2
-  // says which procedures were considered.
-  const resolved = resolvePlan(input.plan ?? null);
+  // The research loop (ADR-0026). One instrument, so there is nothing to select
+  // between: section 2 states the plan each turn produced and section 3 renders
+  // what was found and what the critiquer made of it.
+  const loop = input.research ?? null;
   // The claim's own record and the verdict's provenance are two sides of the same
   // run: merged for bucketing, so a role written onto the claim (triage) and one
   // written onto the verdict (the check) both reach their section.
@@ -258,21 +251,42 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
   // 1 · the document this claim came from, and what was not checked.
   sections.push(readSection(input, promptVersions));
 
-  // 2 · what the claim was read as, and which check that produced.
-  sections.push(chosenSection(input, resolved));
+  // 2 · the evidence plan: what would settle this claim.
+  sections.push(chosenSection(input, loop));
 
-  // 3 · THE MODE SECTION — how this kind of check works, and what it did here.
-  sections.push(checkSection(input, promptVersions, resolved));
+  // 3 · THE LOOP SECTION — what was sought, found, and concluded.
+  sections.push(checkSection(input, promptVersions, loop));
 
   // 4 · what we compared it against.
   if (input.evidence.length > 0) sections.push(sourcesSection(input));
 
-  // 5 · our own reasoning, re-read against those sources.
-  sections.push(gateSection(input, promptVersions));
+  // 5 · the sufficiency decision, the class agreement, and publication.
+  sections.push(gateSection(input, promptVersions, loop));
 
+  // Model-generated prose (a strategy, a reason, a justification) is data: a
+  // banned term in it is translated rather than failing the build, and verbatim
+  // source passages are left untouched because a quotation is the source's words.
   const numbered: TrailSection[] = sections.map((section, index) => ({
     ...section,
     number: String(index + 1),
+    title: sanitiseRegisterText(section.title),
+    facts: section.facts.map(sanitiseRegisterText),
+    decision: section.decision == null ? null : sanitiseRegisterText(section.decision),
+    bounds: section.bounds.map((bound) => ({
+      label: sanitiseRegisterText(bound.label),
+      text: sanitiseRegisterText(bound.text),
+    })),
+    rows: section.rows.map((row) => ({
+      ...row,
+      label: sanitiseRegisterText(row.label),
+      value: sanitiseRegisterText(row.value),
+    })),
+    asides: section.asides.map((aside) => ({ ...aside, why: sanitiseRegisterText(aside.why) })),
+    sources: section.sources.map((source) => ({
+      ...source,
+      title: sanitiseRegisterText(source.title),
+      dates: sanitiseRegisterText(source.dates),
+    })),
   }));
 
   // The audit lines are the one region the register scan cannot police (§2.2
@@ -290,7 +304,7 @@ export function buildVerdictTrail(input: VerdictPageInput): VerdictTrail {
       section.decision ?? "",
       ...section.bounds.map((bound) => `${bound.label} ${bound.text}`),
       ...section.rows.flatMap((row) => [row.label, row.value]),
-      ...section.sources.map((source) => `${source.title} ${source.finding} ${source.dates}`),
+      ...section.sources.map((source) => `${source.title} ${source.dates}`),
       ...section.asides.map((aside) => aside.why),
     ]),
     // The key is public copy too — the one place internal values are named, so it
@@ -382,11 +396,11 @@ function readSection(
       "The sentences we did not check are listed below, so you can see how much of the document this finding covers.",
     );
   }
-  // The limit of this section, stated rather than implied (Sept 2026). Deciding
+  // The limit of this section, stated rather than implied. Deciding
   // what CAN be checked is a judgement, not a rule, and it is made by a model —
-  // so a re-check of the same document can draw the line differently. Two live
-  // runs of one 47-sentence RNZ article returned 31 claims / 16 set aside and
-  // then 42 / 5. A reader who treats this list as a settled property of the
+  // so a re-check of the same document can draw the line differently: two runs of
+  // one 47-sentence article returned 31 claims / 16 set aside and then 42 / 5. A
+  // reader who treats this list as a settled property of the
   // document is reading a promise the system does not make; what IS stable is
   // that this page shows the line drawn by the run that produced its verdict,
   // and that the verdict itself moves only through the public revision path.
@@ -423,24 +437,19 @@ function readSection(
 }
 
 /** "kind statistical" — the typing, for an audit line. */
-function kindLabel(input: VerdictPageInput): string {
-  return input.claimType ? `kind ${input.claimType}` : "kind not recorded";
-}
-
 /** Section 2 — the reading, and the check it produced. */
 function chosenSection(
   input: VerdictPageInput,
-  resolved: ReturnType<typeof resolvePlan>,
+  loop: ResearchLoopRecord | null,
 ): Omit<TrailSection, "number"> {
   const span = spanOf([input.claimRecordedAt]);
-  const reading = input.claimType ? CLAIM_TYPE_READING[input.claimType] : undefined;
-  if (!resolved) {
+  if (loop == null || loop.turns.length === 0) {
     return {
       kind: "chosen",
-      title: "The check this claim got",
+      title: "What evidence would settle this claim",
       when: whenLabel(span),
       facts: [
-        "We have no record of which checks this claim was sent to. A check ran and produced the verdict above, but the plan was not written down, so this page will not guess.",
+        "We have no record of the evidence plan for this claim. A check ran and produced the verdict above, but the plan was not written down, so this page will not guess what was sought.",
       ],
       rows: [],
       asides: [],
@@ -450,29 +459,38 @@ function chosenSection(
       absent: true,
       technical: line([
         `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-        "check not recorded",
+        "plan not recorded",
       ]),
       mark: "none",
     };
   }
+
+  // One line per turn, because the plan CHANGES between turns: the assessor sees
+  // the earlier critique and is asked again, so a later turn's plan is a response
+  // to what the previous one missed. Printing only the first would hide the part a
+  // reader most needs — what the loop learned it had not looked for.
+  //
+  // The questions travel with the plan because they are what the researcher works
+  // through, and they include the questions that would DISPROVE the claim. The
+  // searches themselves belong to the turn (section 3), because the assessor
+  // writes questions and the researcher chooses how to answer them.
+  const facts: string[] = [];
+  for (const turn of loop.turns) {
+    facts.push(
+      loop.turns.length === 1
+        ? turn.plan.evidencePlan
+        : `Turn ${turn.round + 1}: ${turn.plan.evidencePlan}`,
+    );
+    for (const question of turn.plan.questions) {
+      facts.push(`Question to answer: ${question}`);
+    }
+  }
+
   return {
     kind: "chosen",
-    title: "The checks this claim got",
+    title: "What evidence would settle this claim",
     when: whenLabel(span),
-    facts: [
-      reading
-        ? `Read as ${reading}`
-        : "Read as a statement a check could test, on the claim's own wording.",
-      "That reading was made from the claim alone, before any evidence was gathered — it is the one decision that could not be made honestly once the answer was known.",
-      // One line per procedure the plan named, including the declined ones.
-      // "Considered and not run, because…" is a statement the reader is owed, and
-      // a plan that stays silent about it reads as coverage (ADR-0023 §4).
-      ...resolved.steps.map((step) =>
-        step.status === "declined"
-          ? `Considered and not run: ${stepLabel(step)} — ${step.declineReason ?? "no reason recorded"}.`
-          : `Checked with: ${stepLabel(step)}.`,
-      ),
-    ],
+    facts,
     rows: [],
     asides: [],
     sources: [],
@@ -481,47 +499,76 @@ function chosenSection(
     absent: false,
     technical: line([
       `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-      kindLabel(input),
-      `checks ${resolved.steps.map((step) => step.procedureRef).join(", ")}`,
+      `plans ${loop.turns.length}`,
+      `questions ${loop.turns.reduce((sum, turn) => sum + turn.plan.questions.length, 0)}`,
+      `searches ${loop.turns.reduce((sum, turn) => sum + turn.queries.length, 0)}`,
     ]),
     mark: "none",
   };
 }
 
 /**
- * The reader-facing name of a plan step: the procedure's published label when the
- * site has copy for it, else the ref itself. A step naming a procedure this site
- * does not know renders as its ref rather than vanishing, so a newly added
- * procedure is visibly missing its description instead of invisible.
+ * What the researcher did, in plain words.
+ *
+ * The tool names are internal identifiers, so printing one would put vocabulary on
+ * a public page that the register check bans and a reader cannot use. `finish`
+ * returns null because "the researcher stopped" is already said by the turn
+ * ending — the alternative is a line that reports nothing.
+ *
+ * An unrecognised tool returns its own name rather than being dropped: a tool the
+ * site has not been taught about must be visible, not silently missing from the
+ * record of what ran.
  */
-function stepLabel(step: ResolvedStep): string {
-  return (step.description?.label ?? step.procedureRef).toLowerCase();
+function describeToolCall(toolName: string, resultSummary: string): string | null {
+  const suffix = resultSummary.length > 0 ? ` (${resultSummary})` : "";
+  switch (toolName) {
+    case "search":
+      return `Searched the web${suffix}.`;
+    case "readPage":
+      return `Read a page${suffix}.`;
+    case "extractEvidence":
+      return `Pulled passages from pages${suffix}.`;
+    case "finish":
+      return null;
+    default:
+      return `Used ${toolName}${suffix}.`;
+  }
 }
 
 /**
- * Section 3 — the check bodies: how each check works, what it did, and its limit.
+ * The loop's own bound, in plain words.
  *
- * ONE BLOCK PER STEP (ADR-0023 §5). A claim may have been checked several ways —
- * the change that motivated plans was a claim that quotes a person AND asserts a
- * number, which needs two answers and had one slot — so this section renders every
- * step that ran, each with its own stated limit. A limit printed once for a
- * multi-step verification would attach to the wrong finding.
+ * ADR-0026 §3 makes the critiquer state what the evidence cannot establish, and
+ * section 3 must always carry a bound: a finding reported without its limit
+ * invites the reader to over-read it. The critiquer's `gaps` are the specific
+ * version; when it named none, the loop's structural limit is stated instead,
+ * which is true of every run.
+ */
+const LOOP_BOUND =
+  "This loop reports published evidence and where the search stopped. Finding nothing is reported as finding nothing — it is never treated as proof that the claim is false.";
+
+/**
+ * Section 3 — what the loop found, and what the critiquer made of it.
+ *
+ * One block per turn, because the record is a sequence: each turn's evidence was
+ * gathered under that turn's plan, and the critiquer's reason for asking for
+ * another turn is the most informative thing in the record. Collapsing the turns
+ * into a total would lose exactly that.
  */
 function checkSection(
   input: VerdictPageInput,
   promptVersions: Record<string, string>,
-  resolved: ReturnType<typeof resolvePlan>,
+  loop: ResearchLoopRecord | null,
 ): Omit<TrailSection, "number"> {
   const span = spanOf([input.checkedAt, ...input.evidence.map((item) => item.retrievedAt)]);
-  const described = resolved?.ran.filter((step) => step.description != null) ?? [];
 
-  if (described.length === 0) {
+  if (loop == null || loop.turns.length === 0) {
     return {
       kind: "check",
       title: "How this claim was checked",
       when: whenLabel(span),
       facts: [
-        "We have no record of which checks produced the verdict, so this page cannot explain how the comparison worked.",
+        "We have no record of the research loop for this claim, so this page cannot explain how the evidence was gathered.",
       ],
       rows: [],
       asides: [],
@@ -531,57 +578,79 @@ function checkSection(
       absent: true,
       technical: line([
         `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-        "checks not recorded",
+        "loop not recorded",
       ]),
       mark: "answer",
     };
   }
 
   const facts: string[] = [];
-  for (const step of described) {
-    facts.push(`**${step.description?.label}** — ${step.description?.whatItDoes}`);
-    facts.push(step.description?.chosenWhen ?? "");
+  for (const turn of loop.turns) {
+    // The researcher's own words for the turn, when it gave any: the strategy is
+    // what it set out to do, which is the reader's context for the searches that
+    // follow.
+    if (turn.strategy.length > 0) {
+      facts.push(
+        loop.turns.length === 1 ? turn.strategy : `Turn ${turn.round + 1}: ${turn.strategy}`,
+      );
+    }
+
+    // The searches the researcher CHOSE and ran — the assessor writes questions,
+    // not queries, so these are the researcher's own decisions and belong here
+    // rather than in the plan.
+    for (const query of turn.queries) {
+      facts.push(`Searched: ${query}`);
+    }
+
+    // What the researcher did, in plain words. The tool names are internal, so
+    // each is translated rather than printed: a reader needs to know that a page
+    // was read, not which function read it.
+    for (const call of turn.toolCalls) {
+      const described = describeToolCall(call.toolName, call.resultSummary);
+      if (described != null) facts.push(described);
+    }
+
+    const found = turn.evidenceFound.length;
+    facts.push(`Turn ${turn.round + 1}: ${found} source${found === 1 ? "" : "s"} found.`);
+    // The critiquer's reason is the finding, not commentary on it: it is what the
+    // class was decided from, and for a turn that did not settle the claim it is
+    // the statement of what was still missing.
+    if (turn.critique.reason.length > 0) facts.push(turn.critique.reason);
   }
 
-  // The anchor absence (VER-R5): a quotation check cannot compare words it
-  // cannot locate, and says so rather than reporting a comparison it did not run.
-  if (described.some((step) => step.procedureRef === "quote-fidelity") && !input.mediaAnchor) {
+  if (loop.capped) {
+    // A capped run is a finding about the record, named as one (ADR-0026 §2).
     facts.push(
-      "No recording or transcript is linked to this claim, so the words could not be found and this check could not run. That is not the same as the quotation being misreported.",
+      `The search cap of ${loop.capBinding} turn${loop.capBinding === 1 ? "" : "s"} was reached, so the search stopped there rather than the evidence running out. The verdict below is what the record supports at that point.`,
     );
   }
 
-  // One line, and only where it is true: a figures check reads several vintages
-  // of the same series, and the vintage is half of what a number means. It would
-  // be noise on a quotation check.
-  if (described.some((step) => step.procedureRef === "stat-grid") && input.evidence.length > 1) {
-    facts.push("A claim can hold up against old figures and fail against new ones.");
-  }
+  // The bound: the critiquer's own gaps where it named them, else the loop's
+  // structural limit. Never empty — see LOOP_BOUND.
+  const gaps = loop.turns.flatMap((turn) => turn.critique.gaps);
+  const bounds =
+    gaps.length > 0
+      ? gaps.map((gap, index) => ({
+          label: `What is still open${gaps.length > 1 ? ` (${index + 1})` : ""}`,
+          text: gap,
+        }))
+      : [{ label: "What this loop cannot establish", text: LOOP_BOUND }];
 
   return {
     kind: "check",
-    title:
-      described.length === 1
-        ? `How it was checked: ${described[0]?.description?.label.toLowerCase()}`
-        : `How it was checked: ${described
-            .map((step) => step.description?.label.toLowerCase())
-            .join(" and ")}`,
+    title: "How this claim was checked",
     when: whenLabel(span),
-    facts: facts.filter(Boolean),
+    facts,
     rows: [],
     asides: [],
     sources: [],
     decision: decisionFor(input),
-    // One bound per check that ran. Non-negotiable: a finding reported without
-    // its limit invites the reader to over-read it.
-    bounds: described.map((step) => ({
-      label: step.description?.label ?? step.procedureRef,
-      text: step.description?.cannot ?? "",
-    })),
+    bounds,
     absent: false,
     technical: line([
       `recorded ${span?.from.toISOString() ?? "not recorded"}`,
-      `checks ${described.map((step) => step.procedureRef).join(", ")}`,
+      `turns ${loop.turnsUsed}`,
+      loop.capped ? `capped ${loop.capBinding}` : null,
       // The source count and codes live on the sources section, one section on;
       // repeating them here would print the same record twice.
       input.searchRefs.length > 0 ? `web searches ${input.searchRefs.length}` : null,
@@ -636,30 +705,51 @@ function sourcesSection(input: VerdictPageInput): Omit<TrailSection, "number"> {
   };
 }
 
-/** Section 5 — the publication gate, and the publication itself. */
+/**
+ * Section 5 — the sufficiency decision, the class agreement, and publication.
+ *
+ * The gate is the critiquer's sufficiency decision (ADR-0026 §3), not a separate
+ * entailment pass: the critiquer decides whether the evidence is sufficient AND
+ * picks the class, so the entailment question is asked where the class is chosen
+ * rather than after the prose is written. What remains to report here is that decision, the cap when it
+ * bound, and the class-agreement gate (VER-R16) — the class-deciding call runs
+ * twice and only an agreed class publishes, because the configured models ignore
+ * sampling settings.
+ */
 function gateSection(
   input: VerdictPageInput,
   promptVersions: Record<string, string>,
+  loop: ResearchLoopRecord | null,
 ): Omit<TrailSection, "number"> {
   const span = spanOf([input.checkedAt, input.publishedAt]);
   const revisions = Math.max(0, input.verdictVersion - 1);
-  const facts: string[] = [
-    "Before publishing, a second pass re-read our reasoning against the sources. Its only job is to find claims the sources do not support.",
-  ];
-  // The publication gate (VERIFICATION §2.7): a failure is supposed to BLOCK the
-  // verdict, so a published page carrying `fail` is a defect in whatever wrote it
-  // — two slice scripts used to publish past a failed audit, one of them
-  // recording "pass" without running the audit at all (Sept 2026, both fixed).
-  // The line below still renders the stored outcome rather than hiding it.
-  if (input.nliOutcome === "pass") {
+  const facts: string[] = [];
+
+  if (loop == null) {
     facts.push(
-      "It agreed with the reasoning, so nothing here rests on a claim the sources do not support.",
+      "We have no record of the decision that gated this verdict, so this page cannot say what settled it.",
     );
-  } else if (input.nliOutcome) {
+  } else if (loop.capped && !loop.turns.some((turn) => turn.critique.sufficient)) {
     facts.push(
-      "The second pass did not pass. That is a defect in how this verdict was published — recorded here rather than hidden.",
+      'The evidence did not settle the claim before the search cap was reached, so "we could not verify this" is the finding — not a failure to look, and not a judgement that the claim is false.',
+    );
+  } else {
+    facts.push(
+      "The evidence was judged sufficient to decide the claim, and every part of the reasoning had to cite a source we found. A conclusion the evidence did not support could not be published.",
     );
   }
+
+  // The class-agreement gate (VER-R16). A disagreement is a real, published state:
+  // nothing was settled, so `not_enough_evidence` went out rather than one of two
+  // conflicting answers.
+  if (loop != null && !loop.agreement.agreed) {
+    facts.push(
+      'The decision was made twice and the two runs did not agree, so the class was not settled. This page publishes "we could not verify this" rather than choosing between two conflicting answers.',
+    );
+  } else if (loop != null) {
+    facts.push("The decision was made twice, and both runs reached the same class.");
+  }
+
   if (input.transcriptTier === "publisher-auto") {
     facts.push("This wording comes from an automatic transcript and may contain errors.");
   }
@@ -685,7 +775,14 @@ function gateSection(
       `verdict version ${input.verdictVersion}`,
       `state ${input.verdictStatus}`,
       revisions === 0 ? "never revised" : `revised ${revisions} time${revisions === 1 ? "" : "s"}`,
-      input.nliOutcome ? `outcome ${input.nliOutcome}` : null,
+      // The loop's own outcome, as recorded: its reason and whether the class
+      // agreed. Both are values the run wrote down, never re-derived here.
+      loop != null ? `outcome ${loop.reason}` : null,
+      loop != null
+        ? `agreement ${loop.agreement.agreed ? "agreed" : "disagreed"}${
+            loop.agreement.classes.length > 0 ? ` (${loop.agreement.classes.join(", ")})` : ""
+          }`
+        : null,
       `instructions ${promptVersionsFor("gate", promptVersions).join(", ") || "not recorded"}`,
       modelVersionsFor("gate", input.modelVersions).length > 0
         ? `model ${modelVersionsFor("gate", input.modelVersions).join(", ")}`

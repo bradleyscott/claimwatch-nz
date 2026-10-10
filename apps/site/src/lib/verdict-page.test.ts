@@ -1,6 +1,7 @@
 // SITE-MVP §2.3/§5 L1: section-order invariant, register rules, anchor href,
 // claim-card shape. Authored red; requirements frozen, structural edits free.
 
+import { ResearchLoopRecord, type ResearchLoopRecordInput } from "@cw/store";
 import { describe, expect, it } from "vitest";
 import {
   anchorHref,
@@ -12,7 +13,73 @@ import {
   type VerdictClass,
   type VerdictPageInput,
 } from "./verdict-page.ts";
-import { PROCEDURE_DESCRIPTIONS } from "./verification-mode.ts";
+
+/**
+ * A research loop record, for tests that care what the trail says about it rather
+ * than about its full shape. `loopOf` builds one turn; `loopWith` varies it.
+ */
+function loopOf(over: Partial<ResearchLoopRecordInput> = {}): ResearchLoopRecord {
+  // Parsed rather than constructed, so the schema's defaults (strategy, queries,
+  // toolCalls, evidenceFound) fill in and a fixture only states what the test is
+  // about. The returned type is the parsed one, which is what the page consumes.
+  return ResearchLoopRecord.parse({
+    turns: [
+      {
+        round: 0,
+        plan: {
+          evidencePlan: "Find official migration figures for the period the claim names.",
+          questions: ["What were net migration figures in the October 2023 year?"],
+        },
+        strategy: "Start from the official series the claim names.",
+        queries: [
+          "net migration October 2023 year stats nz",
+          "net migration revised downwards October 2023",
+        ],
+        toolCalls: [
+          { toolName: "search", input: { query: "net migration" }, resultSummary: "8 results" },
+          {
+            toolName: "readPage",
+            input: { url: "https://www.stats.govt.nz/migration" },
+            resultSummary: "2,400 chars",
+          },
+          {
+            toolName: "extractEvidence",
+            input: { question: "what was net migration in the October 2023 year?" },
+            resultSummary: "1 passage",
+          },
+          {
+            toolName: "finish",
+            input: { reason: "the series states the figure" },
+            resultSummary: "",
+          },
+        ],
+        evidenceFound: [
+          {
+            url: "https://www.stats.govt.nz/migration",
+            title: "International migration",
+            domain: "stats.govt.nz",
+            passage: "Net migration peaked at 135,500 in the October 2023 year.",
+            tier: 1,
+          },
+        ],
+        critique: {
+          sufficient: true,
+          verdictClass: "supported",
+          confidence: 0.8,
+          reason: "The official series states the figure the claim names.",
+          gaps: [],
+          justifications: ["Net migration peaked at 135,500 in the October 2023 year."],
+        },
+      },
+    ],
+    turnsUsed: 1,
+    capBinding: 3,
+    capped: false,
+    reason: "The official series states the figure the claim names.",
+    agreement: { agreed: true, classes: ["supported"] },
+    ...over,
+  });
+}
 
 const input = (
   over: Partial<VerdictPageInput> & { verdictClass: VerdictClass },
@@ -25,28 +92,26 @@ const input = (
   sourceUrl: "https://www.rnz.co.nz/news/politics/x",
   publishedAt: new Date("2026-09-08"),
   confidence: 0.72,
-  attachedProposal: null,
+  supports: null,
   claimPassage: null,
   policyTopic: null,
   mediaAnchor: null,
   transcriptTier: null,
   evidence: [],
   pipelineVersion: "0.1.0",
-  promptVersions: { "citation-compare": "citation-compare@1" },
-  modelVersions: { "citation-compare": "model-x@v1" },
+  promptVersions: { "claim-assessor": "claim-assessor@1" },
+  modelVersions: { "claim-assessor": "model-x@v1" },
   searchRefs: [],
   sourceCodes: null,
-  plan: planOf("open-web-research"),
+  research: loopOf(),
   triageRecord: null,
   claimMadeAt: null,
   claimRecordedAt: null,
   sourceRetrievedAt: null,
-  claimType: null,
   publisher: null,
   claimPromptVersions: {},
   claimModelVersion: null,
   checkedAt: null,
-  nliOutcome: null,
   verdictVersion: 1,
   verdictStatus: "PUBLISHED",
   ...over,
@@ -59,11 +124,8 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
       claimMadeAt: new Date("2026-09-08T07:42:00+12:00"),
       sourceRetrievedAt: new Date("2026-09-09T09:10:00+12:00"),
       claimRecordedAt: new Date("2026-09-09T09:26:00+12:00"),
-      claimType: "statistical",
-      // The mode the ROUTER chose, not the one the claim type implies. For a
-      // statistical claim those differ whenever the authority registry has no
-      // entry for the domain, which is the common case (mode-routing.ts).
-      plan: planOf("stat-grid"),
+      // One turn, sufficient, agreed — the shape of a claim the loop settled.
+      research: loopOf(),
       // Triage's own output for the document this claim came from — the "what we
       // did not check" section. Two set aside, one held, out of eleven read.
       triageRecord: {
@@ -81,10 +143,9 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
         ],
       },
       publisher: "Newstalk ZB",
-      claimPromptVersions: { "triage-typing": "triage-typing@1" },
+      claimPromptVersions: { "triage-checkability": "triage-checkability@1" },
       claimModelVersion: "claude-sonnet-5",
       checkedAt: new Date("2026-09-09T09:40:00+12:00"),
-      nliOutcome: "pass",
       publishedAt: new Date("2026-09-09T10:12:00+12:00"),
       evidence: [
         {
@@ -97,10 +158,10 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
         },
       ],
       promptVersions: {
-        "triage-typing": "triage-typing@1",
-        "citation-compare": "citation-compare@1",
-        "grid-materiality": "grid-materiality@2",
-        "nli-audit": "nli-audit@1",
+        "triage-checkability": "triage-checkability@1",
+        "claim-assessor": "claim-assessor@1",
+        researcher: "researcher@1",
+        "evidence-critiquer": "evidence-critiquer@1",
         // A role this page does not know about — the store may legitimately
         // carry one (a new pipeline step shipping before the site does), and it
         // must still reach the reader.
@@ -111,45 +172,12 @@ const recorded = (over: Partial<VerdictPageInput> & { verdictClass: VerdictClass
     }),
   );
 
-/**
- * A one-step plan, for tests that only care which check the page describes.
- *
- * Plans replaced the single `verificationMode` (ADR-0023), so a test that used to
- * name a mode now names a procedure inside a plan. `planOf` keeps those tests
- * about the page rather than about the plan's shape; `plan.test.ts` in the
- * pipeline covers the shape, including multi-step plans.
- */
-function planOf(procedureRef: string) {
-  return {
-    libraryVersion: "proc-lib-2026-09",
-    features: {
-      category: "test",
-      assertsNumber: false,
-      quotesPerson: false,
-      citesDocument: false,
-      attachesToProposal: false,
-    },
-    steps: [
-      {
-        procedureRef,
-        procedureVersion: `${procedureRef}@1`,
-        reason: "test",
-        source: "required" as const,
-        status: "ran" as const,
-        declineReason: null,
-        outcome: null,
-      },
-    ],
-    notAttempted: [],
-  };
-}
-
 describe("section order is a design invariant (SITE-MVP §2.3)", () => {
   it("emits the fixed order: claim → verdict → (deployed) → (media) → evidence → trail", () => {
     const model = buildVerdictPageModel(
       input({
         verdictClass: "conflicting_cherry_picking",
-        attachedProposal: "tougher sentencing package",
+        supports: "tougher sentencing package",
         mediaAnchor: {
           mediaUrl: "https://youtube.com?v=x",
           startS: 2.5,
@@ -218,10 +246,9 @@ describe("register rules (SIT-R4/R5/R6)", () => {
     }
   });
 
-  // Sept 2026: the published number was a hardcoded placeholder in the `ops/`
-  // slice scripts with no adjudicator behind it, so SIT-R6 tightened from
-  // "de-emphasise" to "do not publish": a confidence value is withheld until
-  // ADR-0011's adjudication step exists and the harness calibrates it.
+  // SIT-R6: a confidence value is withheld until a step produces one AND the
+  // harness calibrates it. Publishing an uncalibrated figure would claim a
+  // measured statistical confidence the pipeline does not compute.
   it("publishes no confidence value, even when the store carries one (SIT-R6)", () => {
     const model = buildVerdictPageModel(input({ verdictClass: "supported", confidence: 0.81 }));
     const rendered = JSON.stringify(model.sections);
@@ -288,61 +315,203 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     );
   });
 
-  it("explains THIS claim's check, and never a different kind of check", () => {
-    // The whole point of the mode-aware block: a claim checked against official
-    // figures must not be explained with a citation check's copy, or vice versa.
-    const statGrid = recorded({ verdictClass: "supported", plan: planOf("stat-grid") });
-    const check = statGrid.trail.sections.find((s) => s.kind === "check");
-    expect(check?.title).toBe("How it was checked: official figures");
-    expect(check?.facts.join(" ")).toContain("official figures for it");
-    expect(check?.facts.join(" ")).not.toContain("recording");
-
-    const quote = recorded({
-      verdictClass: "supported",
-      plan: planOf("quote-fidelity"),
-      mediaAnchor: {
-        mediaUrl: "https://youtube.com?v=x",
-        startS: 754,
-        endS: 768,
-        deepLink: "https://youtube.com?v=x&t=754s",
-      },
-      evidence: [],
-    });
-    const quoteCheck = quote.trail.sections.find((s) => s.kind === "check");
-    expect(quoteCheck?.title).toBe("How it was checked: the recording");
-    expect(quoteCheck?.facts.join(" ")).toContain("recording or transcript");
-  });
-
-  it("declares what the check cannot establish, on every mode", () => {
-    // A finding reported without its limit invites the reader to over-read it.
-    // The sharpest case is causation: no mode tests it, so every mode says so.
-    for (const mode of [
-      "stat-grid",
-      "citation-check",
-      "quote-fidelity",
-      "provenance",
-      "open-web-research",
-    ]) {
-      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
-      const check = trail.sections.find((s) => s.kind === "check");
-      expect(check?.bounds.length, mode).toBeGreaterThan(0);
-      expect((check?.bounds[0]?.text ?? "").length, mode).toBeGreaterThan(40);
-    }
-    const openWeb = recorded({ verdictClass: "supported", plan: planOf("open-web-research") });
-    expect(
-      openWeb.trail.sections
-        .find((s) => s.kind === "check")
-        ?.bounds.map((b) => b.text)
-        .join(" "),
-    ).toContain("cause");
-  });
-
-  it("reads the claim in the terms that produced the check", () => {
-    const { trail } = recorded({ verdictClass: "supported", claimType: "broadcast-quote" });
+  it("states the plan the loop worked to, and the finding it reached", () => {
+    // ADR-0026: one instrument, so there is no "which check" to select between.
+    // What section 2 owes the reader is what evidence was sought; what section 3
+    // owes them is what was found and what the critiquer made of it.
+    const { trail } = recorded({ verdictClass: "supported" });
     const chosen = trail.sections.find((s) => s.kind === "chosen");
-    expect(chosen?.facts.join(" ")).toContain("a claim about what someone said");
-    // The routing rule, stated as a rule — not restated as this claim's history.
-    expect(chosen?.facts.join(" ")).toContain("before any evidence was gathered");
+    expect(chosen?.facts.join(" ")).toContain("official migration figures");
+    // The questions travel with the plan — the assessor writes questions, and they
+    // include the ones that would disprove the claim.
+    expect(chosen?.facts.join(" ")).toContain(
+      "Question to answer: What were net migration figures in the October 2023 year?",
+    );
+    // The searches belong to the turn, not the plan, so section 2 does not carry
+    // them.
+    expect(chosen?.facts.join(" ")).not.toContain("Searched:");
+
+    const check = trail.sections.find((s) => s.kind === "check");
+    expect(check?.facts.join(" ")).toContain("1 source found");
+    expect(check?.facts.join(" ")).toContain("official series states the figure");
+  });
+
+  it("renders the researcher's turn: its strategy, its searches and what it did", () => {
+    // The researcher chooses how to answer the plan's questions, so the searches
+    // and the tool calls are the record of ITS decisions — and the tool names are
+    // internal, so each is translated rather than printed.
+    const { trail } = recorded({ verdictClass: "supported" });
+    const check = trail.sections.find((s) => s.kind === "check");
+    const copy = check?.facts.join(" ") ?? "";
+    expect(copy).toContain("Start from the official series the claim names.");
+    expect(copy).toContain("Searched: net migration October 2023 year stats nz");
+    expect(copy).toContain("Searched the web (8 results).");
+    expect(copy).toContain("Read a page (2,400 chars).");
+    expect(copy).toContain("Pulled passages from pages (1 passage).");
+    // `finish` says nothing a reader needs: the turn ending already says it.
+    expect(copy).not.toContain("finish");
+    expect(copy).not.toContain("toolName");
+    // And the internal tool names never reach the public copy.
+    for (const internal of ["readPage", "extractEvidence", "toolCalls"]) {
+      expect(copy).not.toContain(internal);
+    }
+    // The count of searches is on the plan's audit line, where the values belong.
+    const chosen = trail.sections.find((s) => s.kind === "chosen");
+    expect(chosen?.technical).toContain("searches 2");
+    expect(chosen?.technical).toContain("questions 1");
+  });
+
+  it("shows every turn's plan, because a later plan answers the earlier critique", () => {
+    // The assessor sees the previous critique and is asked again, so turn 2's
+    // plan is a response to what turn 1 missed. Printing only the first would hide
+    // the part a reader most needs.
+    const { trail } = recorded({
+      verdictClass: "not_enough_evidence",
+      research: loopOf({
+        turns: [
+          {
+            round: 0,
+            plan: {
+              evidencePlan: "Look for the department's own count.",
+              questions: ["How many did the department count?"],
+            },
+            strategy: "Go straight to the department's own figures.",
+            queries: ["department count", "department count disputed"],
+            evidenceFound: [],
+            critique: {
+              sufficient: false,
+              verdictClass: "not_enough_evidence",
+              confidence: 0.3,
+              reason: "No source states the figure the claim names.",
+              gaps: ["no official count for the period claimed"],
+              justifications: [],
+            },
+          },
+          {
+            round: 1,
+            plan: {
+              evidencePlan: "Look for the figure in the annual report instead.",
+              questions: ["Does the annual report cover the period?"],
+            },
+            strategy: "The department page had nothing, so try the annual report.",
+            queries: ["annual report figure", "annual report figure contradicted"],
+            evidenceFound: [],
+            critique: {
+              sufficient: false,
+              verdictClass: "not_enough_evidence",
+              confidence: 0.3,
+              reason: "The annual report does not cover the period either.",
+              gaps: ["no official count for the period claimed"],
+              justifications: [],
+            },
+          },
+        ],
+        turnsUsed: 2,
+        capped: true,
+      }),
+    });
+    const chosen = trail.sections.find((s) => s.kind === "chosen");
+    expect(chosen?.facts.join(" ")).toContain("Turn 1:");
+    expect(chosen?.facts.join(" ")).toContain("Turn 2:");
+    expect(chosen?.facts.join(" ")).toContain("annual report");
+    const check = trail.sections.find((s) => s.kind === "check");
+    expect(check?.facts.join(" ")).toContain("Turn 1: 0 sources found.");
+    expect(check?.facts.join(" ")).toContain("Turn 2: 0 sources found.");
+  });
+
+  it("declares what the loop cannot establish, always, and names the critiquer's gaps", () => {
+    // A finding reported without its limit invites the reader to over-read it.
+    const withGaps = recorded({
+      verdictClass: "not_enough_evidence",
+      research: loopOf({
+        turns: [
+          {
+            round: 0,
+            plan: {
+              evidencePlan: "Find the figure.",
+              questions: [],
+            },
+            evidenceFound: [],
+            critique: {
+              sufficient: false,
+              verdictClass: "not_enough_evidence",
+              confidence: 0.2,
+              reason: "Nothing states it.",
+              gaps: ["no official count for the period claimed", "no figure for the group named"],
+              justifications: [],
+            },
+          },
+        ],
+        turnsUsed: 1,
+        capped: true,
+      }),
+    });
+    const gaps = withGaps.trail.sections.find((s) => s.kind === "check")?.bounds ?? [];
+    expect(gaps).toHaveLength(2);
+    expect(gaps.map((b) => b.text).join(" ")).toContain("no official count");
+
+    // No gaps named: the loop's structural limit is stated instead. The bound is
+    // NEVER empty when section 3 is present.
+    const noGaps = recorded({ verdictClass: "supported" });
+    const bound = noGaps.trail.sections.find((s) => s.kind === "check")?.bounds ?? [];
+    expect(bound).toHaveLength(1);
+    expect(bound[0]?.text).toContain("where the search stopped");
+    expect(bound[0]?.text).toContain("never treated as proof that the claim is false");
+  });
+
+  it("names the cap as the reason the search stopped, when it bound", () => {
+    const { trail } = recorded({
+      verdictClass: "not_enough_evidence",
+      research: loopOf({
+        turns: [
+          {
+            round: 0,
+            plan: {
+              evidencePlan: "Find the figure.",
+              questions: [],
+            },
+            evidenceFound: [],
+            critique: {
+              sufficient: false,
+              verdictClass: "not_enough_evidence",
+              confidence: 0.2,
+              reason: "Nothing states it.",
+              gaps: [],
+              justifications: [],
+            },
+          },
+        ],
+        turnsUsed: 3,
+        capBinding: 3,
+        capped: true,
+        reason: "The search cap was reached before the figure was found.",
+      }),
+    });
+    const check = trail.sections.find((s) => s.kind === "check");
+    expect(check?.facts.join(" ")).toContain("search cap of 3 turns was reached");
+    expect(check?.technical).toContain("capped 3");
+    // And section 5 says the cap, not the evidence, is why nothing was verified.
+    const gate = trail.sections.find((s) => s.kind === "gate");
+    expect(gate?.facts.join(" ")).toContain("before the search cap was reached");
+    expect(gate?.facts.join(" ")).toContain("not a judgement that the claim is false");
+  });
+
+  it("states what the claim was used in support of, when the store holds it", () => {
+    // `supports` is the argumentative point (ADR-0026). Absent stays absent: a
+    // claim whose passage named no argument renders no line rather than a guess.
+    const withSupports = recorded({
+      verdictClass: "supported",
+      supports: "the sentencing package",
+    });
+    expect(
+      buildVerdictPageModel(
+        input({ verdictClass: "supported", supports: "the sentencing package" }),
+      ).sections.map((s) => s.kind),
+    ).toContain("deployed");
+    expect(withSupports.trail.sections.length).toBeGreaterThan(0);
+
+    const without = buildVerdictPageModel(input({ verdictClass: "supported", supports: null }));
+    expect(without.sections.map((s) => s.kind)).not.toContain("deployed");
   });
 
   it("reports the sentences it did not check, with a plain reason", () => {
@@ -408,61 +577,54 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(source?.dates).toBe("dated 31 Jan 2026 · fetched 9 Sept 2026");
   });
 
-  it("says so when the check cannot run, instead of reporting one that did", () => {
-    // A quotation check with no anchor (VER-R5). The page must distinguish "we
-    // looked and the words could not be found" from "we did not look" — and it
-    // must not render a comparison it never ran.
-    const { trail } = recorded({
-      verdictClass: "not_enough_evidence",
-      plan: planOf("quote-fidelity"),
-      mediaAnchor: null,
-      evidence: [],
-    });
-    const check = trail.sections.find((s) => s.kind === "check");
-    expect(check?.facts.join(" ")).toContain("could not be found");
-    expect(check?.facts.join(" ")).toContain("could not run");
-    expect(check?.absent).toBe(false); // the MODE is known; the comparison is not
-  });
-
-  it("renders an absence — not a guess — for a claim with no recorded check", () => {
-    // Every verdict written before `claim.verification_mode` existed is in this
-    // state, so this is the commonest case in the store today, not an edge case.
-    const { trail } = recorded({ verdictClass: "supported", plan: null });
+  it("renders an absence — not a guess — for a claim with no recorded loop", () => {
+    // A verdict with no loop record is in this state, so this is
+    // a real state rather than an edge case. The page says what is missing; it
+    // does not describe a check it cannot name.
+    const { trail } = recorded({ verdictClass: "supported", research: null });
     const chosen = trail.sections.find((s) => s.kind === "chosen");
     const check = trail.sections.find((s) => s.kind === "check");
     expect(chosen?.absent).toBe(true);
     expect(check?.absent).toBe(true);
     expect(check?.bounds).toEqual([]);
-    // It says what is missing rather than describing a check it cannot name.
-    expect(check?.facts.join(" ")).toContain("We have no record of which checks");
-    expect(check?.technical).toContain("checks not recorded");
+    expect(check?.facts.join(" ")).toContain("We have no record of the research loop");
+    expect(check?.technical).toContain("loop not recorded");
+    // And section 2 says the plan was not written down rather than inventing one.
+    expect(chosen?.facts.join(" ")).toContain("no record of the evidence plan");
+    expect(chosen?.technical).toContain("plan not recorded");
   });
 
-  it("never derives a check from the claim type, because a type is not a check", () => {
-    // This test used to assert the opposite: `claimType → mode` was a partial
-    // mapping, and for `statistical` it deliberately refused to derive (a
-    // statistical claim reached the figures grid only on an authority-registry
-    // hit). ADR-0023 removed the derivation entirely. The claim's type is
-    // triage's answer about the sentence; the procedures it needs are the plan's,
-    // and a type has never determined a check. So EVERY type renders an absence
-    // when no plan was recorded, and there is nothing to infer.
-    for (const claimType of [
-      "statistical",
-      "broadcast-quote",
-      "citation-backed",
-      "false-context",
-      "other",
-    ]) {
-      const { trail } = recorded({ verdictClass: "supported", claimType, plan: null });
-      const check = trail.sections.find((s) => s.kind === "check");
-      expect(check?.absent, claimType).toBe(true);
-      expect(check?.bounds, claimType).toEqual([]);
-      // And the reasoning section says the plan was not written down, rather
-      // than claiming a check it cannot name.
-      expect(trail.sections.find((s) => s.kind === "chosen")?.technical, claimType).toContain(
-        "check not recorded",
-      );
-    }
+  it("renders an absence for a loop record that holds no turns", () => {
+    // A record with an empty turn list is the same absence as no record: there is
+    // nothing to describe, and an empty section would read as a check that found
+    // nothing to say.
+    const { trail } = recorded({ verdictClass: "supported", research: loopOf({ turns: [] }) });
+    expect(trail.sections.find((s) => s.kind === "check")?.absent).toBe(true);
+    expect(trail.sections.find((s) => s.kind === "chosen")?.absent).toBe(true);
+  });
+
+  it("says the class did not settle when the two runs disagreed (VER-R16)", () => {
+    // A disagreement is a published state, not a hidden one: nothing was settled,
+    // so "we could not verify this" went out rather than one of two answers.
+    const { trail } = recorded({
+      verdictClass: "not_enough_evidence",
+      research: loopOf({
+        agreement: { agreed: false, classes: ["supported", "refuted"] },
+        reason: "The two runs reached different classes.",
+      }),
+    });
+    const gate = trail.sections.find((s) => s.kind === "gate");
+    expect(gate?.facts.join(" ")).toContain("did not agree");
+    expect(gate?.facts.join(" ")).toContain("rather than choosing between two conflicting answers");
+    expect(gate?.technical).toContain("agreement disagreed (supported, refuted)");
+  });
+
+  it("records the loop's own reason and agreement state on the audit line", () => {
+    const { trail } = recorded({ verdictClass: "supported" });
+    const gate = trail.sections.find((s) => s.kind === "gate");
+    expect(gate?.facts.join(" ")).toContain("made twice, and both runs reached the same class");
+    expect(gate?.technical).toContain("outcome The official series states the figure");
+    expect(gate?.technical).toContain("agreement agreed (supported)");
   });
 
   it("renders an absence for a document record the store does not hold", () => {
@@ -474,17 +636,16 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(read?.technical).toContain("sentences not recorded");
   });
 
-  it("states the gate outcome, including when the second pass did not pass", () => {
-    // A published verdict carrying a failed gate is a defect in whatever wrote
-    // it. The page records it rather than hiding it (VERIFICATION §2.7).
-    const failed = recorded({ verdictClass: "supported", nliOutcome: "fail" });
-    const gate = failed.trail.sections.find((s) => s.kind === "gate");
-    expect(gate?.facts.join(" ")).toContain("did not pass");
-    expect(gate?.facts.join(" ")).toContain("defect");
-
-    const passed = recorded({ verdictClass: "supported", nliOutcome: "pass" });
-    expect(passed.trail.sections.find((s) => s.kind === "gate")?.facts.join(" ")).toContain(
-      "agreed with the reasoning",
+  it("states the sufficiency decision, and the cap when it bound", () => {
+    // The gate is the critiquer's sufficiency decision (ADR-0026 §3), not a
+    // separate entailment pass. A sufficient loop says so; a capped one says the
+    // cap is why nothing was verified.
+    const sufficient = recorded({ verdictClass: "supported" });
+    expect(sufficient.trail.sections.find((s) => s.kind === "gate")?.facts.join(" ")).toContain(
+      "judged sufficient to decide the claim",
+    );
+    expect(sufficient.trail.sections.find((s) => s.kind === "gate")?.facts.join(" ")).toContain(
+      "had to cite a source we found",
     );
   });
 
@@ -503,9 +664,8 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
   });
 
   it("defines every value a reader cannot read off a plain label", () => {
-    // The labels are English now, so the key no longer restates them — it
-    // carries only the opaque value forms. Every one of those must be defined,
-    // or the record is a riddle.
+    // The labels are English, so the key carries only the opaque value forms.
+    // Every one of those must be defined, or the record is a riddle.
     const terms = TECHNICAL_RECORD_KEY.map((entry) => entry.term);
     for (const valueForm of ["name@version", "source type codes", "PUBLISHED", "not recorded"]) {
       expect(terms).toContain(valueForm);
@@ -536,28 +696,24 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
   });
 
   it("labels every part of an audit line with a reviewed word (SITE-MVP §2.2 rule 4)", () => {
-    // The labels are what replaced the key as the register guard: the audit lines
-    // are exempt from the scan, so an unreviewed label must fail loudly rather
-    // than let prose onto a public page inside the exempt region.
-    for (const mode of [
-      "stat-grid",
-      "citation-check",
-      "quote-fidelity",
-      "provenance",
-      "open-web-research",
+    // The labels are the register guard for the audit lines: those lines are
+    // exempt from the scan, so an unreviewed label must fail loudly rather than
+    // let prose onto a public page inside the exempt region.
+    // Every shape the loop can take, because each puts different values on the
+    // audit line — including the cap, which prints a bare number.
+    for (const research of [
+      loopOf(),
+      loopOf({ capped: true, turnsUsed: 3, capBinding: 3 }),
+      loopOf({ agreement: { agreed: false, classes: ["supported", "refuted"] } }),
     ]) {
-      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
+      const { trail } = recorded({ verdictClass: "supported", research });
       for (const section of trail.sections) {
         expect(() => assertAuditLabelsKnown(section.technical)).not.toThrow();
       }
     }
     // The absence states are audit lines too, and the likeliest place for an
     // unreviewed label to be introduced by hand.
-    for (const over of [
-      { plan: null },
-      { triageRecord: null },
-      { plan: null, claimType: "statistical" },
-    ]) {
+    for (const over of [{ research: null }, { triageRecord: null }]) {
       const { trail } = recorded({ verdictClass: "supported", ...over });
       for (const section of trail.sections) {
         expect(() => assertAuditLabelsKnown(section.technical)).not.toThrow();
@@ -576,8 +732,13 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     expect(() => assertAuditLabelsKnown("set aside 9")).not.toThrow();
     // The guard polices labels only — a stored value is the record and is printed
     // as it was written, internal vocabulary and all (HAR-R7).
-    expect(() => assertAuditLabelsKnown("checks stat-grid")).not.toThrow();
-    expect(() => assertAuditLabelsKnown("instructions nli-audit@1")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("turns 3")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("capped 3")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("agreement disagreed (supported, refuted)")).not.toThrow();
+    expect(() => assertAuditLabelsKnown("instructions evidence-critiquer@1")).not.toThrow();
+    // A label that is not on the list fails, so an unreviewed one cannot ride
+    // into a public page inside the audit line.
+    expect(() => assertAuditLabelsKnown("checks triage-checkability")).toThrow(/no reviewed label/);
   });
 
   it("attributes the recorded prompt roles to the section they belong to (HAR-R7)", () => {
@@ -585,19 +746,21 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
     const read = trail.sections.find((s) => s.kind === "read")?.technical ?? "";
     const check = trail.sections.find((s) => s.kind === "check")?.technical ?? "";
     const gate = trail.sections.find((s) => s.kind === "gate")?.technical ?? "";
-    expect(read).toContain("triage-typing@1");
-    expect(read).not.toContain("grid-materiality@2");
-    expect(check).toContain("citation-compare@1");
-    expect(check).toContain("model citation-compare: model-x@v1");
-    // Which readings of the series are material is part of the comparison, so
-    // its role is attributed there rather than to the publication gate.
-    expect(check).toContain("grid-materiality@2");
+    expect(read).toContain("triage-checkability@1");
+    expect(read).not.toContain("claim-assessor@1");
+    // The three loop roles belong to the check section: the assessor plans, the
+    // researcher gathers, the critiquer decides.
+    expect(check).toContain("claim-assessor@1");
+    expect(check).toContain("researcher@1");
+    expect(check).toContain("evidence-critiquer@1");
     expect(gate).toContain("ClaimWatch version 0.1.0");
     expect(gate).toContain("verdict version 1");
     expect(gate).toContain("never revised");
-    expect(gate).toContain("outcome pass");
-    expect(gate).toContain("nli-audit@1");
-    expect(gate).not.toContain("grid-materiality@2");
+    // The critiquer's reason and the agreement state, as the run recorded them.
+    expect(gate).toContain("outcome The official series states the figure");
+    expect(gate).toContain("agreement agreed (supported)");
+    expect(gate).toContain("evidence-critiquer@1");
+    expect(gate).not.toContain("claim-assessor@1");
     // A role this page has never heard of is printed, not dropped: provenance
     // the reader cannot see is provenance that may as well not exist.
     expect(gate).toContain("brand-new-role@1");
@@ -636,38 +799,28 @@ describe("the mode-aware trail (SITE-MVP §2.3)", () => {
   });
 
   it("keeps the check's own name out of the copy that explains the check", () => {
-    // The mode label is what triage ASSIGNED, and it carries a hyphenated
-    // internal form. The title lowercases it into the running text ("How this
-    // claim was checked: official figures"), which reads as English; the raw
-    // value stays on the audit line where provenance belongs.
-    for (const mode of [
-      "stat-grid",
-      "citation-check",
-      "quote-fidelity",
-      "provenance",
-      "open-web-research",
-    ]) {
-      const { trail } = recorded({ verdictClass: "supported", plan: planOf(mode) });
+    // There is no check name to leak (ADR-0026: one instrument). What this guards
+    // is the remaining route — the ROLE names on the audit line must not reach the
+    // running copy.
+    for (const research of [loopOf(), loopOf({ capped: true, turnsUsed: 3, capBinding: 3 })]) {
+      const { trail } = recorded({ verdictClass: "supported", research });
       const check = trail.sections.find((s) => s.kind === "check");
-      // The heading is built from the site's own plain-language label, so an
-      // internal id can never become a public heading by being interpolated.
-      const label = PROCEDURE_DESCRIPTIONS[mode]?.label.toLowerCase() ?? "";
-      expect(check?.title, mode).toBe(`How it was checked: ${label}`);
-      // The explanatory copy is ours; the recorded id stays on the audit line,
-      // where provenance belongs.
       const copy = [...(check?.facts ?? []), ...(check?.bounds ?? []).map((b) => b.text)].join(" ");
-      expect(copy, mode).not.toContain(mode);
-      expect(check?.technical, mode).toContain(`checks ${mode}`);
+      for (const role of ["claim-assessor", "evidence-critiquer", "researcher"]) {
+        expect(copy).not.toContain(role);
+      }
+      // The role names stay on the audit line, where provenance belongs.
+      expect(check?.technical).toContain("instructions");
     }
   });
 
   it("says nothing at all about a check it did not run (no boilerplate fill)", () => {
-    // The failure mode this replaces: rendering a mode's scaffolding with empty
-    // values, which reads as a completed check. An absent check says only what
+    // The failure mode this replaces: rendering a check's scaffolding with empty
+    // values, which reads as a completed check. An absent section says only what
     // is missing.
     const { trail } = recorded({
       verdictClass: "supported",
-      plan: null,
+      research: null,
       triageRecord: null,
     });
     const absent = trail.sections.filter((section) => section.absent);

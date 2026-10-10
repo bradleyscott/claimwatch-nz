@@ -5,7 +5,7 @@ import { VERDICT_TONES } from "@/components/verdict-rule";
 import { cn } from "@/lib/utils";
 import { VERDICT_LABELS } from "@/lib/verdict-page";
 
-// Feed: minimal by priority (Sept 2026) — a recency link list into
+// Feed: minimal by priority — a recency link list into
 // the verdict pages. No facet rail; the verdict pages are the MVP's proof.
 // Empty store renders the honest empty state (SIT-R14).
 

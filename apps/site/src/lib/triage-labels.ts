@@ -1,5 +1,5 @@
 // Why a sentence from the source document was not graded, in plain words
-// (SITE-MVP §2.3, Sept 2026).
+// (SITE-MVP §2.3).
 //
 // The rejection classes are internal taxonomy (TRIAGE §2.2) and stay internal:
 // the page prints the description, never the class name, on the same rule that
@@ -26,6 +26,21 @@ export interface RejectionDescription {
  * typecheck failure here until someone writes copy for it.
  */
 export const REJECTION_DESCRIPTIONS: Record<RejectionClass, RejectionDescription> = {
+  // ADR-0025 folded speakership into the triage decision, so the two classes that
+  // mean "not a claim we assess" now arrive through the same drop log as opinion
+  // and rhetoric. They are different reasons — one is about whose words it is, the
+  // other about whether the speaker could be resolved at all — and a reader
+  // judging the boundary needs both stated separately.
+  "outlet-prose": {
+    label: "the outlet's own words",
+    description:
+      "The newsroom narrating, summarising or setting the scene. Not a claim by anyone, so there is nothing here to check.",
+  },
+  unresolved: {
+    label: "a quotation we could not place",
+    description:
+      "Words in quotation marks whose speaker could not be established from the text. It was set aside rather than guessed at, because attributing it wrongly would put words in someone's mouth.",
+  },
   opinion: {
     label: "an opinion",
     description: "A judgement about fairness or importance, which no evidence can settle.",

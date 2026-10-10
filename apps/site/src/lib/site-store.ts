@@ -6,8 +6,8 @@
 //
 // The LIVE reader and the read model both live in `@cw/store`
 // (`site-reader.ts`): the store owns the single definition of
-// claim/verdict/evidence shapes (STORE §2.1), and the site's own SELECT list was
-// string SQL that nothing bound to the schema (Sept 2026). This module keeps
+// claim/verdict/evidence shapes (STORE §2.1); a site-owned SELECT list would be
+// string SQL that nothing binds to the schema. This module keeps
 // only the DI seam and the fixtures; the read-model types are re-exported so
 // page code and tests keep importing them from `@/lib/site-store`.
 
@@ -29,7 +29,7 @@ export interface SiteStore {
 /**
  * `?corpus=all` on a page switches the reader to the records that are NOT
  * eligible for the public record: no ingested document, or a speakership class
- * that is out of scope (ADR-0019). The public default is provenance-backed,
+ * that is out of scope (ADR-0025). The public default is provenance-backed,
  * positively in-scope claims only — see `SiteReadOptions.includeIneligible` for
  * why, and keep this the ONLY place the query string is interpreted.
  */

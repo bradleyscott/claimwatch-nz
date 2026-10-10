@@ -28,7 +28,7 @@ const BANNED_PATTERNS = [
 ];
 
 /**
- * The key to the values the audit lines print (SITE-MVP §2.3, Sept 2026). The
+ * The key to the values the audit lines print (SITE-MVP §2.3). The
  * lines label their own parts in plain words, so this defines only what a plain
  * label cannot carry: the form of a prompt version, the source-type codes, the
  * verdict states this page is not currently printing, and the sentinel the page
@@ -41,9 +41,24 @@ export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string
       "the instructions a step ran, and their version, as our system recorded them. A new number means the instructions changed. The old version is kept, so any verdict can be re-checked against the instructions that made it.",
   },
   {
-    term: "checks",
+    term: "turns",
     meaning:
-      "the procedures this verification ran, by their internal names. A claim can be checked more than one way — a quotation and a number in the same sentence need two answers — so this lists every procedure the plan used, in the order it used them.",
+      "how many times the research loop went round: plan the evidence, search for it, then decide whether what was found is enough. Each turn is a fresh look, not a repeat.",
+  },
+  {
+    term: "capped",
+    meaning:
+      "the loop stops after a fixed number of turns. This says the limit was reached, so the search stopped there rather than the evidence running out.",
+  },
+  {
+    term: "agreement",
+    meaning:
+      'the decision is made twice, because our models give slightly different answers to identical input. "agreed" means both runs reached the same class and it was published; "disagreed" means they did not, and "we could not verify this" was published instead of picking one.',
+  },
+  {
+    term: "plans",
+    meaning:
+      "how many evidence plans the assessor wrote — one per turn. A later plan responds to what the earlier critique found missing.",
   },
   {
     term: "source type codes",
@@ -62,7 +77,7 @@ export const TECHNICAL_RECORD_KEY: ReadonlyArray<{ term: string; meaning: string
 ];
 
 /**
- * The labels an audit line may carry (SITE-MVP §2.2 rule 4, revised Sept 2026).
+ * The labels an audit line may carry (SITE-MVP §2.2 rule 4).
  * The audit lines are the one region the register scan cannot police — they
  * exist to print the raw values — so this list is what replaces it:
  * `assertAuditLabelsKnown` fails the build on a label nobody reviewed, rather
@@ -81,11 +96,18 @@ export const AUDIT_LABELS: readonly string[] = [
   "held",
   "kind",
   "check",
-  // ADR-0023: a claim can have been checked several ways, so the audit line
-  // names the set of procedures rather than one check. Both labels are reviewed;
-  // `checks` cannot be confused with `check` because a label may not be a prefix
-  // of another and `checks ` does not start with `check `.
-  "checks",
+  // ADR-0026: the loop's own vocabulary. `plans`, `questions` and `searches`
+  // count what the assessor asked for; `turns` and `capped` describe how far the
+  // loop got; `agreement` is the class-agreement state. All reviewed, and none is
+  // a prefix of another.
+  "plans",
+  "questions",
+  "searches",
+  "turns",
+  "capped",
+  "agreement",
+  "plan not recorded",
+  "loop not recorded",
   "model",
   "instructions",
   "sources",
@@ -116,6 +138,41 @@ export function assertAuditLabelsKnown(auditLine: string): void {
       );
     }
   }
+}
+
+/**
+ * Plain-language replacements for internal vocabulary a model can write into its
+ * own prose (a strategy, a reason, a justification).
+ */
+const REGISTER_REPLACEMENTS: ReadonlyArray<{ pattern: RegExp; replacement: string }> = [
+  { pattern: /sensitivity grid/gi, replacement: "the figures" },
+  { pattern: /extraction ladder/gi, replacement: "the fetch fallbacks" },
+  { pattern: /NLI audit/gi, replacement: "the check" },
+  { pattern: /tier[- ]2/gi, replacement: "the caption" },
+  { pattern: /stratum/gi, replacement: "group" },
+  { pattern: /discourse context/gi, replacement: "the context" },
+  { pattern: /fingerprint/gi, replacement: "the claim key" },
+  { pattern: /pgvector/gi, replacement: "the search index" },
+  { pattern: /drizzle/gi, replacement: "the database tool" },
+  { pattern: /\bcompletely\s+(wrong|false)\b/gi, replacement: "not supported by the evidence" },
+  { pattern: /\babsolutely\s+(true|false)\b/gi, replacement: "not supported as stated" },
+  { pattern: /\bhalf[- ]true\b/gi, replacement: "partly supported" },
+  { pattern: /\bmostly\s+false\b/gi, replacement: "not supported as stated" },
+];
+
+/**
+ * Translate internal vocabulary out of text a model wrote. The register scan is a
+ * build gate on OUR copy; model-generated prose is data, and a banned term in it
+ * must not fail the build — it is translated here instead, so no internal term
+ * reaches a reader and the page still renders. Verbatim source passages are left
+ * untouched (a quotation is the source's words, not ours).
+ */
+export function sanitiseRegisterText(text: string): string {
+  let out = text;
+  for (const { pattern, replacement } of REGISTER_REPLACEMENTS) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
 }
 
 export function assertRegisterSafe(publicText: string): void {

@@ -71,13 +71,14 @@ export default async function ClaimPage({
   const model = buildVerdictPageModel({
     claimId: data.claimId,
     claimText: data.claimText,
+    claimQuote: data.claimQuote ?? null,
     speaker: data.speaker,
     speakerVenue: data.speakerVenue,
     speakerAffiliation: data.speakerAffiliation,
     publishedAt: data.publishedAt,
     verdictClass: data.verdictClass,
     confidence: data.confidence,
-    attachedProposal: data.attachedProposal,
+    supports: data.supports,
     claimPassage: data.claimPassage,
     policyTopic: data.policyTopic,
     mediaAnchor: data.mediaAnchor,
@@ -91,18 +92,16 @@ export default async function ClaimPage({
     claimMadeAt: data.claimMadeAt,
     claimRecordedAt: data.claimRecordedAt,
     sourceRetrievedAt: data.sourceRetrievedAt,
-    claimType: data.claimType,
-    // Both nullable, and passed through as null rather than omitted (Sept 2026):
-    // the trail needs to tell "we hold no mode for this claim" from "this claim is
-    // old", and every verdict written before the columns existed is the former.
-    plan: data.plan,
+    // Nullable, and passed through as null rather than omitted: the trail needs
+    // to tell "we hold no loop record for this claim" from "there is nothing to
+    // record", and a null is the former.
+    research: data.research,
     triageRecord: data.triageRecord,
     publisher: data.publisher,
     sourceUrl: data.sourceUrl,
     claimPromptVersions: data.claimPromptVersions,
     claimModelVersion: data.claimModelVersion,
     checkedAt: data.checkedAt,
-    nliOutcome: data.nliOutcome,
     verdictVersion: data.verdictVersion,
     verdictStatus: data.verdictStatus,
   });
@@ -151,7 +150,7 @@ export default async function ClaimPage({
       <Card className="mt-4 gap-0 px-7 py-7" aria-label="The claim">
         <div className="microlabel mb-4">The claim</div>
         <blockquote className="font-serif text-[30px] leading-[1.27] tracking-[-.01em]">
-          “{data.claimText}”
+          “{data.claimQuote ?? data.claimText}”
         </blockquote>
         {/* One line: who said it, where it was said, the original item it came
             from, and when. The source link sits inline so a reader can read the
@@ -241,8 +240,25 @@ export default async function ClaimPage({
               </span>
               In context{data.policyTopic ? ` · ${data.policyTopic}` : ""}
             </summary>
-            <div className="mt-3 space-y-3 text-[14px] leading-relaxed text-muted-foreground">
-              {passageParagraphs(data.claimPassage, data.claimText)}
+            {/* Why the claim mattered to the argument comes first, because it is
+                what the passage below is being read for. */}
+            {data.supports ? (
+              <p className="mt-3 border-l-[3px] border-border pl-3 text-[13.5px] leading-relaxed text-foreground">
+                <span className="font-semibold">Checked as support for:</span> {data.supports}
+              </p>
+            ) : null}
+            {/* The passage is a slice of a longer document, so its start and end
+                are cut arbitrarily: the dashed edges and the ellipses say so, and
+                the reader is not invited to read the first and last line as the
+                document's own beginning and end. */}
+            <div className="relative mt-4 border-y border-dashed border-border py-3 text-[14px] leading-relaxed text-muted-foreground">
+              <span
+                aria-hidden="true"
+                className="absolute -top-2 left-0 bg-card px-1 text-[10px] font-bold tracking-[.14em] text-faint uppercase"
+              >
+                Excerpt
+              </span>
+              {passageParagraphs(data.claimPassage, data.claimText, { excerpt: true })}
             </div>
           </details>
         ) : null}
@@ -262,11 +278,6 @@ export default async function ClaimPage({
         <p className="mt-2 max-w-[620px] text-[19px] leading-[1.42] font-semibold">
           {model.plainSummary}
         </p>
-        {data.attachedProposal ? (
-          <p className={cn("mt-3 border-l-[3px] border-current/30 pl-3 text-[12.5px]", tone.ink)}>
-            Checked as support for: {data.attachedProposal}
-          </p>
-        ) : null}
         {justifications.length > 0 ? (
           <div className="mt-3 space-y-2 border-border">
             {justifications.map((justification) => (
@@ -364,10 +375,7 @@ export default async function ClaimPage({
         )}
       </Card>
 
-      {/* How this verdict was made — the dated trail (SITE-MVP §2.3). It
-          replaced three things that said the same thing: a collapsed provenance
-          accordion, the "Checked … · How we check claims" metarow, and a dashed
-          paragraph that restated the accordion's own heading and body. The
+      {/* How this verdict was made — the dated trail (SITE-MVP §2.3). The
           technical record is the one place internal vocabulary is permitted
           (§2.2 rule 4) and sits behind this block's single control. */}
       <VerdictTrail trail={model.trail} />
@@ -381,28 +389,44 @@ export default async function ClaimPage({
  * window (a normalised claim, an edited window) — the reader still gets the
  * context.
  */
-function passageParagraphs(passage: string, claimText: string): ReactNode[] {
+function passageParagraphs(
+  passage: string,
+  claimText: string,
+  opts?: { excerpt?: boolean },
+): ReactNode[] {
   const needle = claimText.trim();
-  return passage
+  const blocks = passage
     .split("\n")
     .map((block) => block.trim())
-    .filter((block) => block.length > 0)
-    .map((block) => {
-      const at = needle.length > 0 ? block.indexOf(needle) : -1;
-      // The block's own text is the stable key: the passage is a fixed set of
-      // paragraphs, and quoting one verbatim twice is not a thing that happens.
-      const key = block.slice(0, 64);
-      if (at < 0) return <p key={key}>{block}</p>;
-      return (
-        <p key={key}>
-          {block.slice(0, at)}
-          <mark className="bg-transparent font-semibold text-foreground">
-            {block.slice(at, at + needle.length)}
-          </mark>
-          {block.slice(at + needle.length)}
-        </p>
-      );
-    });
+    .filter((block) => block.length > 0);
+  return blocks.map((block, index) => {
+    const at = needle.length > 0 ? block.indexOf(needle) : -1;
+    // The block's own text is the stable key: the passage is a fixed set of
+    // paragraphs, and quoting one verbatim twice is not a thing that happens.
+    const key = `${index}-${block.slice(0, 48)}`;
+    const ellipsis = (position: "start" | "end") => (
+      <span aria-hidden="true" className="select-none text-faint">
+        {position === "start" ? "… " : " …"}
+      </span>
+    );
+    return (
+      <p key={key} className="[&:not(:first-child)]:mt-3">
+        {opts?.excerpt && index === 0 ? ellipsis("start") : null}
+        {at < 0 ? (
+          block
+        ) : (
+          <>
+            {block.slice(0, at)}
+            <mark className="bg-transparent font-semibold text-foreground">
+              {block.slice(at, at + needle.length)}
+            </mark>
+            {block.slice(at + needle.length)}
+          </>
+        )}
+        {opts?.excerpt && index === blocks.length - 1 ? ellipsis("end") : null}
+      </p>
+    );
+  });
 }
 
 /** A publication's display name when the store holds no publisher: its host. */

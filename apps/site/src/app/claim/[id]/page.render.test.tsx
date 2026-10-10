@@ -24,7 +24,7 @@ const pageData = {
   publishedAt: new Date("2026-09-09T10:12:00+12:00"),
   verdictClass: "conflicting_cherry_picking" as const,
   confidence: 0.72,
-  attachedProposal: "tougher sentencing package",
+  supports: "tougher sentencing package",
   claimPassage:
     "The Prime Minister was asked about crime at today's press conference.\nCrime is up 30% since 2017.",
   policyTopic: "crime",
@@ -68,7 +68,10 @@ const pageData = {
     },
   ],
   pipelineVersion: "0.1.0",
-  promptVersions: { "citation-compare": "citation-compare@1" },
+  promptVersions: {
+    "claim-assessor": "claim-assessor@1",
+    "evidence-critiquer": "evidence-critiquer@1",
+  },
   justifications: ["The cited window shows +11.6%, per-capita +1.9%."],
   modelVersions: { "citation-compare": "claude-sonnet-5" },
   searchRefs: [],
@@ -77,61 +80,90 @@ const pageData = {
   claimMadeAt: new Date("2026-09-08T07:42:00+12:00"),
   claimRecordedAt: new Date("2026-09-09T09:26:00+12:00"),
   sourceRetrievedAt: new Date("2026-09-09T09:10:00+12:00"),
-  claimType: "statistical",
-  // ADR-0019's eligibility input, and eligible here: the claim is a resolvable
+  // ADR-0025's eligibility input, and eligible here: the claim is a resolvable
   // quoted actor's, which is why the page renders at all. A claim the outlet
   // wrote itself (`outlet-prose`) or one with no classification does not reach
   // the public record — the reader's gate, not the page, decides that.
   speakershipClass: "quoted-actor",
-  // ...and a complete decision: the ADR-0019 gate requires the method and genre
-  // too, so a class with no provenance cannot publish (ADR-0019 §5).
+  // ...and a complete decision: the ADR-0025 gate requires the method and genre
+  // too, so a class with no provenance cannot publish (ADR-0025).
   speakershipMethod: "structural",
   genre: "transcript",
   publisher: "Newstalk ZB",
   checkedAt: new Date("2026-09-09T09:40:00+12:00"),
-  nliOutcome: "pass",
   verdictVersion: 1,
   verdictStatus: "PUBLISHED",
-  claimPromptVersions: { "triage-typing": "triage-typing@1" },
+  claimPromptVersions: { "triage-checkability": "triage-checkability@1" },
   claimModelVersion: "claude-sonnet-5",
-  // Deliberately absent in this fixture: it dates from before the columns
-  // existed (`claim.triage_record`, Sept 2026; `verification_plan`, ADR-0023),
-  // and null is the state all pre-migration verdicts are in — so this fixture
-  // keeps rendering exactly what it rendered before. The plan-aware section
-  // needs its own fixture with both values set.
-  plan: null,
+  // Deliberately null in this fixture: it is the state a verdict with no
+  // triage record and no research loop is in, which is the commonest state in
+  // the store. The loop-aware section needs its own fixture with both set.
+  research: null,
   triageRecord: null,
 } as const satisfies VerdictPageData;
 
 /**
- * The same claim recorded AFTER the two Sept 2026 columns existed. Kept as a
- * second fixture rather than merged into `pageData`, because the null state is
- * not a leftover: it is what all 25 verdicts written before the migration look
- * like, so BOTH paths are live code and both get rendered here.
+ * The same claim recorded AFTER the trail's inputs existed. Kept as a second
+ * fixture rather than merged into `pageData`, because the null state is not a
+ * leftover: both paths are live code and both get rendered here.
  */
 const pageDataWithMode = {
   ...pageData,
-  plan: {
-    libraryVersion: "proc-lib-2026-09",
-    features: {
-      category: "crime-statistics",
-      assertsNumber: true,
-      quotesPerson: false,
-      citesDocument: false,
-      attachesToProposal: true,
-    },
-    steps: [
+  research: {
+    turns: [
       {
-        procedureRef: "stat-grid",
-        procedureVersion: "stat-grid@1",
-        reason: "the claim states a number",
-        source: "required" as const,
-        status: "ran" as const,
-        declineReason: null,
-        outcome: "conflicting_cherry_picking",
+        round: 0,
+        plan: {
+          evidencePlan: "Find the official victimisation series for the period the claim names.",
+          questions: ["What does the official series show from 2017 to 2026?"],
+          sources: ["NZ Police policedata.nz victimisations"],
+        },
+        strategy: "Start from the official victimisation series.",
+        queries: [
+          "victimisations monthly 2017 2026 policedata",
+          "victimisations revised downwards 2017 2026",
+        ],
+        toolCalls: [
+          { toolName: "search", input: { query: "victimisations" }, resultSummary: "6 results" },
+          {
+            toolName: "readPage",
+            input: { url: "https://www.policedata.nz/victimisations" },
+            resultSummary: "3,100 chars",
+          },
+          {
+            toolName: "extractEvidence",
+            input: { question: "what does the series show from 2017?" },
+            resultSummary: "1 passage",
+          },
+          { toolName: "finish", input: { reason: "the series answers it" }, resultSummary: "" },
+        ],
+        evidenceFound: [
+          {
+            url: "https://www.policedata.nz/victimisations",
+            title: "Victimisations monthly",
+            domain: "policedata.nz",
+            passage: "Victimisations rose 11.6% between 2017 and 2026.",
+            tier: 1,
+          },
+        ],
+        critique: {
+          sufficient: true,
+          verdictClass: "conflicting_cherry_picking" as const,
+          confidence: 0.8,
+          reason: "The official series shows a smaller rise than the claim states.",
+          gaps: [],
+          justifications: ["The series rose 11.6% between 2017 and 2026."],
+        },
       },
     ],
-    notAttempted: [],
+    turnsUsed: 1,
+    capBinding: 3,
+    capped: false,
+    stopReason: "sufficient",
+    budgetUsd: 0.25,
+    spentUsd: 0.07,
+    reason: "The official series shows a smaller rise than the claim states.",
+    agreement: { agreed: true, classes: ["conflicting_cherry_picking"] },
   },
   triageRecord: {
     sentencesRead: 11,
@@ -270,7 +302,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).toContain("source types T1, T6");
   });
 
-  it("renders the mode-aware trail — every section, dated — in the initial HTML (SITE-MVP §2.3)", async () => {
+  it("renders the loop-aware trail — every section, dated — in the initial HTML (SITE-MVP §2.3)", async () => {
     const html = await renderVerdictPageWithMode(claimId);
     // The block states the checked date against the claim's own date...
     expect(html).toContain("How this verdict was made");
@@ -278,8 +310,8 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // ...and carries all five sections, in order, in jargon-free titles.
     const headings = [
       "What else was in the document",
-      "The checks this claim got",
-      "How it was checked: official figures",
+      "What evidence would settle this claim",
+      "How this claim was checked",
       "Sources we used",
       "Decided and published",
     ];
@@ -302,12 +334,14 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     // context rather than floating free.
     expect(html).toContain("In context");
     expect(html).toContain("The Prime Minister was asked about crime") /* passage lead */;
-    // What the claim was read as, and which check that produced.
-    expect(html).toContain("a number stated over a period");
-    expect(html).toContain("checks stat-grid");
-    // What this check cannot establish — the bound, which no mode may omit.
-    expect(html).toContain("What this check cannot establish");
-    expect(html).toContain("Show that one thing caused another.");
+    // The evidence plan the loop worked to, and the finding it reached.
+    expect(html).toContain("Find the official victimisation series");
+    expect(html).toContain("1 source found");
+    expect(html).toContain("smaller rise than the claim states");
+    // The bound, which no loop section may omit. This record names no gaps, so
+    // the loop's structural limit is stated instead.
+    expect(html).toContain("What this loop cannot establish");
+    expect(html).toContain("where the search stopped");
     // The sentences we did not check, with a plain reason instead of the class.
     expect(html).toContain("Communities deserve to feel safe.");
     expect(html).toContain("A judgement about fairness or importance");
@@ -321,7 +355,7 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     );
     expect(html).toContain("dated 30 Jun 2026 · fetched 9 Sept 2026");
     expect(html).toContain("The cited window shows +11.6%, per-capita +1.9%.");
-    expect(html).toContain("agreed with the reasoning");
+    expect(html).toContain("judged sufficient to decide the claim");
     // ...and the key that explains the values those audit lines print — the
     // labels are plain words, so only the opaque forms need defining — is in the
     // same server-rendered response, not behind a script.
@@ -337,24 +371,24 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
     expect(html).not.toContain('type="checkbox"');
   });
 
-  it("renders an absence for the claims that predate the mode columns, not a guess", async () => {
+  it("renders an absence for the claims that predate the loop record, not a guess", async () => {
     const html = await renderVerdictPage(claimId);
-    // This is the state every verdict written before Sept 2026 is in. The page
-    // says what it does not hold; it does not describe a check it cannot name.
+    // The page says what it does not hold; it does not describe a check it cannot
+    // name.
     expect(html).toContain("data-trail-absent");
-    expect(html).toContain("We have no record of which checks");
+    expect(html).toContain("We have no record of the research loop");
+    expect(html).toContain("no record of the evidence plan");
     expect(html).toContain("cannot say how much of the document");
-    expect(html).toContain("checks not recorded");
+    expect(html).toContain("loop not recorded");
+    expect(html).toContain("plan not recorded");
     expect(html).toContain("sentences not recorded");
-    // And it never invents the bound for a check it could not identify.
-    expect(html).not.toContain("What this check cannot establish");
+    // And it never invents a bound for a loop it could not identify.
+    expect(html).not.toContain("What this loop cannot establish");
   });
 
-  it("states the explained-away duplication exactly once (the old footer paragraph is gone)", async () => {
+  it("states the methodology link exactly once, with no copy restating the block", async () => {
     const html = await renderVerdictPage(claimId);
-    // The paragraph that restated the accordion's own heading, and the metarow
-    // that repeated the methodology link, were removed with the redesign: one
-    // "How we check claims" link remains, and no copy restates the block.
+    // One "How we check claims" link, and no copy restating the block.
     expect(html).not.toContain("produced by our automated pipeline");
     const howWeCheck = html.match(/How we check claims/g) ?? [];
     expect(howWeCheck).toHaveLength(1);
@@ -393,12 +427,12 @@ describe("L4a: verdict page SSR HTML (pre-hydration)", () => {
 
   it("renders prompt versions without re-prefixing the role (it is already in the value)", async () => {
     const html = await renderVerdictPageWithMode(claimId);
-    expect(html).toContain("citation-compare@1");
-    expect(html).not.toContain("citation-compare@citation-compare@1");
+    expect(html).toContain("claim-assessor@1");
+    expect(html).not.toContain("claim-assessor@claim-assessor@1");
     // Roles recorded on the claim itself reach the section for the reading
     // (with the model that typed the claim), and the claim's own date governs
     // the claim card — not the day the verdict was published.
-    expect(html).toContain("triage-typing@1");
+    expect(html).toContain("triage-checkability@1");
     expect(html).toContain("model claude-sonnet-5");
     expect(html).toContain("8 September 2026");
   });

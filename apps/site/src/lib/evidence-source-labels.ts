@@ -69,11 +69,11 @@ export const EVIDENCE_SOURCE_SCALE: readonly EvidenceSourceDescription[] = [
 /**
  * Applied to any row the scale above does not cover, including a row with no
  * stored code at all. The no-code case is common today and is not a downgrade
- * we chose: the adjudicator returns a source finding without always returning a
- * code for it (`ops/live-averitec-one.ts` maps `finding?.tier ?? null`), and no
- * current path writes stat-grid series rows as evidence. So we say "not
- * classified" rather than guess a grade, and such rows sort last — nothing in
- * the store vouches for them.
+ * we chose: the research loop's extraction returns a source finding without
+ * always returning a code for it (`ops/live-support.ts` passes `tier` straight
+ * through, null when unclassified). So
+ * we say "not classified" rather than guess a grade, and such rows sort last —
+ * nothing in the store vouches for them.
  */
 export const EVIDENCE_SOURCE_NOT_CLASSIFIED: EvidenceSourceDescription = {
   code: null,

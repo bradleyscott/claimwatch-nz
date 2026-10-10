@@ -13,7 +13,7 @@ import {
   type TrailSection,
 } from "@/lib/verdict-page";
 
-// "How this verdict was made" (SITE-MVP §2.3, Sept 2026) — the mode-aware
+// "How this verdict was made" (SITE-MVP §2.3) — the
 // account of the check: what the claim was read as, which check that produced,
 // how that kind of check works and what it did here, what it was compared
 // against, and the second pass on our own reasoning.
@@ -93,7 +93,10 @@ function TrailSectionRow({ section }: { section: TrailSection }) {
           <div className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
             <div className="microlabel mb-0">
               {section.bounds.length === 1
-                ? "What this check cannot establish"
+                ? // The trail names its own bound, so the heading is not duplicated
+                  // here: one bound is "what this loop cannot establish", several
+                  // are the critiquer's named gaps.
+                  (section.bounds[0]?.label ?? "What this check cannot establish")
                 : "What these checks cannot establish"}
             </div>
             {section.bounds.map((bound) =>

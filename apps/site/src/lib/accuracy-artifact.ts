@@ -5,14 +5,24 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
+import { assertRegisterSafe } from "./verdict-register.ts";
 
 export const AccuracyArtifact = z.object({
   runId: z.string(),
   generatedAt: z.string(),
   storeSchemaVersion: z.string(),
+  // The grouping axis is the harness's, and it changes when the pipeline does
+  // (ADR-0026 makes it per-turn / per-class). So the VALUE is a non-empty string
+  // rather than a closed enum.
+  //
+  // The structure is still validated — a missing or malformed artifact still
+  // fails the build (SIT-R2) — because that rule is about refusing to render a
+  // stale or invented number, not about the vocabulary of the labels. Failing the
+  // build over a group name would block the site on a change it cannot make, which
+  // is the opposite of the honesty SIT-R2 wants.
   modes: z.array(
     z.object({
-      mode: z.enum(["stat-grid", "citation-check", "quote-fidelity", "provenance", "open-web"]),
+      mode: z.string().min(1),
       accuracy: z.number().min(0).max(1),
       n: z.number().int().positive(),
       costPerClaim: z.number().nonnegative(),
@@ -49,13 +59,38 @@ export function loadAccuracyArtifact(
   return result.data;
 }
 
-const MODE_LABELS: Record<string, string> = {
-  "stat-grid": "Statistical claims checked against official data",
-  "citation-check": "Claims checked against the source they cite",
-  "quote-fidelity": "Broadcast claims checked against the record we hold",
-  provenance: "Claims shown in the wrong context (demonstration set)",
-  "open-web": "Everything else, checked against the open web",
-};
+/**
+ * Reader-facing labels for the groups the harness has reported so far.
+ *
+ * The five entries are the retired per-procedure axis, kept so an artifact from
+ * The methodology page prints accuracy figures, and a mislabelled row is a worse
+ * failure than a generically labelled one.
+ */
+
+/**
+ * A label for a group this site has no copy for.
+ *
+ * The methodology page does NOT run the register scan (the scan guards verdict
+ * copy), so an unknown key reaching the page would print internal vocabulary —
+ * `stratum-3`, say — straight into public copy. So the key is humanised only
+ * when it survives the register check, and otherwise replaced wholesale. A
+ * reader gets a plain row either way; the exact group name is on the run record,
+ * which is where an internal identifier belongs.
+ *
+ * This is deliberately STRICTER than AGENTS rule 9, which exempts `/methodology`
+ * from the banned terms. A reader looking at accuracy figures gains nothing from
+ * a group named after our internal axis, and "Claims checked" is honest where
+ * "Stratum 3" is not.
+ */
+function labelForMode(mode: string): string {
+  const humanised = mode.replace(/-/g, " ");
+  try {
+    assertRegisterSafe(humanised);
+    return humanised.charAt(0).toUpperCase() + humanised.slice(1);
+  } catch {
+    return "Claims checked";
+  }
+}
 
 export interface AccuracyTableRow {
   mode: string;
@@ -68,7 +103,7 @@ export interface AccuracyTableRow {
 export function renderAccuracyTable(artifact: AccuracyArtifact): AccuracyTableRow[] {
   return artifact.modes.map((m) => ({
     mode: m.mode,
-    label: MODE_LABELS[m.mode] ?? m.mode,
+    label: labelForMode(m.mode),
     accuracyPercent: Math.round(m.accuracy * 1000) / 10,
     n: m.n,
     costPerClaim: m.costPerClaim,

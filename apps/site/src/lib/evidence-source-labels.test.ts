@@ -71,7 +71,7 @@ describe("evidence-source descriptions (SITE-MVP §2.3)", () => {
   it("renders 'Not classified' for a row the pipeline did not code, and for a code off the scale", () => {
     // A null code is today's common case for open-web rows (the adjudicator
     // returns a finding without always returning a code) — since no current
-    // path writes stat-grid series rows, null is not a stand-in for "the series
+    // path writes a source finding, null is not a stand-in for "the series
     // itself" and must not be shown as if it were strong evidence.
     expect(describeEvidenceSource(null).label).toBe("Not classified");
     for (const code of [0, 4, 7, 99]) {
